@@ -45,14 +45,25 @@ def random_ema(participant_zip, participant_id):
     bz2_marker = 'EMA+RANDOM_EMA+PHONE.csv.bz2'
     zip_matching = [s for s in zip_namelist if bz2_marker in s]
     bz2_file = participant_zip.open(zip_matching[0])
-    newfile = bz2.decompress(bz2_file.read())
+    tempfile = bz2.decompress(bz2_file.read())
 
-    tempfile = newfile.rstrip('\n').split('\r')
-    tempfile = tempfile.replace("\n", "")
+    tempfile = tempfile.rstrip('\n').split('\r')
     tempfile.pop()
     for line in tempfile:
-        line = line.replace("\n", ",")
+        line = line.replace("\n", "")
         ts, offset, values = line.rstrip().split(',', 2)
+        values = values.replace("\'","")
+        test = json.loads(values)
+        test['question_answers'][0]['response'] # Smoked?
+        test['question_answers'][1]['response'] # When
+        test['question_answers'][1]['response'] # When
+
+        # 0: smoked?, 1: when smoke,
+        # 2: eaten, 3: when eaten,
+        # 4: drink, 5: when drink
+        # 7: urge, 8: cheerful, 9:happy, 10:angry,
+        # 11: stressed, 12: sad, 13:see/smell,
+        # 14: access, 15: smoking location,
     newfile = newfile.split(",")
 
     
