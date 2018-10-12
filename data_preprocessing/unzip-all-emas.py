@@ -1,4 +1,3 @@
-
 # coding: utf-8
 
 # In[ ]:
@@ -16,6 +15,7 @@ import glob
 
 def unix_date(intime):
     return (datetime.fromtimestamp(int(intime)/1000).strftime('%Y-%m-%d %H:%M:%S'))
+
 def time_of_day(intime):
     return (datetime.fromtimestamp(int(intime)/1000).strftime("%H"))
 def day_of_week(intime):
@@ -58,6 +58,7 @@ def day_week(inday):
         return 6
     else:
         return 7
+
 for i in range(201,223,1):
     print (i)
     flag = 0

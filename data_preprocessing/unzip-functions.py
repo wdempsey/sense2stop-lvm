@@ -46,10 +46,16 @@ def random_ema(participant_zip, participant_id):
     zip_matching = [s for s in zip_namelist if bz2_marker in s]
     bz2_file = participant_zip.open(zip_matching[0])
     newfile = bz2.decompress(bz2_file.read())
-    newfile = newfile.replace("\r", "")
-    newfile = newfile.replace("\n", ",")
+
+    tempfile = newfile.rstrip('\n').split('\r')
+    tempfile = tempfile.replace("\n", "")
+    tempfile.pop()
+    for line in tempfile:
+        line = line.replace("\n", ",")
+        ts, offset, values = line.rstrip().split(',', 2)
     newfile = newfile.split(",")
-    newfile.pop()
+
+    
     df = pd.DataFrame(np.array(newfile).reshape(-1, 3),
                       columns=['time', 'offset', 'event'])
     df['id'] = participant_id    
@@ -65,4 +71,16 @@ def random_ema(participant_zip, participant_id):
     temp_csv_file.close()
     print('Added to file!')
 
-    
+
+
+s = []
+file = participant_zip.open(zip_matching[0],'r')
+    for line in file.readlines():
+        [ts, offset, jsondata] = line.decode().split(',', 2)
+        a = re.sub('"{', "{", re.sub('}"', "}", jsondata))
+        b = re.sub("u'(.*?)'", "\"\g<1>\"", a)
+        c = re.sub("None", "\"None\"", b)
+        d = re.sub("\"\"", "\\\"", c)
+
+        j = json.loads(d[1:-3])
+        s.append(j)

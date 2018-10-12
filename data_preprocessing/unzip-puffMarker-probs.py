@@ -25,19 +25,12 @@ for participant_id in all_participant_ids:
         zip_namelist = participant_zip.namelist()
         
         puffMarker_marker = 'PUFF_PROBABILITY+PHONE.csv.bz2'
-
         zip_matching = [s for s in zip_namelist if puffMarker_marker in s]
         
         puffMarker_file = participant_zip.open(zip_matching[0])
         
-        newfile = bz2.decompress(puffMarker_file.read())
-        
-        newfile = newfile.replace("\r", "")
-        newfile = newfile.replace("\n", ",")
-        newfile = newfile.split(",")
-        newfile.pop()
-        
-        df = pd.DataFrame(np.array(newfile).reshape(-1, 3),
+        newfile = pd.read_csv(puffMarker_file, compression = 'bz2', header = None)        
+        df = pd.DataFrame(np.array(newfile),
                           columns=['time', 'offset', 'prob'])
         
         df['id'] = participant_id
