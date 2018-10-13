@@ -37,6 +37,31 @@ def smoking_episode(participant_zip, participant_id):
     temp_csv_file.close()
     print('Added to file!')
 
+def strip_random_ema_json(json_data):
+    data = []
+    # 0: smoked?, 1: when smoke,
+    # 2: eaten, 3: when eaten,
+    # 4: drink, 5: when drink
+    # 7: urge, 8: cheerful, 9:happy, 10:angry,
+    # 11: stressed, 12: sad, 13:see/smell,
+    # 14: access, 15: smoking location,
+    htm_questions = range(0,6)
+    ratings_questions = range(8,16)
+    data.extend([json_data['status'].encode('utf-8')])
+    if (json_data['status'] == 'COMPLETED' or json_data['status'] == 'ABANDONED_BY_TIMEOUT'):
+        for i in htm_questions:
+            if json_data['question_answers'][i]['response'] == None:
+                data.append('None')
+            else:
+                data.append([json_data['question_answers'][i]['response'][0].encode('utf-8')])                    
+        for i in ratings_questions:
+            if json_data['question_answers'][i]['response'] == None:
+                data.append('None')
+            else:                    
+                data.append([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])                    
+    else:
+        data.append(['NA'] * (len(htm_questions) + len(ratings_questions)) )
+    return data
 
 def random_ema(participant_zip, participant_id):
     # Inputs: zipfile, participant_id
@@ -53,10 +78,8 @@ def random_ema(participant_zip, participant_id):
         line = line.replace("\n", "")
         ts, offset, values = line.rstrip().split(',', 2)
         values = values.replace("\'","")
-        test = json.loads(values)
-        test['question_answers'][0]['response'] # Smoked?
-        test['question_answers'][1]['response'] # When
-        test['question_answers'][1]['response'] # When
+        json_data = json.loads(values)
+        stripped_json = strip_random_ema_json(json_data)
 
         # 0: smoked?, 1: when smoke,
         # 2: eaten, 3: when eaten,
