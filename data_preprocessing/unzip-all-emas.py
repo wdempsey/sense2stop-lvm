@@ -14,16 +14,24 @@ import glob
 
 
 def unix_date(intime):
-    return (datetime.fromtimestamp(int(intime)/1000).strftime('%Y-%m-%d %H:%M:%S'))
+    return ( datetime.fromtimestamp(int(intime)/
+                                   1000).strftime('%Y-%m-%d %H:%M:%S'))
+
 
 def time_of_day(intime):
     return (datetime.fromtimestamp(int(intime)/1000).strftime("%H"))
+
+
 def day_of_week(intime):
     return (datetime.fromtimestamp(int(intime)/1000).strftime("%A"))
+
+
 def days_between(d1, d2):
     d1 = datetime.strptime(d1, "%Y-%m-%d")
     d2 = datetime.strptime(d2, "%Y-%m-%d")
     return abs((d2 - d1).days)
+
+
 def date_of_month(intime):
     return (datetime.fromtimestamp(int(intime)/1000).strftime('%Y-%m-%d'))
 
@@ -34,7 +42,9 @@ def to_likert(instring):
         return '2'
     elif instring=="no":
         return '3'
-    elif instring=="yes":
+    elif instring=="No":
+        return '3'
+    elif instring=="Yes":
         return '4'
     elif instring=="YES":
         return '5'
@@ -42,19 +52,20 @@ def to_likert(instring):
         return '6'
     else:
         return instring
-    
+
+
 def day_week(inday):
-    if inday=='Monday':
+    if inday == 'Monday':
         return 1
-    elif inday=='Tuesday':
+    elif inday == 'Tuesday':
         return 2
-    elif inday=='Wednesday':
+    elif inday == 'Wednesday':
         return 3
-    elif inday=='Thursday':
+    elif inday == 'Thursday':
         return 4
-    elif inday=='Friday':
+    elif inday == 'Friday':
         return 5
-    elif inday=='Saturday':
+    elif inday == 'Saturday':
         return 6
     else:
         return 7
@@ -82,8 +93,9 @@ for i in range(201,223,1):
                 ema_input.append(values)
                 ts = int(ts)*1000000 
     
-	#Directory where the day_start file is kept
+    #Directory where the day_start file is kept
     dir_time = 'C:\Soujanya\Estimation_of_First_Lapse\\NU_Data\%s\Day' %id+'\\'
+    
     for fname in glob.glob(dir_time + '*DAY_START+*.csv'):
         with open(fname, 'r') as csvfile:
             for l in csvfile:
@@ -112,7 +124,7 @@ for i in range(201,223,1):
             data.append(str(i+1))     
             data.append(day)
             data.extend([json_data['status'],json_data['start_timestamp'], unix_date(json_data['start_timestamp']),\
-                        time_of_day(json_data['start_timestamp']), day_week(day_of_week(json_data['start_timestamp']))])
+                         time_of_day(json_data['start_timestamp']), day_week(day_of_week(json_data['start_timestamp']))])
             for i in range(len(json_data['question_answers'])):
                 if json_data['question_answers'][i]['response'] == None:
                     data.append('None')
@@ -127,7 +139,7 @@ for i in range(201,223,1):
             data.extend([json_data['status'],json_data['start_timestamp'], unix_date(json_data['start_timestamp']), \
                         time_of_day(json_data['start_timestamp']), day_week(day_of_week(json_data['start_timestamp']))])
         
-		#replace with the directory to store the respective EMA files
+	#replace with the directory to store the respective EMA files
         with open(dir + 'EMA_Random_%s'%id+'.csv', 'a') as csvfile:
             ema_data = csv.writer(csvfile, delimiter=',')        
             if flag==0:       
