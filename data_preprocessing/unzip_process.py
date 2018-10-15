@@ -5,7 +5,7 @@ from unzip_functions import *
 # Insert the directory name where the bz2 file is kept
 dir = '/Users/walterdempsey/Box/MD2K Processed Data/Data Streams'
 
-all_participant_ids = range(201,204) + range(205, 223) + range(228,238)
+all_participant_ids = range(201, 223) + range(228,238)
 
 for participant_id in all_participant_ids:
         print('Now on participant ' + str(participant_id))
