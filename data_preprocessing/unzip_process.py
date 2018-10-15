@@ -1,22 +1,14 @@
-import pandas as pd
-import numpy as np
-import json, ast, csv
-from datetime import datetime
-import os
-import os.path
-from bz2 import BZ2File as bzopen
-import bz2
 import glob
 import zipfile
-from unzip-functions.py import *
+from unzip_functions import *
 
 # Insert the directory name where the bz2 file is kept
 dir = '/Users/walterdempsey/Box/MD2K Processed Data/Data Streams'
 
-all_participant_ids = range(201,223,1) + range(228,238,1)
+all_participant_ids = range(201,204) + range(205, 223) + range(228,238)
 
 for participant_id in all_participant_ids:
-
+        print('Now on participant ' + str(participant_id))
         # File name we are dealing with
         zip_name = '/'+str(participant_id)+'*.zip'
         file_name = glob.glob(dir + zip_name)

@@ -49,6 +49,8 @@ def to_likert(instring):
         return '5'
     elif instring=="YES!!!":
         return '6'
+    elif instring is None:
+        return 'None'
     else:
         return instring
 
@@ -77,27 +79,31 @@ def smoking_episode(participant_zip, participant_id):
     bz2_marker = 'PUFFMARKER_SMOKING_EPISODE+PHONE.csv.bz2'
     zip_matching = [s for s in zip_namelist if bz2_marker in s]
     bz2_file = participant_zip.open(zip_matching[0])
-    newfile = pd.read_csv(bz2_file, compression='bz2', header=None)
-    df = pd.DataFrame(np.array(newfile).reshape(-1, 3),
-                      columns=['timestamp', 'offset', 'event'])
-    df['participant_id'] = participant_id
-    df['date'] = df['timestamp'].apply(unix_date)
-    df['hour'] = df['timestamp'].apply(hour_of_day)
-    df['minute'] = df['timestamp'].apply(minute_of_day)
-    df['day_of_week'] =  df['timestamp'].apply(day_of_week)
-    print(df)
-    save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
-    save_filename = 'puff-episdoe.csv'
-    if os.path.isfile(save_dir + save_filename):
-        append_write = 'a'  # append if already exists
-        header_binary = False
+    if not bz2_file.read():
+        return None
     else:
-        append_write = 'w'  # make a new file if not
-        header_binary = True
-    temp_csv_file = open(save_dir+save_filename, append_write)
-    df.to_csv(temp_csv_file, header=header_binary, index=False)
-    temp_csv_file.close()
-    print('Added to file!')
+        bz2_file = participant_zip.open(zip_matching[0])
+        newfile = pd.read_csv(bz2_file, compression='bz2', header=None)
+        df = pd.DataFrame(np.array(newfile).reshape(-1, 3),
+                          columns=['timestamp', 'offset', 'event'])
+        df['participant_id'] = participant_id
+        df['date'] = df['timestamp'].apply(unix_date)
+        df['hour'] = df['timestamp'].apply(hour_of_day)
+        df['minute'] = df['timestamp'].apply(minute_of_day)
+        df['day_of_week'] =  df['timestamp'].apply(day_of_week)
+        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+        save_filename = 'puff-episode.csv'
+        if os.path.isfile(save_dir + save_filename):
+            append_write = 'a'  # append if already exists
+            header_binary = False
+        else:
+            append_write = 'w'  # make a new file if not
+            header_binary = True
+        temp_csv_file = open(save_dir+save_filename, append_write)
+        df.to_csv(temp_csv_file, header=header_binary, index=False)
+        temp_csv_file.close()
+        print('Added to episode file!')
+        return None
 
 def puff_probability(participant_zip, participant_id):
     # Inputs: zipfile, participant_id
@@ -114,7 +120,6 @@ def puff_probability(participant_zip, participant_id):
     df['hour'] = df['timestamp'].apply(hour_of_day)
     df['minute'] = df['timestamp'].apply(minute_of_day)
     df['day_of_week'] =  df['timestamp'].apply(day_of_week)
-    print(df)
     save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
     save_filename = 'puff-probability.csv'
     if os.path.isfile(save_dir + save_filename):
@@ -126,7 +131,7 @@ def puff_probability(participant_zip, participant_id):
     temp_csv_file = open(save_dir+save_filename, append_write)
     df.to_csv(temp_csv_file, header=header_binary, index=False)
     temp_csv_file.close()
-    print('Added to file!')
+    print('Added to puff probability file!')
 
 
 def strip_random_ema_json(json_data):
@@ -149,7 +154,7 @@ def strip_random_ema_json(json_data):
                 data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])                    
         for i in ratings_questions:
             if json_data['question_answers'][i]['response'] is None:
-                data.extend('None')
+                data.extend(['None'])
             else:                    
                 data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])                    
     else:
@@ -206,11 +211,10 @@ def random_ema(participant_zip, participant_id):
     temp_csv_file = open(save_dir+save_filename, append_write)
     json_df.to_csv(temp_csv_file, header=header_binary, index=False)
     temp_csv_file.close()
-    print('Added to file!')
+    print('Added to random ema file!')
 
-    
+
 def strip_end_of_day_ema_json(json_data):
-    response = json_data['question_answers'][0]['response']
     hourblocks = ['8:00 am - 9:00 am', '9:00 am - 10:00 am',
                   '10:00 am - 11:00 am', '11:00 am - 12:00 pm',
                   '12:00 pm - 1:00 pm', '1:00 pm - 2:00 pm',
@@ -221,6 +225,7 @@ def strip_end_of_day_ema_json(json_data):
     binary_outcome.extend([json_data['status'].encode('utf-8')])
     if (json_data['status'] == 'COMPLETED' or
         json_data['status'] == 'ABANDONED_BY_TIMEOUT'):
+        response = json_data['question_answers'][0]['response']
         for block in hourblocks:
             if block in response:
                 binary_outcome.extend(['1'])
@@ -237,49 +242,54 @@ def end_of_day_ema(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
     bz2_marker = 'EMA+END_OF_DAY_EMA+PHONE.csv.bz2'
     zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    bz2_file = participant_zip.open(zip_matching[0])
-    tempfile = bz2.decompress(bz2_file.read())
-
-    tempfile = tempfile.rstrip('\n').split('\r')
-    tempfile.pop()
-
-    ts_list = []
-    offset_list = []
-    json_list = []
-    for line in tempfile:
-        line = line.replace("\n", "")
-        ts, offset, values = line.rstrip().split(',', 2)
-        ts_list.append(ts)
-        offset_list.append(offset)
-        values = values.replace("\'", "")
-        json_data = json.loads(values)
-        stripped_json = strip_end_of_day_ema_json(json_data)
-        json_list.append(stripped_json)
-
-    json_df = pd.DataFrame(json_list,
-                           columns=['status', '8to9', '9to10', '10to11',
-                                    '11to12', '12to13', '13to14',
-                                    '14to15', '15to16', '16to17', '17to18',
-                                    '18to19', '19to20'])
-    json_df['participant_id'] = participant_id
-    json_df['timestamp'] = ts_list
-    json_df['offset'] = offset_list
-    json_df['date'] = json_df['timestamp'].apply(unix_date)
-    json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
-    json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
-    json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
-    save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
-    save_filename = 'end-of-day-ema.csv'
-    if os.path.isfile(save_dir + save_filename):
-        append_write = 'a' # append if already exists
-        header_binary = False
+    if not zip_matching:
+        print("No end of day ema")
+        return None
     else:
-        append_write = 'w' # make a new file if not
-        header_binary = True
-    temp_csv_file = open(save_dir+save_filename, append_write)
-    json_df.to_csv(temp_csv_file, header=header_binary, index=False)
-    temp_csv_file.close()
-    print('Added to file!')
+        bz2_file = participant_zip.open(zip_matching[0])
+        tempfile = bz2.decompress(bz2_file.read())
+        
+        tempfile = tempfile.rstrip('\n').split('\r')
+        tempfile.pop()
+        
+        ts_list = []
+        offset_list = []
+        json_list = []
+        for line in tempfile:
+            line = line.replace("\n", "")
+            ts, offset, values = line.rstrip().split(',', 2)
+            ts_list.append(ts)
+            offset_list.append(offset)
+            values = values.replace("\'", "")
+            json_data = json.loads(values)
+            stripped_json = strip_end_of_day_ema_json(json_data)
+            json_list.append(stripped_json)
+
+            json_df = pd.DataFrame(json_list,
+                                   columns=['status', '8to9', '9to10', '10to11',
+                                            '11to12', '12to13', '13to14',
+                                            '14to15', '15to16', '16to17', '17to18',
+                                            '18to19', '19to20'])
+            json_df['participant_id'] = participant_id
+            json_df['timestamp'] = ts_list
+            json_df['offset'] = offset_list
+            json_df['date'] = json_df['timestamp'].apply(unix_date)
+            json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
+            json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
+            json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
+            save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+            save_filename = 'end-of-day-ema.csv'
+            if os.path.isfile(save_dir + save_filename):
+                append_write = 'a' # append if already exists
+                header_binary = False
+            else:
+                append_write = 'w' # make a new file if not
+                header_binary = True
+            temp_csv_file = open(save_dir+save_filename, append_write)
+            json_df.to_csv(temp_csv_file, header=header_binary, index=False)
+            temp_csv_file.close()
+            print('Added to end of day ema file!')
+            return None
 
 
 def event_contingent_ema(participant_zip, participant_id):
@@ -288,49 +298,55 @@ def event_contingent_ema(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
     bz2_marker = 'EMA+SMOKING_EMA+PHONE.csv.bz2'
     zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    bz2_file = participant_zip.open(zip_matching[0])
-    tempfile = bz2.decompress(bz2_file.read())
+    if not zip_matching:
+        print("No event contingent ema")
+        return None
+    else: 
+        bz2_file = participant_zip.open(zip_matching[0])
+        tempfile = bz2.decompress(bz2_file.read())
 
-    tempfile = tempfile.rstrip('\n').split('\r')
-    tempfile.pop()
+        tempfile = tempfile.rstrip('\n').split('\r')
+        tempfile.pop()
 
-    ts_list = []
-    offset_list = []
-    json_list = []
-    for line in tempfile:
-        line = line.replace("\n", "")
-        ts, offset, values = line.rstrip().split(',', 2)
-        ts_list.append(ts)
-        offset_list.append(offset)
-        values = values.replace("\'", "")
-        json_data = json.loads(values)
-        stripped_json = strip_event_contingent_json(json_data)
-        json_list.append(stripped_json)
+        ts_list = []
+        offset_list = []
+        json_list = []
+        for line in tempfile:
+            line = line.replace("\n", "")
+            ts, offset, values = line.rstrip().split(',', 2)
+            ts_list.append(ts)
+            offset_list.append(offset)
+            values = values.replace("\'", "")
+            json_data = json.loads(values)
+            stripped_json = strip_event_contingent_json(json_data)
+            json_list.append(stripped_json)
 
-    json_df = pd.DataFrame(json_list,
-                           columns=['status', 'smoke', 'when_smoke',
-                                    'urge', 'cheerful', 'happy', 'angry',
-                                    'stress', 'sad', 'see_or_smell',
-                                    'access', 'smoking_location'])
-    json_df['participant_id'] = participant_id
-    json_df['timestamp'] = ts_list
-    json_df['offset'] = offset_list
-    json_df['date'] = json_df['timestamp'].apply(unix_date)
-    json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
-    json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
-    json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
-    save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
-    save_filename = 'event-contingent-ema.csv'
-    if os.path.isfile(save_dir + save_filename):
-        append_write = 'a' # append if already exists
-        header_binary = False
-    else:
-        append_write = 'w' # make a new file if not
-        header_binary = True
-    temp_csv_file = open(save_dir+save_filename, append_write)
-    json_df.to_csv(temp_csv_file, header=header_binary, index=False)
-    temp_csv_file.close()
-    print('Added to file!')
+            json_df = pd.DataFrame(json_list,
+                                   columns=['status', 'smoke', 'when_smoke',
+                                            'urge', 'cheerful', 'happy',
+                                            'angry', 'stress', 'sad',
+                                            'see_or_smell',
+                                            'access', 'smoking_location'])
+            json_df['participant_id'] = participant_id
+            json_df['timestamp'] = ts_list
+            json_df['offset'] = offset_list
+            json_df['date'] = json_df['timestamp'].apply(unix_date)
+            json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
+            json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
+            json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
+            save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+            save_filename = 'event-contingent-ema.csv'
+            if os.path.isfile(save_dir + save_filename):
+                append_write = 'a' # append if already exists
+                header_binary = False
+            else:
+                append_write = 'w' # make a new file if not
+                header_binary = True
+            temp_csv_file = open(save_dir+save_filename, append_write)
+            json_df.to_csv(temp_csv_file, header=header_binary, index=False)
+            temp_csv_file.close()
+            print('Added to event contingent ema file!')
+            return None
 
 
 def strip_event_contingent_json(json_data):
