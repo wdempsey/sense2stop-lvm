@@ -1,0 +1,83 @@
+---
+title: "Smoking_Data"
+author: "Jason Ma"
+date: "October 16, 2018"
+output: pdf_document
+---
+```{r, eval=TRUE}
+# read in the data
+
+puff_probability = read.csv("puff-probability.csv", header=TRUE)
+puff_episode = read.csv("puff-episode.csv", header=TRUE)
+random_ema = read.csv("random-ema.csv", header=TRUE)
+eod_ema = read.csv("eod-ema.csv", header=TRUE)
+event_ema = read.csv("eventcontingent-ema.csv", header=TRUE)
+
+puff_probability_alt = read.csv("puff-probability-alternative.csv", header=TRUE)
+puff_episode_alt = read.csv("puff-episode-alternative.csv", header=TRUE)
+random_ema_alt = read.csv("random-ema-alternative.csv", header=TRUE)
+eod_ema_alt = read.csv("eod-ema-alternative.csv", header=TRUE)
+event_ema_alt = read.csv("eventcontingent-ema-alternative.csv", header=TRUE)
+
+```
+
+```{r, eval=TRUE}
+# fix some bug in the data before running summaries
+puff_probability  <- puff_probability[puff_probability$event != 224, ]
+puff_episode <- puff_episode[puff_episode$event != 224, ]
+```
+
+## puff_probability
+```{r, eval=TRUE}
+summary(puff_probability$event)
+summary(puff_probability_alt$event)
+t.test(puff_probability$event-puff_probability_alt$event)
+
+boxplot(puff_probability$event, puff_probability_alt$event, names=c('standard', 'alternative'), col=c("blue", "red"))
+```
+The puff_probability data seem ok and consistent across the two files.
+
+## puff_episode
+```{r, eval=TRUE}
+```
+
+## random_ema
+
+How many random EMAs on average?
+```{r, eval=TRUE}
+summary(random_ema$status)
+summary(random_ema_alt$status)
+```
+
+```{r}
+at_most_three <- function(ema) {
+    print("The following participants have random EMAs of more than 3 times on some days")
+    count = 1
+    max_count = 1
+    for (i in 2:nrow(ema)) {
+        current = ema[i,]
+        prev = ema[i-1, ]
+        if (current$participant_id == prev$participant_id) {
+            if ((current$day_of_week == prev$day_of_week)) {
+                count = count + 1
+                max_count = max(max_count, count)
+            }
+            else {
+                count = 1
+            }
+        }
+        else {
+            if (max_count > 3) {
+                print(prev$participant_id)
+            }
+            count = 1
+            max_count = 1
+        }
+    }
+}
+
+at_most_three(random_ema)
+at_most_three(random_ema_alt)
+```
+
+## eod_ema
