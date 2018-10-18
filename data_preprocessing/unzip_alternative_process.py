@@ -1,9 +1,9 @@
 import glob
 import zipfile
-from unzip_function223 import *
+from unzip_alternative_functions import *
 
 # Insert the directory name where the bz2 file is kept
-dir = '/Users/walterdempsey/Box/MD2K Processed Data/Data Streams/Participants'
+dir = '/Users/walterdempsey/Box/MD2K Processed Data/Data Streams/Participants 223-227'
 
 all_participant_ids = range(223, 228)
 
@@ -14,12 +14,12 @@ for participant_id in all_participant_ids:
         file_name = glob.glob(dir + zip_name)
         participant_zip = zipfile.ZipFile(file_name[0])
         # Add to puffMarker probability
-        # smoking_episode(participant_zip, participant_id)
+        smoking_episode(participant_zip, participant_id)
         # # Add to puffMaker episode
-        # puff_probability(participant_zip, participant_id)
+        puff_probability(participant_zip, participant_id)
         # # Add to Random EMA
-        # random_ema(participant_zip, participant_id)
+        random_ema(participant_zip, participant_id)
         # # # Add to End-of-Day EMA
-        # end_of_day_ema(participant_zip, participant_id)
+        end_of_day_ema(participant_zip, participant_id)
         # # Add to Event-Contingent
-        # event_contingent_ema(participant_zip, participant_id)
+        event_contingent_ema(participant_zip, participant_id)
