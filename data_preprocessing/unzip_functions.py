@@ -370,7 +370,7 @@ def strip_event_contingent_json(json_data):
                 data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])                    
         for i in ratings_questions:
             if json_data['question_answers'][i]['response'] is None:
-                data.extend('None')
+                data.extend(['None'])
             else:                    
                 data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])                    
     else:
