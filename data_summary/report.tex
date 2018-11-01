@@ -1,0 +1,442 @@
+\documentclass[11pt]{article}
+% \pagestyle{empty}
+
+\usepackage[margin=1in]{geometry}
+\setlength{\parindent}{0pt}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{mathtools}
+\usepackage{float}
+\usepackage{color, soul}
+% \usepackage{times}
+% \usepackage{mathptm}
+
+\def\O{\mathop{\smash{O}}\nolimits}
+\def\o{\mathop{\smash{o}}\nolimits}
+\newcommand{\e}{{\rm e}}
+\newcommand{\R}{{\bf R}}
+\newcommand{\Z}{{\bf Z}}
+\newcommand{\bd}{\mathbf}
+\newcommand{\p}{\partial}
+\newcommand{\mc}{\mathcal}
+\newcommand{\BR}{\mathbb{R}}
+\newcommand{\BC}{\mathbb{C}}
+\newcommand{\BZ}{\mathbb{Z}}
+\newcommand{\BP}{\mathbb{P}}
+\newcommand{\BN}{\mathbb{N}}
+\newcommand{\BE}{\mathbb{E}}
+\newcommand{\bdmu}{\boldsymbol{\mu}}
+\newcommand{\bdSigma}{\boldsymbol{\Sigma}}
+\newcommand{\bdpi}{\boldsymbol{\pi}}
+\newcommand{\bdphi}{\boldsymbol{\phi}}
+\newcommand{\bdsigma}{\boldsymbol{\sigma}}
+\newcommand{\Var}{\text{Var}}
+\newcommand{\Cov}{\text{Cov}}
+\newcommand{\vs}{\vspace{1cm}}
+\newcommand{\vsvs}{\vspace{0.5cm}}
+
+\allowdisplaybreaks
+
+\title{Report on Data Streams}
+\author{Jason Ma}
+\date{October 2018}
+\begin{document}
+\maketitle
+This report contains a summary of each data stream in our smoking study. In particular, we focus on the differences between data that come from the phone and the cloud. We compare if the number and the content of data are consistent for each user, and point out the difference when the two data sources disagree.
+
+\linebreak
+We note that the following list of participants is not contained in the back-up data folder: 201, 203, 206, 210, 221, 229. Therefore, our only source of data for these participants comes from the phone data.
+
+\section{Puff Episode}
+In this section, we compare "puff-episode.csv" and "puff-episode-backup.csv" file. The original csv file contains 264 rows, while the latter contains 279 rows. Following is a table that summarizes the data by participants:
+\begin{table}[htb]
+\centering
+\begin{tabular}{|c|c|c|} 
+ \hline
+Participant ID & Phone & Cloud \\
+ \hline
+ 201 & 1 & NA \\
+ \hline
+ 202 &  5 & 5 \\
+ \hline
+ 203 & 1 & NA \\
+ \hline
+ 204 & NA & 11 \\
+\hline  
+205 & 38 & 38 \\
+\hline
+206& 1 & NA \\
+\hline
+207 & 11 & \textcolor{12} \\
+\hline
+208 & 3 & \textcolor{7} \\
+\hline
+209 & 1 &  1 \\
+\hline
+210 & 1 & NA \\
+\hline
+211 & 21 & 21 \\
+\hline
+212 & 7 & 7 \\
+\hline
+213 & 6 & \textcolor{7} \\
+\hline
+214 & 44 & 44 \\
+\hline
+215 & 7 & 7 \\
+\hline
+216 & 7 & 7 \\
+\hline
+217 & 12 & 12 \\
+\hline
+218 & 8 & 8 \\
+\hline
+219 & 17 & 17 \\
+\hline
+220 & 7 & \textcolor{9} \\
+\hline
+221 & NA & NA \\
+\hline
+222 & 1 & \textcolor{15} \\
+\hline
+228 & 27 & 27 \\
+\hline
+229 & 14 & NA \\
+\hline
+230 & 8 & 8 \\
+\hline
+231 & 5 & 5 \\
+\hline
+232 & NA & NA \\
+\hline
+233 & 2 & 2 \\
+\hline
+234 & 5 & 5 \\
+\hline
+235 & 4 & 4 \\
+\hline
+236 & NA & NA \\
+\hline
+237 & NA & NA \\
+\hline
+\end{tabular}
+\caption{Puff Episode by Participants}
+\label{table:1}
+\end{table}
+First, we note that participants \textbf{232,236,237} do not have this data in either source. Then, participants with inconsistent data are highlighted in red.  In aggregate, there are 33 entries in the cloud data but not the phone data; conversely, there are 18 entries in the phone data that are not in the cloud data. Both lists are displayed in the corresponding .ipynb file in the github directory. 
+
+\section{Puff Probability}
+In this section, we compare "puff-probability.csv" and "puff-probability-backup.csv" file. The original csv file contains 10617 rows, while the latter contains 10979 rows. Following is a table that summarizes the data by participants:
+\begin{table}[htb]
+\centering
+\begin{tabular}{|c|c|c|} 
+ \hline
+Participant ID & Phone & Cloud \\
+ \hline
+ 201 & 68 & NA \\
+ \hline
+ 202 &  426 & 426 \\
+ \hline
+ 203 & 47 & NA \\
+ \hline
+ 204 & NA & 143 \\
+\hline  
+205 & 899 & 899 \\
+\hline
+206& 79 & NA \\
+\hline
+207 & 389 & \textcolor{red}{570} \\
+\hline
+208 & 113 & \textcolor{red}{346} \\
+\hline
+209 & 86 &  86 \\
+\hline
+210 & 33 & NA \\
+\hline
+211 & 1004 & 1004 \\
+\hline
+212 & 251 & 251 \\
+\hline
+213 & 186 & \textcolor{red}{194} \\
+\hline
+214 & 792 & 792 \\
+\hline
+215 & 841 & \textcolor{red}{856} \\
+\hline
+216 & 377 & \textcolor{red}{385} \\
+\hline
+217 & 615 & \textcolor{red}{625} \\
+\hline
+218 & 554 & 54 \\
+\hline
+219 & 621 & 621 \\
+\hline
+220 & 241 & \textcolor{red}{291} \\
+\hline
+221 & NA & NA \\
+\hline
+222 & 151 & \textcolor{red}{490} \\
+\hline
+228 & 985 & 985 \\
+\hline
+229 & 339 & NA \\
+\hline
+230 & 429 & 429 \\
+\hline
+231 & 177 & 177 \\
+\hline
+232 & NA & NA \\
+\hline
+233 & 379 & 379 \\
+\hline
+234 & 128 & 128 \\
+\hline
+235 & 282 & 282\\
+\hline
+236 & 11 & 11\\
+\hline
+237 & 49 & 49 \\
+\hline
+\end{tabular}
+\caption{Puff Probability  by Participants}
+\label{table:2}
+\end{table}
+We see that there are many inconsistencies between the data sources. In aggregate, there are 840 entries in the cloud data but not the phone data; conversely, there are 2112 entries in the phone data that are not in the cloud data. Both lists are displayed in the corresponding .ipynb file in the github directory. 
+\section{End of Day EMA}
+In this section, we compare "eod-ema.csv" and "eod-ema-backup.csv" file. The original csv file contains 202 rows, while the latter contains 195 rows. Following is a table that summarizes the data by participants:
+\begin{table}[htb]
+\centering
+\begin{tabular}{|c|c|c|} 
+ \hline
+Participant ID & Phone & Cloud \\
+ \hline
+ 201 & 3 & NA \\
+ \hline
+ 202 &  NA & NA \\
+ \hline
+ 203 & 5 & NA \\
+ \hline
+ 204 & NA & 2 \\
+\hline  
+205 & 13 & 13 \\
+\hline
+206& 5 & NA \\
+\hline
+207 & 6 & \textcolor{red}{11} \\
+\hline
+208 & 4 & \textcolor{red}{9} \\
+\hline
+209 & 3 &  3 \\
+\hline
+210 & NA & NA \\
+\hline
+211 & 14 & 14 \\
+\hline
+212 & NA & NA \\
+\hline
+213 & 3 & \textcolor{red}{4} \\
+\hline
+214 & 11 & 11 \\
+\hline
+215 & 14 & 14 \\
+\hline
+216 & 13 & 13 \\
+\hline
+217 & 12 & 12 \\
+\hline
+218 & 14 & 14 \\
+\hline
+219 & 14 & 14 \\
+\hline
+220 & 2 & 2\\
+\hline
+221 & 4 & NA \\
+\hline
+222 & 2 & \textcolor{red}{5} \\
+\hline
+228 & 13 & 13 \\
+\hline
+229 & 6 & NA \\
+\hline
+230 & 13 & 13 \\
+\hline
+231 & 3 & 3 \\
+\hline
+232 & 1 & 1 \\
+\hline
+233 & 10 & 10 \\
+\hline
+234 & 3 & 3 \\
+\hline
+235 & 7 & 7 \\
+\hline
+236 & 2 & 2 \\
+\hline
+237 & 2 & 2 \\
+\hline
+\end{tabular}
+\caption{End of Day EMA by Participants}
+\label{table:3}
+\end{table}
+ First, we note that participants \textbf{202,212} do not have this data in either source. In aggregate, there are \textbf{16} entries in the cloud data but not the phone data; conversely, there are \textbf{28} entries in the phone data that are not in the cloud data. Note that for participants that are present in both sources, the cloud data is a strict superset of the phone data. In other word, the 28 extra rows in the phone data come entirely from participants who are not present in the cloud data. Both lists are displayed in the corresponding .ipynb file in the github directory. 
+\section{Random EMA}
+In this section, we compare "random-ema.csv" and "random-ema-backup.csv" file. The original csv file contains 691 rows, while the latter contains 681 rows. Following is a table that summarizes the data by participants:
+\begin{table}[htb]
+\centering
+\begin{tabular}{|c|c|c|} 
+ \hline
+Participant ID & Phone & Cloud \\
+ \hline
+ 201 & 8 & NA \\
+ \hline
+ 202 &  44 & 44 \\
+ \hline
+ 203 & 14 & NA \\
+ \hline
+ 204 & 2 & 8 \\
+\hline  
+205 & 38 & 38 \\
+\hline
+206& 12 & NA \\
+\hline
+207 & 20 & \textcolor{red}{35} \\
+\hline
+208 & 13 & \textcolor{red}{28} \\
+\hline
+209 & 9 &  9 \\
+\hline
+210 & 1 & NA \\
+\hline
+211 & 39 & 39 \\
+\hline
+212 & 27 & 28 \\
+\hline
+213 & 13 & \textcolor{red}{14} \\
+\hline
+214 & 33 & 33 \\
+\hline
+215 & 42 & \textcolor{red}{43} \\
+\hline
+216 & 33 & \textcolor{red}{35} \\
+\hline
+217 & 32 & 32 \\
+\hline
+218 & 42 & \textcolor{43} \\
+\hline
+219 & 42 & 42 \\
+\hline
+220 & 9 & \textcolor{10} \\
+\hline
+221 & 10 & NA \\
+\hline
+222 & 5 & \textcolor{red}{14} \\
+\hline
+228 & 44 & 44 \\
+\hline
+229 & 17 & NA \\
+\hline
+230 & 40 & 40 \\
+\hline
+231 & 18 & 18 \\
+\hline
+232 & 2 & 2 \\
+\hline
+233 & 37 & 37 \\
+\hline
+234 & 11 & 11 \\
+\hline
+235 & 23 & 23 \\
+\hline
+236 & 5 & 6 \\
+\hline
+237 & 5 & 6 \\
+\hline
+\end{tabular}
+\caption{Random EMA by Participants}
+\label{table:4}
+\end{table}
+  In aggregate, there are \textbf{52} entries in the cloud data but not the phone data; conversely, there are \textbf{63} entries in the phone data that are not in the cloud data.  Both lists are displayed in the corresponding .ipynb file in the github directory.
+
+\section{Event Contingent EMA}
+In this section, we compare "eventcontingent-ema.csv" and "eventcontingent-ema-backup.csv" file. The original csv file contains 180 rows, while the latter contains 185 rows. Following is a table that summarizes the data by participants:
+\begin{table}[htb]
+\centering
+\begin{tabular}{|c|c|c|} 
+ \hline
+Participant ID & Phone & Cloud \\
+ \hline
+ 201 & 4 & NA \\
+ \hline
+ 202 &  9 & 9 \\
+ \hline
+ 203 & NA & NA \\
+ \hline
+ 204 & NA & 5 \\
+\hline  
+205 & 6 & 6 \\
+\hline
+206& NA & NA \\
+\hline
+207 & NA & 9 \\
+\hline
+208 & 7 & \textcolor{red}{14} \\
+\hline
+209 & 4 &  4 \\
+\hline
+210 & NA & NA \\
+\hline
+211 & 7 & 7 \\
+\hline
+212 & 3 & 3 \\
+\hline
+213 & 7 & 7\\
+\hline
+214 & 11 & 11 \\
+\hline
+215 & 6 & 6 \\
+\hline
+216 & 2 & 2\\
+\hline
+217 & 8 & 8 \\
+\hline
+218 & 5 & 5 \\
+\hline
+219 & 23 & 23 \\
+\hline
+220 & 9 & \textcolor{red}{10} \\
+\hline
+221 & 3 & NA \\
+\hline
+222 & 5 & \textcolor{red}{8} \\
+\hline
+228 & 18 & 18 \\
+\hline
+229 & NA & 13 \\
+\hline
+230 & 4 & 4 \\
+\hline
+231 & 6 & 6 \\
+\hline
+232 & NA & NA \\
+\hline
+233 & 9 & 9 \\
+\hline
+234 & 4 & 4 \\
+\hline
+235 & 6 & 6 \\
+\hline
+236 & NA & NA \\
+\hline
+237 & 1 & 1 \\
+\hline
+\end{tabular}
+\caption{Event Contingent EMA by Participants}
+\label{table:5}
+\end{table}
+  Participants \textbf{203,206,210,232,236} are missing from both data sources. This could either be just that there weren't event contingent situations that occurred to them or an actual technical issue. In aggregate, there are \textbf{25} entries in the cloud data but not the phone data; conversely, there are \textbf{20} entries in the phone data that are not in the cloud data.  Both lists are displayed in the corresponding .ipynb file in the github directory.
+\section{Summary}
+In summary, I believe that the inconsistencies are noticable yet tolerable. If we manage the data carefully, we should be able to combine the two data sources in one without duplicates. On the other hand, I would like to point that there are a few participants whose data are inconsistent across many and in some cases all data streams: \textbf{207,208, 213}. Maybe it's worth asking the researchers at Memphis about these participants' data specifically.
+\end{document}
