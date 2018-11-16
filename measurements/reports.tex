@@ -1,0 +1,104 @@
+\documentclass[11pt]{article}
+% \pagestyle{empty}
+
+\usepackage[margin=1in]{geometry}
+\setlength{\parindent}{0pt}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{mathtools}
+\usepackage{float}
+% \usepackage{times}
+% \usepackage{mathptm}
+
+\def\O{\mathop{\smash{O}}\nolimits}
+\def\o{\mathop{\smash{o}}\nolimits}
+\newcommand{\e}{{\rm e}}
+\newcommand{\R}{{\bf R}}
+\newcommand{\Z}{{\bf Z}}
+\newcommand{\bd}{\mathbf}
+\newcommand{\p}{\partial}
+\newcommand{\mc}{\mathcal}
+\newcommand{\BR}{\mathbb{R}}
+\newcommand{\BC}{\mathbb{C}}
+\newcommand{\BZ}{\mathbb{Z}}
+\newcommand{\BP}{\mathbb{P}}
+\newcommand{\BN}{\mathbb{N}}
+\newcommand{\BE}{\mathbb{E}}
+\newcommand{\bdmu}{\boldsymbol{\mu}}
+\newcommand{\bdSigma}{\boldsymbol{\Sigma}}
+\newcommand{\bdpi}{\boldsymbol{\pi}}
+\newcommand{\bdphi}{\boldsymbol{\phi}}
+\newcommand{\bdsigma}{\boldsymbol{\sigma}}
+\newcommand{\Var}{\text{Var}}
+\newcommand{\Cov}{\text{Cov}}
+\newcommand{\vs}{\vspace{1cm}}
+\newcommand{\vsvs}{\vspace{0.5cm}}
+
+\allowdisplaybreaks
+
+\title{Measurement Report}
+\author{Jason Ma}
+\date{November 2018}
+
+\begin{document}
+
+\maketitle
+\section{Introduction}
+This report contains a summary of the rate of inconsistency between various data sources and End of Day EMA. Ideally, if a signal is reported in a data source, then that signal should be reflected in the End of Day EMA file. We calculate the percentange of signals that were not reported. We report two measurements: percentage by entry and percentage by date(there could be multiple signals in one day, and we count them all together as one error).
+\section{Contingent vs. EOD EMA}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|c|c|c|c|} 
+ \hline
+& Original & Alternative & Back-up \\
+\hline
+\% by entry & 0.156 & 0.131 & 0.114\\
+\hline
+\% by date & 0.1 & 0.115 & 0.0757 \\
+\hline
+\end{tabular}
+\caption{Contingent vs. EOD EMA}
+\label{table:1}
+\end{table}
+
+\section{Random vs. EOD EMA}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|c|c|c|c|} 
+ \hline
+& Original & Alternative & Back-up \\
+\hline
+\% by entry & 0.207 & 0.237 & 0.171 \\
+\hline
+\% by date & 0.159 & 0.158 & 0.133 \\
+\hline
+\end{tabular}
+\caption{Random vs. EOD EMA}
+\label{table:2}
+\end{table}
+
+\section{Puff-Episode vs. EOD EMA}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|c|c|c|c|} 
+ \hline
+& Original & Alternative & Back-up \\
+\hline
+\% by entry & 0.298 & 0.327 & 0.294 \\
+\hline
+\% by date & 0.121 & 0.127 & 0.129 \\
+\hline
+\end{tabular}
+\caption{Puff-Episode vs. EOD EMA}
+\label{table:3}
+\end{table}
+
+\section{Summary}
+The error rates for contingent and random EMA float around 15\%, though contingent EMA has slightly lower inconsistency. It appears that the back-up data has lower inconsistency rate across various data sources. Finally, the error rate for Puff-Episode is inflated because not all puff episodes are actually smoking episodes that were intended to be reported in EOD EMA.
+\end{document}
