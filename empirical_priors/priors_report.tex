@@ -1,0 +1,102 @@
+\documentclass[11pt]{article}
+% \pagestyle{empty}
+
+\usepackage[margin=1in]{geometry}
+\setlength{\parindent}{0pt}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{mathtools}
+\usepackage{float}
+\usepackage{hyperref}
+% \usepackage{times}
+% \usepackage{mathptm}
+
+\def\O{\mathop{\smash{O}}\nolimits}
+\def\o{\mathop{\smash{o}}\nolimits}
+\newcommand{\e}{{\rm e}}
+\newcommand{\R}{{\bf R}}
+\newcommand{\Z}{{\bf Z}}
+\newcommand{\bd}{\mathbf}
+\newcommand{\p}{\partial}
+\newcommand{\mc}{\mathcal}
+\newcommand{\BR}{\mathbb{R}}
+\newcommand{\BC}{\mathbb{C}}
+\newcommand{\BZ}{\mathbb{Z}}
+\newcommand{\BP}{\mathbb{P}}
+\newcommand{\BN}{\mathbb{N}}
+\newcommand{\BE}{\mathbb{E}}
+\newcommand{\bdmu}{\boldsymbol{\mu}}
+\newcommand{\bdSigma}{\boldsymbol{\Sigma}}
+\newcommand{\bdpi}{\boldsymbol{\pi}}
+\newcommand{\bdphi}{\boldsymbol{\phi}}
+\newcommand{\bdsigma}{\boldsymbol{\sigma}}
+\newcommand{\Var}{\text{Var}}
+\newcommand{\Cov}{\text{Cov}}
+\newcommand{\vs}{\vspace{1cm}}
+\newcommand{\vsvs}{\vspace{0.5cm}}
+
+\allowdisplaybreaks
+
+\title{Empirical Priors Report}
+\author{Jason Ma}
+\date{January 2019}
+
+\begin{document}
+\maketitle
+\section{Step 1}
+Changes are reflected in the \href{https://github.com/wdempsey/sense2stop-lvm}{Github} repository.
+\section{Step 2}
+In this step, we explore the end-of-day(EOD) self-report's potential bias and variance as an estimator for the smoking times reported in event-contingent EMAs. That is, treating event-contingent EMAs as ground truth, how accurate are the EOD EMAs?
+
+\vsvs
+\text{eod\_bias\_variance.ipynb} contains our code. Essentially, we compute bias and variance based on a window of time within which a signal(an hour window in which the participant indicates that he smoked) in the EOD EMA is treated as an estimator for the corresponding smoking time reported in the event-contingent EMA. For example, suppose a user reported smoking at 3:30pm in the event-contingent EMA and the window parameter is set to 2 hours. Then, only signals between 1:30pm to 5:30pm in the the EOD EMAs are used in computing the bias for this particular smoking time. Smoking times in the event-contingent EMA that do not have any signals in EOD EMAs within the fixed window are treated as ''missed'', indicating that they are not covered by signals in the EOD EMA.
+
+\vsvs
+We note that the signals in the EOD EMA is a range of time as opposed to a timestamp. Then the question is how do we compute the bias? Our appraoch is to convert the hour window into a single timestamp that is simply 30 minutes past the beginning of the window and then perform simple arithmetic to compute the bias. For example, suppose we have a smoking time 2:45pm and our signal is 2:00pm-3:00pm. Then, we convert our signal to 2:30pm, and hence the bias is 15 minutes. 
+
+\vsvs
+The table below summarizes the bias and variance statistics by setting the window to 1,2,3,4 hours, respectively. 
+\begin{table}[h]
+\centering
+\begin{tabular}{|c|c|c|c|c|} 
+ \hline
+Window(hr)& Mean of bias & Variance & Covered & Missed\\
+\hline
+1 & 33.9 & 649.5 & 107 & 72 \\
+\hline
+2 & 45.3 & 1424.3 & 124 & 55 \\
+\hline
+3 & 50.6 & 2050.4 & 129 & 50 \\
+\hline
+4 & 50.6 & 2050.4 & 129 & 50 \\
+\hline
+\end{tabular}
+\caption{EOD EMA bias variance table}
+\label{table:1}
+\end{table} 
+
+The table above makes logical sense; as the window of time increases, the bias and variance increase because signals farther away in time are also considered. Consequently, the number of smoking times covered also increases. We see that the increase in mean bias is much greater from 1 to 2 than from 2 to 3, suggesting that setting the window to 2 hours is probably the most reasonable as it accounts for people's lossy memory while avoiding double-counting/overfitting. If the window parameter is too high, then it is likely that we are double counting signals by matching them with two smoking times in the opposite sides of the signal or two smoking times that are super close to one another. Therefore, I believe that 2 hour window is appropriate, and in this case, the bias is \textbf{45} minutes.
+\section{Step 3}
+\section{Step 4}
+In this step, we investigate the temporal alignment of days of the participants. It is understood that the hours of use don't match across individuals, but it is still important to understand the degree to which they differ. In particular, we are interested in the following two questions:
+\begin{itemize}
+	\item Do most people when they use the system, last the 12 hours that the system is supposed to be on?
+	\item Do people's hours of use change wildly over the course of the study?
+\end{itemize}
+
+\text{alignment.py}, \text{day\_alignment.py}, and \text{day\_alignment.ipynb} contain our code for this step. Essentially, we first collect and clean the start and the end of system timestamps for each participant from their respective start\_day and end\_day csv files. Then, we compute the temporal alignment for each day for each user and record them in \text{alignment\_user.csv}. Note that there are a few users(202,204,210,212) whose start\_day or end\_day file is empty, and therefore they are not included in the analysis. Then, we compute the mean, standard deviation, max, min of temporal alignments for each user and record them in \text{alignment\_summary.csv}. Finally, we compute the overall mean and variance of temporal alignments across the users. 
+
+\vsvs
+This table, which is screenshotted from alignment\_summary.csv, contains the summary statistics of the temporal alignments across the users.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{alignment.png}
+    \caption{Temporal alignment statistics}
+\end{figure}
+The overall mean of temporal alignment, which is computed by taking the average of the mean alignment of each user, is \textbf{11.5} hours, and the variance is \textbf{2.59} hours squared.
+
+
+\end{document}
