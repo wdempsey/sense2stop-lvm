@@ -2,9 +2,8 @@ import glob
 import zipfile
 from unzip_backup_functions import *
 
-
 # dir = "/Volumes/dav/MD2K Processed Data/Data streams - backup files"
-dir = "/Users/walterdempsey/Box/MD2K Processed Data/Data streams - backup files/Processed Phone Backup Files"
+dir = '/Users/walterdempsey/Box/MD2K Processed Data/Data streams - phone backup files/Processed Phone Backup Files'
 
 #all_participant_ids = range(201, 223) + range(228,238)
 all_participant_ids = range(238, 254)
