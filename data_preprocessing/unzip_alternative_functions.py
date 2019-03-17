@@ -4,22 +4,30 @@ from datetime import datetime
 import json
 import os
 import os.path
+import pytz
 
 def unix_date(intime):
-    return ( datetime.fromtimestamp(int(intime)/
-                                   1000).strftime('%Y-%m-%d %H:%M:%S'))
+    local_tz = pytz.timezone('US/Central')
+    date = datetime.fromtimestamp(int(intime)/1000, local_tz)
+    return date.strftime('%Y-%m-%d %H:%M:%S')
 
 
 def hour_of_day(intime):
-    return (datetime.fromtimestamp(int(intime)/1000).strftime("%H"))
+    local_tz = pytz.timezone('US/Central')
+    date = datetime.fromtimestamp(int(intime)/1000, local_tz)
+    return date.strftime("%H")
 
 
 def minute_of_day(intime):
-    return (datetime.fromtimestamp(int(intime)/1000).strftime("%M"))
+    local_tz = pytz.timezone('US/Central')
+    date = datetime.fromtimestamp(int(intime)/1000, local_tz)
+    return date.strftime("%M")
 
 
 def day_of_week(intime):
-    return (datetime.fromtimestamp(int(intime)/1000).strftime("%A"))
+    local_tz = pytz.timezone('US/Central')
+    date = datetime.fromtimestamp(int(intime)/1000, local_tz)
+    return date.strftime("%A")
 
 
 def days_between(d1, d2):
@@ -29,7 +37,10 @@ def days_between(d1, d2):
 
 
 def date_of_month(intime):
-    return (datetime.fromtimestamp(int(intime)/1000).strftime('%Y-%m-%d'))
+    local_tz = pytz.timezone('US/Central')
+    date = datetime.fromtimestamp(int(intime)/1000, local_tz)
+    return date.strftime('%Y-%m-%d')
+
 
 def to_likert(instring):
     if instring=="NO!!!":
@@ -360,3 +371,37 @@ def strip_event_contingent_json(json_data):
     else:
         data.extend(['NA'] * (len(htm_questions) + len(ratings_questions)) )
     return data
+
+
+def stress_episodes(participant_zip, participant_id):
+    # Inputs: zipfile, participant_id
+    # Output: add to csv (prints when done)
+    zip_namelist = participant_zip.namelist()
+    csv_marker = 'CSTRESS_STRESS_EPISODE_ARRAY_CLASSIFICATION_FULL_EPISODE'
+    csv_matching = [s for s in zip_namelist if csv_marker in s]
+    csv_matching = [s for s in csv_matching if '.csv' in s]
+    csv_file = participant_zip.open(csv_matching[0])
+    temp = csv_file.read()
+    if not temp or temp == 'BZh9\x17rE8P\x90\x00\x00\x00\x00':
+        print ('Empty file for episode classification')
+    else:
+        csv_file = participant_zip.open(csv_matching[0])
+        newfile = pd.read_csv(csv_file, header=None)
+        df = pd.DataFrame(np.array(newfile).reshape(-1, 5),
+                          columns=['timestamp', 'start_ts', 'peak_ts', 'end_ts', 'episode_label'])
+        df['participant_id'] = participant_id
+        df['start_date'] = df['start_ts'].apply(unix_date)
+        df['peak_date'] = df['peak_ts'].apply(unix_date)
+        df['end_date'] = df['end_ts'].apply(unix_date)
+        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+        save_filename = 'stress-episodes-alternative.csv'
+        if os.path.isfile(save_dir + save_filename):
+            append_write = 'a'  # append if already exists
+            header_binary = False
+        else:
+            append_write = 'w'  # make a new file if not
+            header_binary = True
+        temp_csv_file = open(save_dir+save_filename, append_write)
+        df.to_csv(temp_csv_file, header=header_binary, index=False)
+        temp_csv_file.close()
+        print('Added to stress episodes file!')

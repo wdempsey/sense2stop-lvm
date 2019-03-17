@@ -1,20 +1,28 @@
 from datetime import datetime
+import pytz
 
 def unix_date(intime):
-    return ( datetime.fromtimestamp(int(intime)/
-                                   1000).strftime('%Y-%m-%d %H:%M:%S'))
+    local_tz = pytz.timezone('US/Central')
+    date = datetime.fromtimestamp(int(intime)/1000, local_tz)
+    return date.strftime('%Y-%m-%d %H:%M:%S')
 
 
 def hour_of_day(intime):
-    return (datetime.fromtimestamp(int(intime)/1000).strftime("%H"))
+    local_tz = pytz.timezone('US/Central')
+    date = datetime.fromtimestamp(int(intime)/1000, local_tz)
+    return date.strftime("%H")
 
 
 def minute_of_day(intime):
-    return (datetime.fromtimestamp(int(intime)/1000).strftime("%M"))
+    local_tz = pytz.timezone('US/Central')
+    date = datetime.fromtimestamp(int(intime)/1000, local_tz)
+    return date.strftime("%M")
 
 
 def day_of_week(intime):
-    return (datetime.fromtimestamp(int(intime)/1000).strftime("%A"))
+    local_tz = pytz.timezone('US/Central')
+    date = datetime.fromtimestamp(int(intime)/1000, local_tz)
+    return date.strftime("%A")
 
 
 def days_between(d1, d2):
@@ -24,7 +32,10 @@ def days_between(d1, d2):
 
 
 def date_of_month(intime):
-    return (datetime.fromtimestamp(int(intime)/1000).strftime('%Y-%m-%d'))
+    local_tz = pytz.timezone('US/Central')
+    date = datetime.fromtimestamp(int(intime)/1000, local_tz)
+    return date.strftime('%Y-%m-%d')
+
 
 def to_likert(instring):
     if instring=="NO!!!":
