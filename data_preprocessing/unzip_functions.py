@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from datetime import timedelta
 import json
 import os
 import os.path
@@ -457,3 +458,299 @@ def stress_episodes(participant_zip, participant_id):
         temp_csv_file.close()
         print('Added to stress label file!')
         return None
+
+
+def study_days(participant_zip, participant_id, participant_dates):
+    # Inputs: zipfile, participant_id
+    # Output: add to csv (prints when done)
+zip_namelist = participant_zip.namelist()
+bz2_marker = 'WAKEUP+PHONE.csv.bz2'
+zip_matching = [s for s in zip_namelist if bz2_marker in s]
+if not zip_matching:
+    print("No WAKE UP file")
+    #return None
+else:
+    local_tz = pytz.timezone('US/Central')
+    global_tz = pytz.timezone('GMT')
+    bz2_file = participant_zip.open(zip_matching[0])
+    tempfile = bz2.decompress(bz2_file.read())
+    tempfile = tempfile.rstrip('\n').split('\r')
+    tempfile.pop()
+    wakeup_ts_list = []
+    wakeup_date_list = []
+for line in tempfile:
+    line = line.replace("\n", "")
+    ts, offset, values = line.rstrip().split(',', 2)
+    ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
+    wakeup_ts_list.append(ts)
+    date = datetime.fromtimestamp(int(values)/1000, global_tz)
+    wakeup_date_list.append(date)
+bz2_marker = 'SLEEP+PHONE.csv.bz2'
+zip_matching = [s for s in zip_namelist if bz2_marker in s]
+if not zip_matching:
+    print("No SLEEP file")
+    #return None
+else:
+    local_tz = pytz.timezone('US/Central')
+    global_tz = pytz.timezone('GMT')
+    bz2_file = participant_zip.open(zip_matching[0])
+    tempfile = bz2.decompress(bz2_file.read())
+    tempfile = tempfile.rstrip('\n').split('\r')
+    tempfile.pop()
+    sleep_ts_list = []
+    sleep_date_list = []
+    for line in tempfile:
+        line = line.replace("\n", "")
+        ts, offset, values = line.rstrip().split(',', 2)
+        ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
+        sleep_ts_list.append(ts)
+        date = datetime.fromtimestamp(int(values)/1000, global_tz)
+        sleep_date_list.append(date)
+bz2_marker = 'DAY_START+PHONE.csv.bz2'
+zip_matching = [s for s in zip_namelist if bz2_marker in s]
+if not zip_matching:
+    print("No DAY START file")
+    #return None
+else:
+    global_tz = pytz.timezone('GMT')
+    local_tz = pytz.timezone('US/Central')
+    bz2_file = participant_zip.open(zip_matching[0])
+    tempfile = bz2.decompress(bz2_file.read())
+    tempfile = tempfile.rstrip('\n').split('\r')
+    tempfile.pop()
+    daystart_ts_list = []
+    daystart_date_list = []
+    for line in tempfile:
+        line = line.replace("\n", "")
+        ts, offset, values = line.rstrip().split(',', 2)
+        ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
+        daystart_ts_list.append(ts)
+        date = datetime.fromtimestamp(int(values)/1000, local_tz)
+        daystart_date_list.append(date)   
+bz2_marker = 'DAY_END+PHONE.csv.bz2'
+zip_matching = [s for s in zip_namelist if bz2_marker in s]
+if not zip_matching:
+    print("No DAY END file")
+    #return None
+else:
+    local_tz = pytz.timezone('US/Central')
+    bz2_file = participant_zip.open(zip_matching[0])
+    tempfile = bz2.decompress(bz2_file.read())
+    tempfile = tempfile.rstrip('\n').split('\r')
+    tempfile.pop()
+    dayend_ts_list = []
+    dayend_date_list = []
+    for line in tempfile:
+        line = line.replace("\n", "")
+        ts, offset, values = line.rstrip().split(',', 2)
+        ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
+        dayend_ts_list.append(ts)
+        date = datetime.fromtimestamp(int(values)/1000, local_tz)
+        dayend_date_list.append(date)   
+bz2_marker = '+DATA_QUALITY+ACCELEROMETER+MOTION_SENSE+LEFT_WRIST.csv.bz2'
+zip_matching = [s for s in zip_namelist if bz2_marker in s]
+if not zip_matching:
+    print("No LEFT WRIST file")
+    #return None
+else:
+    local_tz = pytz.timezone('US/Central')
+    bz2_file = participant_zip.open(zip_matching[0])
+    tempfile = bz2.decompress(bz2_file.read())
+    tempfile = tempfile.rstrip('\n').split('\r')
+    tempfile.pop()
+    leftwrist_ts_list = []
+    for line in tempfile:
+        line = line.replace("\n", "")
+        ts, offset, values = line.rstrip().split(',', 2)
+        if values == '3':
+            ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
+            leftwrist_ts_list.append(ts)
+bz2_marker = '+DATA_QUALITY+ACCELEROMETER+MOTION_SENSE+RIGHT_WRIST.csv.bz2'
+zip_matching = [s for s in zip_namelist if bz2_marker in s]
+if not zip_matching:
+    print("No RIGHT WRIST file")
+    #return None
+else:
+    local_tz = pytz.timezone('US/Central')
+    bz2_file = participant_zip.open(zip_matching[0])
+    tempfile = bz2.decompress(bz2_file.read())
+    tempfile = tempfile.rstrip('\n').split('\r')
+    tempfile.pop()
+    rightwrist_ts_list = []
+    for line in tempfile:
+        line = line.replace("\n", "")
+        ts, offset, values = line.rstrip().split(',', 2)
+        if values == '3':
+            ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
+            rightwrist_ts_list.append(ts)
+bz2_marker = '+DATA_QUALITY+RESPIRATION+AUTOSENSE_CHEST+CHEST.csv.bz2'
+zip_matching = [s for s in zip_namelist if bz2_marker in s]
+if not zip_matching:
+    print("No RESPIRATION file")
+    #return None
+else:
+    local_tz = pytz.timezone('US/Central')
+    bz2_file = participant_zip.open(zip_matching[0])
+    tempfile = bz2.decompress(bz2_file.read())
+    tempfile = tempfile.rstrip('\n').split('\r')
+    tempfile.pop()
+    respiration_ts_list = []
+    for line in tempfile:
+        line = line.replace("\n", "")
+        ts, offset, values = line.rstrip().split(',', 2)
+        if values == '3':
+            ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
+            respiration_ts_list.append(ts)
+
+entry_date = participant_dates['start_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
+quit_date = participant_dates['quit_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
+end_date = participant_dates['actual_end_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
+
+entry_date = datetime.strptime(entry_date, '%m/%d/%y')
+quit_date = datetime.strptime(quit_date, '%m/%d/%y')
+end_date = datetime.strptime(end_date, '%m/%d/%y')
+
+current_date = entry_date
+iter = 1
+while (current_date <= end_date and iter < 1000):
+## CHECK IF DAYSTART/DAYEND EXIST FOR THAT DAY
+start_time = -1
+for daystart in daystart_ts_list:
+    if daystart.date() == current_date.date():
+        start_time = daystart
+if start_time == -1:
+    start_time = current_date
+    for iter in range(0,len(wakeup_ts_list)):
+        wakeup_ts = wakeup_ts_list[iter]
+        if current_date.date() <= wakeup_ts.date():
+            wakeup_hour = int(wakeup_date_list[iter].strftime('%H'))
+            wakeup_minute = int(wakeup_date_list[iter].strftime('%M'))
+    start_time = start_time.replace(hour=wakeup_hour,minute=wakeup_minute)
+
+end_time = - 1
+for dayend in dayend_ts_list:
+    if dayend.date() == current_date.date():
+        end_time = dayend
+if end_time == -1:
+    end_time = current_date
+    for iter in range(0,len(sleep_ts_list)):
+        sleep_ts = sleep_ts_list[iter]
+        if current_date.date() <= sleep_ts.date():
+            sleep_hour = int(sleep_date_list[iter].strftime('%H'))
+            sleep_minute = int(sleep_date_list[iter].strftime('%M'))
+    end_time = end_time.replace(hour=sleep_hour,minute=sleep_minute)
+
+## WITH START AND END TIMES DEFINED
+## NEXT DEFINE HQ WINDOWS FOR L/R wrist
+## AND RESPIRATION
+
+## LEFT WRIST
+lw_jumpstart_list = [start_time]
+lw_jumpend_list = []
+first = 0
+for iter in range(0,len(leftwrist_ts_list)-1):
+    lw_ts = leftwrist_ts_list[iter]
+    next_lw_ts = leftwrist_ts_list[iter+1]
+    if start_time.date() == rw_ts.date() and start_time <= lw_ts and end_time >= lw_ts:
+        if first == 0:
+            diff = lw_ts - start_time
+            if diff.seconds > 30.:
+                lw_jumpstart_list[0] = lw_ts
+            first = 1
+        else:
+            diff = next_lw_ts - lw_ts
+            if diff.seconds > 30.:
+                lw_jumpend_list.append(lw_ts)
+                if next_lw_ts <= end_time:
+                    lw_jumpstart_list.append(next_lw_ts)
+if len(lw_jumpend_list) < len(lw_jumpstart_list):
+    lw_jumpend_list.append(end_time)
+
+## RESPIRATION
+rw_jumpstart_list = [start_time]
+rw_jumpend_list = []
+first = 0
+for iter in range(0,len(rightwrist_ts_list)-1):
+    rw_ts = rightwrist_ts_list[iter]
+    next_rw_ts = rightwrist_ts_list[iter+1]
+    if start_time.date() == rw_ts.date() and start_time <= rw_ts and end_time >= rw_ts:
+        if first == 0:
+            diff = rw_ts - start_time
+            if diff.seconds > 30.:
+                rw_jumpstart_list[0] = rw_ts
+            first = 1
+        else:
+            diff = next_rw_ts - rw_ts
+            if diff.seconds > 30.:
+                rw_jumpend_list.append(rw_ts)
+                if next_rw_ts <= end_time:
+                    rw_jumpstart_list.append(next_rw_ts)
+if len(rw_jumpend_list) < len(rw_jumpstart_list):
+    rw_jumpend_list.append(end_time)
+
+## RESPIRATION CHEST
+respiration_jumpstart_list = [start_time]
+respiration_jumpend_list = []
+first = 0
+for iter in range(0,len(respiration_ts_list)-1):
+    resp_ts = respiration_ts_list[iter]
+    next_resp_ts = respiration_ts_list[iter+1]
+    if start_time.date() == resp_ts.date() and start_time <= resp_ts and end_time >= resp_ts:
+        if first == 0:
+            diff = resp_ts - start_time
+            if diff.seconds > 30.:
+                respiration_jumpstart_list[0] = resp_ts
+            first = 1
+        else:
+            diff = next_resp_ts - resp_ts
+            if diff.seconds > 30.:
+                respiration_jumpend_list.append(resp_ts)
+                if next_resp_ts <= end_time:
+                    respiration_jumpstart_list.append(next_resp_ts)
+if len(respiration_jumpend_list) < len(respiration_jumpstart_list):
+    respiration_jumpend_list.append(end_time)
+
+## COMBINE TO GENERATE THE INTERVALS
+
+## TAKE UNION OF LW/RW
+lrw_start_list = []
+lrw_end_list = []
+union_complete = False
+jointwrist_start_list = np.array(lw_jumpstart_list + rw_jumpstart_list)
+jointwrist_end_list = np.array(lw_jumpend_list + rw_jumpend_list)
+max_iter = len(jointwrist_start_list)
+    
+while not union_complete:
+    min_start = min(jointwrist_start_list)
+    whichmin = [i for i in range(0,len(jointwrist_start_list)) if jointwrist_start_list[i] == min_start]
+    max_end = max(jointwrist_end_list[whichmin])
+    move_on = False
+
+    while not move_on:
+        which_in_interval = [i for i in range(0,len(jointwrist_start_list)) if jointwrist_start_list[i] > min_start and jointwrist_start_list[i] <= max_end]
+        if len(which_in_interval) == 0:
+            move_on = True
+        else:
+            if max(jointwrist_end_list[which_in_interval]) > max_end:
+                max_end = max(jointwrist_end_list[which_in_interval])
+            else:
+                move_on = True
+
+    lrw_start_list.append(min_start)
+    lrw_end_list.append(max_end)
+
+    keep_obs = jointwrist_start_list > max(lrw_end_list)
+    jointwrist_end_list = jointwrist_end_list[keep_obs]
+    jointwrist_start_list = jointwrist_start_list[keep_obs]
+    iter +=1
+    if len(jointwrist_start_list) = 0 or iter > max_iter:
+        union_complete = True
+
+# CHECK IF DAYSTART IN RW BETWEEN BEG AND END
+
+
+    
+## UPDATE TO NEXT DAY
+current_date = current_date + timedelta(days=1)
+iter +=1
+print current_date
