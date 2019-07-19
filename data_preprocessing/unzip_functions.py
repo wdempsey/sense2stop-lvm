@@ -817,45 +817,42 @@ while not intersection_complete:
     iter +=1
     whichmin = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] == min_start]
     max_end = max(jointwrist_plus_resp_end_list[whichmin])
-    move_on = False
     print iter
-    while not move_on:
-        print "Entered move on sub loop"
-        which_in_interval = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] <= max_end and jointwrist_plus_resp_end_list[i] >= min_start]
-        if len(which_in_interval) == 0:
-            print "None in interval, move on"
-            whichmin = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] >= max_end]
-            min_start = min(jointwrist_plus_resp_start_list[whichmin])
-            move_on = True
+    print "Entered if/then part"
+    which_in_interval = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] <= max_end and jointwrist_plus_resp_end_list[i] >= min_start]
+    if len(which_in_interval) == 0:
+        print "None in interval, move on"
+        whichmin = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] >= max_end]
+        min_start = min(jointwrist_plus_resp_start_list[whichmin])
+    else:
+        print "Something in interval"
+        temp_start = jointwrist_plus_resp_start_list[which_in_interval]
+        temp_end = jointwrist_plus_resp_end_list[which_in_interval]
+        if len(temp_start[temp_start > min_start]) == 0:
+            min_temp_start = end_time
         else:
-            print "Something in interval"
-            temp_start = jointwrist_plus_resp_start_list[which_in_interval]
-            temp_end = jointwrist_plus_resp_end_list[which_in_interval]
-            # Check if min is start or end time
-            if min(temp_start) > min(temp_end):
-                # If min is end, then define
-                # interval to that min and move on
-                max_end = min(temp_end)
-            else:
-                # If min is start, then define
-                # Interval from that point
-                min_start = min(temp_start[temp_start >= min_start])
-                whichcur_in_interval = [i for i in which_in_interval if jointwrist_plus_resp_start_list[i] == min_start]
-                end_cur = max(jointwrist_plus_resp_end_list[whichcur_in_interval])
-            if end_cur > max_end:
-                print "Already got max_end of current interval "
-            else:
-                print ("Need new max_end")
-                max_end = end_cur
+            min_temp_start = min(temp_start[temp_start > min_start])
+        # Check if min is start or end time
+        if min_temp_start > min(temp_end):
+            # If min is end, then this is an intersection
+            # window and append to lists!
+            max_end = min(temp_end)
             wpc_start_list.append(min_start)
             wpc_end_list.append(max_end)
             print "Finished appending"
             whichmin = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] >= max_end]
-            min_start = min(jointwrist_plus_resp_start_list[whichmin])
-            move_on = True
-            print "Let's move on"
-    if min_start == max(jointwrist_plus_resp_start_list) or iter > max_iter:
+            if len(whichmin) == 0:
+                print "There's nothing left!"
+                min_start = end_time
+            else:
+                min_start = min(jointwrist_plus_resp_start_list[whichmin])
+        else:
+            # If min is start, then move
+            # up the start time and move on
+            min_start = min(temp_start[temp_start > min_start])
+    if min_start == end_time or iter > max_iter:
         intersection_complete = True
+
 
 for i in range(len(wpc_start_list)):
     print wpc_start_list[i], wpc_end_list[i]
