@@ -168,12 +168,12 @@ def strip_random_ema_json(json_data):
             if json_data['question_answers'][i]['response'] is None:
                 data.extend(['None'])
             else:
-                data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])                    
+                data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
         for i in ratings_questions:
             if json_data['question_answers'][i]['response'] is None:
                 data.extend(['None'])
-            else:                    
-                data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])                    
+            else:
+                data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
     else:
         data.extend(['NA'] * (len(htm_questions) + len(ratings_questions)) )
     return data
@@ -319,7 +319,7 @@ def event_contingent_ema(participant_zip, participant_id):
     if not zip_matching:
         print("No event contingent ema")
         return None
-    else: 
+    else:
         bz2_file = participant_zip.open(zip_matching[0])
         tempfile = bz2.decompress(bz2_file.read())
         tempfile = tempfile.rstrip('\n').split('\r')
@@ -381,12 +381,12 @@ def strip_event_contingent_json(json_data):
             if json_data['question_answers'][i]['response'] is None:
                 data.extend(['None'])
             else:
-                data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])                    
+                data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
         for i in ratings_questions:
             if json_data['question_answers'][i]['response'] is None:
                 data.extend(['None'])
-            else:                    
-                data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])                    
+            else:
+                data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
     else:
         data.extend(['NA'] * (len(htm_questions) + len(ratings_questions)) )
     return data
@@ -478,13 +478,13 @@ else:
     tempfile.pop()
     wakeup_ts_list = []
     wakeup_date_list = []
-for line in tempfile:
-    line = line.replace("\n", "")
-    ts, offset, values = line.rstrip().split(',', 2)
-    ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
-    wakeup_ts_list.append(ts)
-    date = datetime.fromtimestamp(int(values)/1000, global_tz)
-    wakeup_date_list.append(date)
+    for line in tempfile:
+        line = line.replace("\n", "")
+        ts, offset, values = line.rstrip().split(',', 2)
+        ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
+        wakeup_ts_list.append(ts)
+        date = datetime.fromtimestamp(int(values)/1000, global_tz)
+        wakeup_date_list.append(date)
 bz2_marker = 'SLEEP+PHONE.csv.bz2'
 zip_matching = [s for s in zip_namelist if bz2_marker in s]
 if not zip_matching:
@@ -526,7 +526,7 @@ else:
         ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
         daystart_ts_list.append(ts)
         date = datetime.fromtimestamp(int(values)/1000, local_tz)
-        daystart_date_list.append(date)   
+        daystart_date_list.append(date)
 bz2_marker = 'DAY_END+PHONE.csv.bz2'
 zip_matching = [s for s in zip_namelist if bz2_marker in s]
 if not zip_matching:
@@ -546,7 +546,7 @@ else:
         ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
         dayend_ts_list.append(ts)
         date = datetime.fromtimestamp(int(values)/1000, local_tz)
-        dayend_date_list.append(date)   
+        dayend_date_list.append(date)
 bz2_marker = '+DATA_QUALITY+ACCELEROMETER+MOTION_SENSE+LEFT_WRIST.csv.bz2'
 zip_matching = [s for s in zip_namelist if bz2_marker in s]
 if not zip_matching:
@@ -611,9 +611,9 @@ quit_date = datetime.strptime(quit_date, '%m/%d/%y')
 end_date = datetime.strptime(end_date, '%m/%d/%y')
 
 current_date = entry_date
-iter = 1
-while (current_date <= end_date and iter < 1000):
-## CHECK IF DAYSTART/DAYEND EXIST FOR THAT DAY
+date_iter = 1
+# while (current_date <= end_date and iter < 1000):
+# CHECK IF DAYSTART/DAYEND EXIST FOR THAT DAY
 start_time = -1
 for daystart in daystart_ts_list:
     if daystart.date() == current_date.date():
@@ -625,7 +625,7 @@ if start_time == -1:
         if current_date.date() <= wakeup_ts.date():
             wakeup_hour = int(wakeup_date_list[iter].strftime('%H'))
             wakeup_minute = int(wakeup_date_list[iter].strftime('%M'))
-    start_time = start_time.replace(hour=wakeup_hour,minute=wakeup_minute)
+            start_time = start_time.replace(hour=wakeup_hour,minute=wakeup_minute)
 
 end_time = - 1
 for dayend in dayend_ts_list:
@@ -651,22 +651,42 @@ first = 0
 for iter in range(0,len(leftwrist_ts_list)-1):
     lw_ts = leftwrist_ts_list[iter]
     next_lw_ts = leftwrist_ts_list[iter+1]
-    if start_time.date() == rw_ts.date() and start_time <= lw_ts and end_time >= lw_ts:
+    if start_time.date() == lw_ts.date() and start_time <= lw_ts and end_time >= lw_ts:
         if first == 0:
+            print "We hit the first of times"
             diff = lw_ts - start_time
             if diff.seconds > 30.:
                 lw_jumpstart_list[0] = lw_ts
+                print "And it's a gap"
+                print start_time, lw_ts
             first = 1
-        else:
-            diff = next_lw_ts - lw_ts
-            if diff.seconds > 30.:
-                lw_jumpend_list.append(lw_ts)
-                if next_lw_ts <= end_time:
-                    lw_jumpstart_list.append(next_lw_ts)
+        diff = next_lw_ts - lw_ts
+        if diff.seconds > 30.:
+            lw_jumpend_list.append(lw_ts)
+            if next_lw_ts <= end_time:
+                lw_jumpstart_list.append(next_lw_ts)
+            print lw_ts, next_lw_ts
+## END WITH end_time if final window has
+## good data until that time
 if len(lw_jumpend_list) < len(lw_jumpstart_list):
     lw_jumpend_list.append(end_time)
+else:
+    lw_jumpstart_list.append(lw_jumpend_list[len(lw_jumpend_list)-1])
+    lw_jumpend_list.append(end_time)
+## CHECK IF START == END Of Interval and toss if true
+single_point_list = []
+for i in range(len(lw_jumpstart_list)):
+    if lw_jumpstart_list[i] == lw_jumpend_list[i]:
+        single_point_list.append(i)
 
-## RESPIRATION
+lw_jumpstart_list = np.array(lw_jumpstart_list)
+lw_jumpend_list = np.array(lw_jumpend_list)
+
+lw_start = np.delete(lw_jumpstart_list, single_point_list)
+lw_end = np.delete(lw_jumpend_list, single_point_list)
+
+
+# RIGHT WRIST
 rw_jumpstart_list = [start_time]
 rw_jumpend_list = []
 first = 0
@@ -675,81 +695,177 @@ for iter in range(0,len(rightwrist_ts_list)-1):
     next_rw_ts = rightwrist_ts_list[iter+1]
     if start_time.date() == rw_ts.date() and start_time <= rw_ts and end_time >= rw_ts:
         if first == 0:
+            print "Hit that first time"
             diff = rw_ts - start_time
             if diff.seconds > 30.:
                 rw_jumpstart_list[0] = rw_ts
+                print "And there's a gap"
+                print start_time, rw_ts
             first = 1
-        else:
-            diff = next_rw_ts - rw_ts
-            if diff.seconds > 30.:
-                rw_jumpend_list.append(rw_ts)
-                if next_rw_ts <= end_time:
-                    rw_jumpstart_list.append(next_rw_ts)
+        diff = next_rw_ts - rw_ts
+        if diff.seconds > 30.:
+            rw_jumpend_list.append(rw_ts)
+            if next_rw_ts <= end_time:
+                rw_jumpstart_list.append(next_rw_ts)
+            print rw_ts, next_rw_ts
 if len(rw_jumpend_list) < len(rw_jumpstart_list):
     rw_jumpend_list.append(end_time)
+else:
+    rw_jumpstart_list.append(rw_jumpend_list[len(rw_jumpend_list)-1])
+    rw_jumpend_list.append(end_time)
+# CHECK IF START == END Of Interval and toss if true
+single_point_list = []
+for i in range(len(rw_jumpstart_list)):
+    if rw_jumpstart_list[i] == rw_jumpend_list[i]:
+        single_point_list.append(i)
 
-## RESPIRATION CHEST
+rw_jumpstart_list = np.array(rw_jumpstart_list)
+rw_jumpend_list = np.array(rw_jumpend_list)
+
+rw_start = np.delete(rw_jumpstart_list, single_point_list)
+rw_end = np.delete(rw_jumpend_list, single_point_list)
+
+# RESPIRATION CHEST
 respiration_jumpstart_list = [start_time]
 respiration_jumpend_list = []
 first = 0
-for iter in range(0,len(respiration_ts_list)-1):
+for iter in range(0, len(respiration_ts_list)-1):
     resp_ts = respiration_ts_list[iter]
     next_resp_ts = respiration_ts_list[iter+1]
     if start_time.date() == resp_ts.date() and start_time <= resp_ts and end_time >= resp_ts:
         if first == 0:
+            print "At first time"
             diff = resp_ts - start_time
             if diff.seconds > 30.:
+                print "And there's a gap"
                 respiration_jumpstart_list[0] = resp_ts
+                print start_time, resp_ts
             first = 1
-        else:
-            diff = next_resp_ts - resp_ts
-            if diff.seconds > 30.:
-                respiration_jumpend_list.append(resp_ts)
-                if next_resp_ts <= end_time:
-                    respiration_jumpstart_list.append(next_resp_ts)
+        diff = next_resp_ts - resp_ts
+        if diff.seconds > 30.:
+            respiration_jumpend_list.append(resp_ts)
+            if next_resp_ts <= end_time:
+                respiration_jumpstart_list.append(next_resp_ts)
+            print resp_ts, next_resp_ts
 if len(respiration_jumpend_list) < len(respiration_jumpstart_list):
     respiration_jumpend_list.append(end_time)
+else:
+    respiration_jumpstart_list.append(respiration_jumpend_list[len(respiration_jumpend_list)-1])
+    respiration_jumpend_list.append(end_time)
+# CHECK IF START == END Of Interval and toss if true
+single_point_list = []
+for i in range(len(respiration_jumpstart_list)):
+    if respiration_jumpstart_list[i] == respiration_jumpend_list[i]:
+        single_point_list.append(i)
 
-## COMBINE TO GENERATE THE INTERVALS
+respiration_jumpstart_list = np.array(respiration_jumpstart_list)
+respiration_jumpend_list = np.array(respiration_jumpend_list)
 
-## TAKE UNION OF LW/RW
+respiration_start = np.delete(respiration_jumpstart_list, single_point_list)
+respiration_end = np.delete(respiration_jumpend_list, single_point_list)
+
+# COMBINE TO GENERATE THE INTERVALS.
+# FIRST, TAKE UNION OF LW/RW
 lrw_start_list = []
 lrw_end_list = []
 union_complete = False
-jointwrist_start_list = np.array(lw_jumpstart_list + rw_jumpstart_list)
-jointwrist_end_list = np.array(lw_jumpend_list + rw_jumpend_list)
+jointwrist_start_list = np.concatenate((lw_start, rw_start))
+jointwrist_end_list = np.concatenate((lw_end, rw_end))
 max_iter = len(jointwrist_start_list)
-    
+iter = 0
+
 while not union_complete:
+    iter +=1
     min_start = min(jointwrist_start_list)
     whichmin = [i for i in range(0,len(jointwrist_start_list)) if jointwrist_start_list[i] == min_start]
     max_end = max(jointwrist_end_list[whichmin])
     move_on = False
-
+    print iter
+    #print "Currently we have %s intervals left" % len(jointwrist_start_list)
     while not move_on:
+        print ("Entered move on sub loop")
         which_in_interval = [i for i in range(0,len(jointwrist_start_list)) if jointwrist_start_list[i] > min_start and jointwrist_start_list[i] <= max_end]
         if len(which_in_interval) == 0:
+            print("None in interval, move on")
             move_on = True
         else:
             if max(jointwrist_end_list[which_in_interval]) > max_end:
                 max_end = max(jointwrist_end_list[which_in_interval])
             else:
+                print ("Already got max_end correct, move on")
                 move_on = True
-
     lrw_start_list.append(min_start)
     lrw_end_list.append(max_end)
-
     keep_obs = jointwrist_start_list > max(lrw_end_list)
     jointwrist_end_list = jointwrist_end_list[keep_obs]
     jointwrist_start_list = jointwrist_start_list[keep_obs]
-    iter +=1
-    if len(jointwrist_start_list) = 0 or iter > max_iter:
+    if len(jointwrist_start_list) == 0 or iter > max_iter:
         union_complete = True
 
-# CHECK IF DAYSTART IN RW BETWEEN BEG AND END
+# NEXT, TAKE INTERSECTION OF UNION WITH RESP LISTS
+# wpc stands for wrist plus chest
+wpc_start_list = []
+wpc_end_list = []
+intersection_complete = False
+jointwrist_plus_resp_start_list = np.concatenate((lrw_start_list, respiration_start))
+jointwrist_plus_resp_end_list = np.concatenate((lrw_end_list, respiration_end))
+max_iter = len(jointwrist_plus_resp_start_list)*10
+iter = 0
+min_start = min(jointwrist_plus_resp_start_list)
 
+while not intersection_complete:
+    iter +=1
+    whichmin = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] == min_start]
+    max_end = max(jointwrist_plus_resp_end_list[whichmin])
+    move_on = False
+    print iter
+    while not move_on:
+        print "Entered move on sub loop"
+        which_in_interval = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] <= max_end and jointwrist_plus_resp_end_list[i] >= min_start]
+        if len(which_in_interval) == 0:
+            print "None in interval, move on"
+            whichmin = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] >= max_end]
+            min_start = min(jointwrist_plus_resp_start_list[whichmin])
+            move_on = True
+        else:
+            print "Something in interval"
+            temp_start = jointwrist_plus_resp_start_list[which_in_interval]
+            temp_end = jointwrist_plus_resp_end_list[which_in_interval]
+            # Check if min is start or end time
+            if min(temp_start) > min(temp_end):
+                # If min is end, then define
+                # interval to that min and move on
+                max_end = min(temp_end)
+            else:
+                # If min is start, then define
+                # Interval from that point
+                min_start = min(temp_start[temp_start >= min_start])
+                whichcur_in_interval = [i for i in which_in_interval if jointwrist_plus_resp_start_list[i] == min_start]
+                end_cur = max(jointwrist_plus_resp_end_list[whichcur_in_interval])
+            if end_cur > max_end:
+                print "Already got max_end of current interval "
+            else:
+                print ("Need new max_end")
+                max_end = end_cur
+            wpc_start_list.append(min_start)
+            wpc_end_list.append(max_end)
+            print "Finished appending"
+            whichmin = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] >= max_end]
+            min_start = min(jointwrist_plus_resp_start_list[whichmin])
+            move_on = True
+            print "Let's move on"
+    if min_start == max(jointwrist_plus_resp_start_list) or iter > max_iter:
+        intersection_complete = True
 
-    
+for i in range(len(wpc_start_list)):
+    print wpc_start_list[i], wpc_end_list[i]
+
+for i in range(len(respiration_start)):
+    print respiration_start[i], respiration_end[i]
+
+for i in range(len(lrw_start_list)):
+    print lrw_start_list[i], lrw_end_list[i]
+
 ## UPDATE TO NEXT DAY
 current_date = current_date + timedelta(days=1)
 iter +=1
