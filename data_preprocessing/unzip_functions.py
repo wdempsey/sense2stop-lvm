@@ -907,7 +907,10 @@ def wrist_chest_intersection(lrw_start_list, lrw_end_list, respiration_start, re
                     wpc_start_list.append(min_start)
                     wpc_end_list.append(max_end)
                     #print "Finished appending"
-                    whichmin = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] >= max_end]
+                    if min_start == max_end:
+                        whichmin = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] > max_end]
+                    else:
+                        whichmin = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] >= max_end]
                     if len(whichmin) == 0:
                         #print "There's nothing left!"
                         min_start = end_time
@@ -988,8 +991,3 @@ for i in range(len(respiration_start)):
 
 for i in range(len(lrw_start_list)):
     print lrw_start_list[i], lrw_end_list[i]
-
-## UPDATE TO NEXT DAY
-current_date = current_date + timedelta(days=1)
-iter +=1
-print current_date
