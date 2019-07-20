@@ -487,6 +487,7 @@ def wakeup(participant_zip, participant_id):
 
 
 def sleep(participant_zip, participant_id):
+    zip_namelist = participant_zip.namelist()
     bz2_marker = 'SLEEP+PHONE.csv.bz2'
     zip_matching = [s for s in zip_namelist if bz2_marker in s]
     if not zip_matching:
@@ -497,7 +498,7 @@ def sleep(participant_zip, participant_id):
         global_tz = pytz.timezone('GMT')
         bz2_file = participant_zip.open(zip_matching[0])
         tempfile = bz2.decompress(bz2_file.read())
-        tempfile = tempfile.return strip('\n').split('\r')
+        tempfile = tempfile.rstrip('\n').split('\r')
         tempfile.pop()
         sleep_ts_list = []
         sleep_date_list = []
@@ -512,6 +513,7 @@ def sleep(participant_zip, participant_id):
 
 
 def daystart(participant_zip, participant_id):
+    zip_namelist = participant_zip.namelist()
     bz2_marker = 'DAY_START+PHONE.csv.bz2'
     zip_matching = [s for s in zip_namelist if bz2_marker in s]
     if not zip_matching:
@@ -522,7 +524,7 @@ def daystart(participant_zip, participant_id):
         local_tz = pytz.timezone('US/Central')
         bz2_file = participant_zip.open(zip_matching[0])
         tempfile = bz2.decompress(bz2_file.read())
-        tempfile = tempfile.return strip('\n').split('\r')
+        tempfile = tempfile.rstrip('\n').split('\r')
         tempfile.pop()
         daystart_ts_list = []
         daystart_date_list = []
@@ -537,6 +539,7 @@ def daystart(participant_zip, participant_id):
 
 
 def dayend(participant_zip, participant_id):
+    zip_namelist = participant_zip.namelist()
     bz2_marker = 'DAY_END+PHONE.csv.bz2'
     zip_matching = [s for s in zip_namelist if bz2_marker in s]
     if not zip_matching:
@@ -561,6 +564,7 @@ def dayend(participant_zip, participant_id):
 
 
 def leftwrist_dq(participant_zip, participant_id):
+    zip_namelist = participant_zip.namelist()
     bz2_marker = '+DATA_QUALITY+ACCELEROMETER+MOTION_SENSE+LEFT_WRIST.csv.bz2'
     zip_matching = [s for s in zip_namelist if bz2_marker in s]
     if not zip_matching:
@@ -579,10 +583,11 @@ def leftwrist_dq(participant_zip, participant_id):
             if values == '0':
                 ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
                 leftwrist_ts_list.append(ts)
-        return leftwrist_ts_list
+    return leftwrist_ts_list
 
 
 def rightwrist_dq(participant_zip, participant_id):
+    zip_namelist = participant_zip.namelist()
     bz2_marker = '+DATA_QUALITY+ACCELEROMETER+MOTION_SENSE+RIGHT_WRIST.csv.bz2'
     zip_matching = [s for s in zip_namelist if bz2_marker in s]
     if not zip_matching:
@@ -601,10 +606,11 @@ def rightwrist_dq(participant_zip, participant_id):
             if values == '0':
                 ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
                 rightwrist_ts_list.append(ts)
-        return rightwrist_ts_list
+    return rightwrist_ts_list
 
 
-def rightwrist_dq(participant_zip, participant_id):
+def respiration_dq(participant_zip, participant_id):
+    zip_namelist = participant_zip.namelist()
     bz2_marker = '+DATA_QUALITY+RESPIRATION+AUTOSENSE_CHEST+CHEST.csv.bz2'
     zip_matching = [s for s in zip_namelist if bz2_marker in s]
     if not zip_matching:
@@ -626,7 +632,10 @@ def rightwrist_dq(participant_zip, participant_id):
         return respiration_ts_list
 
 
-def current_daystart(current_date, daystart_ts_list, wakeup_ts_list, dayend_ts_list, sleep_ts_list):
+def currentday_startend(current_date, daystart_ts_list,
+                        wakeup_ts_list, wakeup_date_list,
+                        dayend_ts_list,
+                        sleep_ts_list, sleep_date_list):
     # CHECK IF DAYSTART/DAYEND EXIST FOR THAT DAY
     # ELSE USE WAKEUP/SLEEP
     # IF WAKEUP/SLEEP EMPTY, USE MOST RECENT DAY
@@ -646,9 +655,10 @@ def current_daystart(current_date, daystart_ts_list, wakeup_ts_list, dayend_ts_l
                     start_time = start_time.replace(hour=wakeup_hour,minute=wakeup_minute)
                     min_gap = current_gap
         else:
+            start_time = current_date
             for iter in range(0,len(wakeup_ts_list)):
                 wakeup_ts = wakeup_ts_list[iter]
-                if current_date.date() <= wakeup_ts.date():
+                if current_date.date() >= wakeup_ts.date():
                     wakeup_hour = int(wakeup_date_list[iter].strftime('%H'))
                     wakeup_minute = int(wakeup_date_list[iter].strftime('%M'))
                     start_time = start_time.replace(hour=wakeup_hour,minute=wakeup_minute)
@@ -660,7 +670,7 @@ def current_daystart(current_date, daystart_ts_list, wakeup_ts_list, dayend_ts_l
         end_time = current_date
         if len(sleep_ts_list) == 0:
             min_gap = 1000
-            for dayend in dayend_ts_list:
+            for dayend in sleep_ts_list:
                 current_gap = abs((dayend - end_time).days)
                 if current_gap < min_gap:
                     sleep_hour = int(dayend.strftime('%H'))
@@ -668,9 +678,10 @@ def current_daystart(current_date, daystart_ts_list, wakeup_ts_list, dayend_ts_l
                     end_time = end_time.replace(hour=sleep_hour,minute=sleep_minute)
                     min_gap = current_gap
         else:
+            end_time = current_date
             for iter in range(0,len(sleep_ts_list)):
                 sleep_ts = sleep_ts_list[iter]
-                if current_date.date() <= sleep_ts.date():
+                if current_date.date() >= sleep_ts.date():
                     sleep_hour = int(sleep_date_list[iter].strftime('%H'))
                     sleep_minute = int(sleep_date_list[iter].strftime('%M'))
                     end_time = end_time.replace(hour=sleep_hour,minute=sleep_minute)
@@ -682,24 +693,26 @@ def leftwrist_day(start_time, end_time, leftwrist_ts_list):
     lw_jumpstart_list = [start_time]
     lw_jumpend_list = []
     first = 0
+    any_good_measures = False
     for iter in range(0,len(leftwrist_ts_list)-1):
         lw_ts = leftwrist_ts_list[iter]
         next_lw_ts = leftwrist_ts_list[iter+1]
         if start_time.date() == lw_ts.date() and start_time <= lw_ts and end_time >= lw_ts:
+            any_good_measures = True
             if first == 0:
                 #print "We hit the first of times"
                 diff = lw_ts - start_time
                 if diff.seconds > 30.:
                     lw_jumpstart_list[0] = lw_ts
                     #print "And it's a gap"
-                    print start_time, lw_ts
+                    #print start_time, lw_ts
                 first = 1
             diff = next_lw_ts - lw_ts
             if diff.seconds > 30.:
                 lw_jumpend_list.append(lw_ts)
                 if next_lw_ts <= end_time:
                     lw_jumpstart_list.append(next_lw_ts)
-                    #print lw_ts, next_lw_ts
+                #print lw_ts, next_lw_ts
     ## END WITH end_time if final window has
     ## good data until that time
     if len(lw_jumpend_list) < len(lw_jumpstart_list):
@@ -716,17 +729,22 @@ def leftwrist_day(start_time, end_time, leftwrist_ts_list):
     lw_jumpend_list = np.array(lw_jumpend_list)
     lw_start = np.delete(lw_jumpstart_list, single_point_list)
     lw_end = np.delete(lw_jumpend_list, single_point_list)
-    return lw_start, lw_end
+    if any_good_measures == True:
+        return lw_start, lw_end
+    else:
+        return [], []
 
 
 def rightwrist_day(start_time, end_time, rightwrist_ts_list):
     rw_jumpstart_list = [start_time]
     rw_jumpend_list = []
     first = 0
+    any_good_measures = False
     for iter in range(0,len(rightwrist_ts_list)-1):
         rw_ts = rightwrist_ts_list[iter]
         next_rw_ts = rightwrist_ts_list[iter+1]
         if start_time.date() == rw_ts.date() and start_time <= rw_ts and end_time >= rw_ts:
+            any_good_measures = True
             if first == 0:
                 #print "Hit that first time"
                 diff = rw_ts - start_time
@@ -755,17 +773,22 @@ def rightwrist_day(start_time, end_time, rightwrist_ts_list):
     rw_jumpend_list = np.array(rw_jumpend_list)
     rw_start = np.delete(rw_jumpstart_list, single_point_list)
     rw_end = np.delete(rw_jumpend_list, single_point_list)
-    return rw_start, rw_end
+    if any_good_measures == True:
+        return rw_start, rw_end
+    else:
+        return [], []
 
 
 def respiration_day(start_time, end_time, respiration_ts_list):
     respiration_jumpstart_list = [start_time]
     respiration_jumpend_list = []
     first = 0
+    any_good_measures = False
     for iter in range(0, len(respiration_ts_list)-1):
         resp_ts = respiration_ts_list[iter]
         next_resp_ts = respiration_ts_list[iter+1]
         if start_time.date() == resp_ts.date() and start_time <= resp_ts and end_time >= resp_ts:
+            any_good_measures = True
             if first == 0:
                 #print "At first time"
                 diff = resp_ts - start_time
@@ -794,44 +817,50 @@ def respiration_day(start_time, end_time, respiration_ts_list):
     respiration_jumpend_list = np.array(respiration_jumpend_list)
     respiration_start = np.delete(respiration_jumpstart_list, single_point_list)
     respiration_end = np.delete(respiration_jumpend_list, single_point_list)
-    return respiration_start, respiration_end
+    if any_good_measures == True:
+        return respiration_start, respiration_end
+    else:
+        return [], []
 
 
 def wrist_union(lw_start, lw_end, rw_start, rw_end):
-    lrw_start_list = []
-    lrw_end_list = []
-    union_complete = False
-    jointwrist_start_list = np.concatenate((lw_start, rw_start))
-    jointwrist_end_list = np.concatenate((lw_end, rw_end))
-    max_iter = len(jointwrist_start_list)
-    iter = 0
-    while not union_complete:
-        iter +=1
-        min_start = min(jointwrist_start_list)
-        whichmin = [i for i in range(0,len(jointwrist_start_list)) if jointwrist_start_list[i] == min_start]
-        max_end = max(jointwrist_end_list[whichmin])
-        move_on = False
-        #print iter
-        while not move_on:
-            #print ("Entered move on sub loop")
-            which_in_interval = [i for i in range(0,len(jointwrist_start_list)) if jointwrist_start_list[i] > min_start and jointwrist_start_list[i] <= max_end]
-            if len(which_in_interval) == 0:
-                #print("None in interval, move on")
-                move_on = True
-            else:
-                if max(jointwrist_end_list[which_in_interval]) > max_end:
-                    max_end = max(jointwrist_end_list[which_in_interval])
-                else:
-                    #print ("Already got max_end correct, move on")
+    if lw_start == [] and rw_start == []:
+        return [], []
+    else:
+        lrw_start_list = []
+        lrw_end_list = []
+        union_complete = False
+        jointwrist_start_list = np.concatenate((lw_start, rw_start))
+        jointwrist_end_list = np.concatenate((lw_end, rw_end))
+        max_iter = len(jointwrist_start_list)
+        iter = 0
+        while not union_complete:
+            iter +=1
+            min_start = min(jointwrist_start_list)
+            whichmin = [i for i in range(0,len(jointwrist_start_list)) if jointwrist_start_list[i] == min_start]
+            max_end = max(jointwrist_end_list[whichmin])
+            move_on = False
+            #print iter
+            while not move_on:
+                #print ("Entered move on sub loop")
+                which_in_interval = [i for i in range(0,len(jointwrist_start_list)) if jointwrist_start_list[i] > min_start and jointwrist_start_list[i] <= max_end]
+                if len(which_in_interval) == 0:
+                    #print("None in interval, move on")
                     move_on = True
-        lrw_start_list.append(min_start)
-        lrw_end_list.append(max_end)
-        keep_obs = jointwrist_start_list > max(lrw_end_list)
-        jointwrist_end_list = jointwrist_end_list[keep_obs]
-        jointwrist_start_list = jointwrist_start_list[keep_obs]
-        if len(jointwrist_start_list) == 0 or iter > max_iter:
-            union_complete = True
-    return lrw_start_list, lrw_end_list
+                else:
+                    if max(jointwrist_end_list[which_in_interval]) > max_end:
+                        max_end = max(jointwrist_end_list[which_in_interval])
+                    else:
+                        #print ("Already got max_end correct, move on")
+                        move_on = True
+            lrw_start_list.append(min_start)
+            lrw_end_list.append(max_end)
+            keep_obs = jointwrist_start_list > max(lrw_end_list)
+            jointwrist_end_list = jointwrist_end_list[keep_obs]
+            jointwrist_start_list = jointwrist_start_list[keep_obs]
+            if len(jointwrist_start_list) == 0 or iter > max_iter:
+                union_complete = True
+        return lrw_start_list, lrw_end_list
 
 
 def wrist_chest_intersection(lrw_start_list, lrw_end_list, respiration_start, respiration_end):
@@ -839,74 +868,113 @@ def wrist_chest_intersection(lrw_start_list, lrw_end_list, respiration_start, re
     # FIRST, TAKE UNION OF LW/RW
     # NEXT, TAKE INTERSECTION OF UNION WITH RESP LISTS
     # wpc stands for wrist plus chest
-    wpc_start_list = []
-    wpc_end_list = []
-    intersection_complete = False
-    jointwrist_plus_resp_start_list = np.concatenate((lrw_start_list, respiration_start))
-    jointwrist_plus_resp_end_list = np.concatenate((lrw_end_list, respiration_end))
-    max_iter = len(jointwrist_plus_resp_start_list)*10
-    iter = 0
-    min_start = min(jointwrist_plus_resp_start_list)
-    while not intersection_complete:
-        iter +=1
-        whichmin = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] == min_start]
-        max_end = max(jointwrist_plus_resp_end_list[whichmin])
-        #print iter
-        #print "Entered if/then part"
-        which_in_interval = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] <= max_end and jointwrist_plus_resp_end_list[i] >= min_start]
-        if len(which_in_interval) == 0:
-            #print "None in interval, move on"
-            whichmin = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] >= max_end]
-            min_start = min(jointwrist_plus_resp_start_list[whichmin])
-        else:
-            #print "Something in interval"
-            temp_start = jointwrist_plus_resp_start_list[which_in_interval]
-            temp_end = jointwrist_plus_resp_end_list[which_in_interval]
-            if len(temp_start[temp_start > min_start]) == 0:
-                min_temp_start = end_time
-            else:
-                min_temp_start = min(temp_start[temp_start > min_start])
-            # Check if min is start or end time
-            if min_temp_start >= min(temp_end):
-                # If min is end, then this is an intersection
-                # window and append to lists!
-                max_end = min(temp_end)
-                wpc_start_list.append(min_start)
-                wpc_end_list.append(max_end)
-                #print "Finished appending"
+    if lrw_start_list == [] or respiration_start == []:
+        return [], []
+    else:
+        wpc_start_list = []
+        wpc_end_list = []
+        intersection_complete = False
+        jointwrist_plus_resp_start_list = np.concatenate((lrw_start_list, respiration_start))
+        jointwrist_plus_resp_end_list = np.concatenate((lrw_end_list, respiration_end))
+        max_iter = len(jointwrist_plus_resp_start_list)*10
+        iter = 0
+        min_start = min(jointwrist_plus_resp_start_list)
+        while not intersection_complete:
+            iter +=1
+            whichmin = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] == min_start]
+            max_end = max(jointwrist_plus_resp_end_list[whichmin])
+            #print iter
+            #print "Entered if/then part"
+            which_in_interval = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] <= max_end and jointwrist_plus_resp_end_list[i] >= min_start]
+            if len(which_in_interval) == 0:
+                #print "None in interval, move on"
                 whichmin = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] >= max_end]
-                if len(whichmin) == 0:
-                    #print "There's nothing left!"
-                    min_start = end_time
-                else:
-                    min_start = min(jointwrist_plus_resp_start_list[whichmin])
+                min_start = min(jointwrist_plus_resp_start_list[whichmin])
             else:
-                # If min is start, then move
-                # up the start time and move on
-                print "No appending, move on"
-                min_start = min(temp_start[temp_start > min_start])
-        if min_start == end_time or iter > max_iter:
-            intersection_complete = True
-    return jointwrist_plus_resp_start_list, jointwrist_plus_resp_end_list
+                #print "Something in interval"
+                temp_start = jointwrist_plus_resp_start_list[which_in_interval]
+                temp_end = jointwrist_plus_resp_end_list[which_in_interval]
+                if len(temp_start[temp_start > min_start]) == 0:
+                    min_temp_start = end_time
+                else:
+                    min_temp_start = min(temp_start[temp_start > min_start])
+                # Check if min is start or end time
+                if min_temp_start >= min(temp_end):
+                    # If min is end, then this is an intersection
+                    # window and append to lists!
+                    max_end = min(temp_end)
+                    #print min_start, max_end
+                    wpc_start_list.append(min_start)
+                    wpc_end_list.append(max_end)
+                    #print "Finished appending"
+                    whichmin = [i for i in range(0,len(jointwrist_plus_resp_start_list)) if jointwrist_plus_resp_start_list[i] >= max_end]
+                    if len(whichmin) == 0:
+                        #print "There's nothing left!"
+                        min_start = end_time
+                    else:
+                        min_start = min(jointwrist_plus_resp_start_list[whichmin])
+                else:
+                    # If min is start, then move
+                    # up the start time and move on
+                    #print "No appending, move on"
+                    min_start = min(temp_start[temp_start > min_start])
+            if min_start == end_time or iter > max_iter:
+                #print "Intersection complete!"
+                intersection_complete = True
+        return wpc_start_list, wpc_end_list
 
 
 
-'''
 def study_days(participant_zip, participant_id, participant_dates):
     # Inputs: zipfile, participant_id
     # Output: add to csv (prints when done)
 
-    entry_date = participant_dates['start_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
-    quit_date = participant_dates['quit_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
-    end_date = participant_dates['actual_end_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
-
-    entry_date = datetime.strptime(entry_date, '%m/%d/%y')
-    quit_date = datetime.strptime(quit_date, '%m/%d/%y')
-    end_date = datetime.strptime(end_date, '%m/%d/%y')
-
+# Get wake,sleep, daystart, dayend
+wakeup_ts_list, wakeup_date_list = wakeup(participant_zip, participant_id)
+sleep_ts_list, sleep_date_list = sleep(participant_zip, participant_id)
+daystart_ts_list, daystart_date_list = daystart(participant_zip, participant_id)
+dayend_ts_list, dayend_date_list = dayend(participant_zip, participant_id)
+# Bring in Left, Right, and Resp for participant_id
+leftwrist_ts_list = leftwrist_dq(participant_zip, participant_id)
+rightwrist_ts_list = rightwrist_dq(participant_zip, participant_id)
+respiration_ts_list = respiration_dq(participant_zip, participant_id)
+# Get range of dates from entry to exit
+entry_date = participant_dates['start_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
+quit_date = participant_dates['quit_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
+end_date = participant_dates['actual_end_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
+# Convert to DATETIME object
+local_tz = pytz.timezone('US/Central')
+entry_date = datetime.strptime(entry_date, '%m/%d/%y')
+quit_date = datetime.strptime(quit_date, '%m/%d/%y')
+end_date = datetime.strptime(end_date, '%m/%d/%y')
+entry_date = entry_date.replace(tzinfo=local_tz)
+quit_date = quit_date.replace(tzinfo=local_tz)
+end_date = end_date.replace(tzinfo=local_tz)
+# Setup iteration
 current_date = entry_date
-date_iter = 1
-# while (current_date <= end_date and iter < 1000):
+date_range_length = (end_date - entry_date).days + 1
+for iter in range(date_range_length):
+    # Update current_date and start + end times
+    current_date = entry_date + date_iter * iter
+    print current_date
+    start_time, end_time = currentday_startend(current_date, daystart_ts_list, wakeup_ts_list, wakeup_date_list, dayend_ts_list, sleep_ts_list, sleep_date_list)
+    # Clean raw data for the current_date
+    lw_start, lw_end = leftwrist_day(start_time, end_time, leftwrist_ts_list)
+    rw_start, rw_end = rightwrist_day(start_time, end_time, rightwrist_ts_list)
+    respiration_start, respiration_end = respiration_day(start_time, end_time, respiration_ts_list)
+    # Take union of wrist data
+    lrw_start_list, lrw_end_list = wrist_union(lw_start, lw_end, rw_start, rw_end)
+    # Take intersection with respiration data
+    joint_start_list, joint_end_list = wrist_chest_intersection(lrw_start_list, lrw_end_list, respiration_start, respiration_end)
+    if len(joint_start_list) == 0:
+        print "Nothing on this day"
+    for i in range(len(joint_start_list)):
+        print joint_start_list[i], joint_end_list[i]
+    ## Construct DF
+    ## Participant id, date, iter, pre/post quit,
+    ##
+    temp = np.array([participant_id, current_date, iter, current_date.date() >= quit_date.date(),
+             joint_start_list, joint_end_list])
 
 ## WITH START AND END TIMES DEFINED
 ## NEXT DEFINE HQ WINDOWS FOR L/R wrist
@@ -925,4 +993,3 @@ for i in range(len(lrw_start_list)):
 current_date = current_date + timedelta(days=1)
 iter +=1
 print current_date
-'''
