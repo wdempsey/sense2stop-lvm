@@ -3,10 +3,12 @@ import zipfile
 from unzip_backup_functions import *
 
 # dir = "/Volumes/dav/MD2K Processed Data/Data streams - backup files"
-dir = '/Users/walterdempsey/Box/MD2K Processed Data/Data streams - phone backup files/Processed Phone Backup Files'
+dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/Data streams - phone backup files/Processed Phone Backup Files'
 
-#all_participant_ids = range(201, 223) + range(228,238)
-all_participant_ids = range(238, 254)
+all_participant_ids = range(201, 223) + range(228,254)
+#all_participant_ids = range(238, 254)
+
+participant_dates = pd.read_csv('/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/participant-dates.csv')
 
 for participant_id in all_participant_ids:
         print('Now on participant ' + str(participant_id))
@@ -22,7 +24,9 @@ for participant_id in all_participant_ids:
         	print('participant '+ str(participant_id) + ' does not have cloud back up data!')
         if not file_exists:
         	continue
-
+        # ADD HQ PARTITION TO BACKUP FILE
+        study_days(participant_zip, participant_id, participant_dates)
+        '''
     	smoking_episode(participant_zip, participant_id)
 
     	puff_probability(participant_zip, participant_id)
@@ -32,5 +36,4 @@ for participant_id in all_participant_ids:
     	random_ema(participant_zip, participant_id)
 
     	event_contingent_ema(participant_zip, participant_id)
-
-       
+        '''
