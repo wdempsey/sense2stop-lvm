@@ -103,7 +103,7 @@ def smoking_episode(participant_zip, participant_id):
         df['hour'] = df['timestamp'].apply(hour_of_day)
         df['minute'] = df['timestamp'].apply(minute_of_day)
         df['day_of_week'] =  df['timestamp'].apply(day_of_week)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
         save_filename = 'puff-episode.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a'  # append if already exists
@@ -137,7 +137,7 @@ def puff_probability(participant_zip, participant_id):
         df['hour'] = df['timestamp'].apply(hour_of_day)
         df['minute'] = df['timestamp'].apply(minute_of_day)
         df['day_of_week'] =  df['timestamp'].apply(day_of_week)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
         save_filename = 'puff-probability.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a'  # append if already exists
@@ -217,7 +217,7 @@ def random_ema(participant_zip, participant_id):
     json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
     json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
     json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
-    save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+    save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
     save_filename = 'random-ema.csv'
     if os.path.isfile(save_dir + save_filename):
         append_write = 'a' # append if already exists
@@ -295,7 +295,7 @@ def end_of_day_ema(participant_zip, participant_id):
         json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
         json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
         json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
         save_filename = 'eod-ema.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a' # append if already exists
@@ -351,7 +351,7 @@ def event_contingent_ema(participant_zip, participant_id):
         json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
         json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
         json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
         save_filename = 'eventcontingent-ema.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a' # append if already exists
@@ -412,7 +412,7 @@ def cstress(participant_zip, participant_id):
         df['hour'] = df['timestamp'].apply(hour_of_day)
         df['minute'] = df['timestamp'].apply(minute_of_day)
         df['day_of_week'] =  df['timestamp'].apply(day_of_week)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
         save_filename = 'stress-label.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a'  # append if already exists
@@ -445,7 +445,7 @@ def stress_episodes(participant_zip, participant_id):
         df['start_date'] = df['start_ts'].apply(unix_date)
         df['peak_date'] = df['peak_ts'].apply(unix_date)
         df['end_date'] = df['end_ts'].apply(unix_date)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
         save_filename = 'stress-episodes.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a'  # append if already exists
@@ -863,7 +863,7 @@ def wrist_union(lw_start, lw_end, rw_start, rw_end):
         return lrw_start_list, lrw_end_list
 
 
-def wrist_chest_intersection(lrw_start_list, lrw_end_list, respiration_start, respiration_end):
+def wrist_chest_intersection(lrw_start_list, lrw_end_list, respiration_start, respiration_end, end_time):
     # COMBINE TO GENERATE THE INTERVALS.
     # FIRST, TAKE UNION OF LW/RW
     # NEXT, TAKE INTERSECTION OF UNION WITH RESP LISTS
@@ -927,67 +927,68 @@ def wrist_chest_intersection(lrw_start_list, lrw_end_list, respiration_start, re
         return wpc_start_list, wpc_end_list
 
 
-
 def study_days(participant_zip, participant_id, participant_dates):
     # Inputs: zipfile, participant_id
     # Output: add to csv (prints when done)
-
-# Get wake,sleep, daystart, dayend
-wakeup_ts_list, wakeup_date_list = wakeup(participant_zip, participant_id)
-sleep_ts_list, sleep_date_list = sleep(participant_zip, participant_id)
-daystart_ts_list, daystart_date_list = daystart(participant_zip, participant_id)
-dayend_ts_list, dayend_date_list = dayend(participant_zip, participant_id)
-# Bring in Left, Right, and Resp for participant_id
-leftwrist_ts_list = leftwrist_dq(participant_zip, participant_id)
-rightwrist_ts_list = rightwrist_dq(participant_zip, participant_id)
-respiration_ts_list = respiration_dq(participant_zip, participant_id)
-# Get range of dates from entry to exit
-entry_date = participant_dates['start_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
-quit_date = participant_dates['quit_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
-end_date = participant_dates['actual_end_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
-# Convert to DATETIME object
-local_tz = pytz.timezone('US/Central')
-entry_date = datetime.strptime(entry_date, '%m/%d/%y')
-quit_date = datetime.strptime(quit_date, '%m/%d/%y')
-end_date = datetime.strptime(end_date, '%m/%d/%y')
-entry_date = entry_date.replace(tzinfo=local_tz)
-quit_date = quit_date.replace(tzinfo=local_tz)
-end_date = end_date.replace(tzinfo=local_tz)
-# Setup iteration
-current_date = entry_date
-date_range_length = (end_date - entry_date).days + 1
-for iter in range(date_range_length):
-    # Update current_date and start + end times
-    current_date = entry_date + date_iter * iter
-    print current_date
-    start_time, end_time = currentday_startend(current_date, daystart_ts_list, wakeup_ts_list, wakeup_date_list, dayend_ts_list, sleep_ts_list, sleep_date_list)
-    # Clean raw data for the current_date
-    lw_start, lw_end = leftwrist_day(start_time, end_time, leftwrist_ts_list)
-    rw_start, rw_end = rightwrist_day(start_time, end_time, rightwrist_ts_list)
-    respiration_start, respiration_end = respiration_day(start_time, end_time, respiration_ts_list)
-    # Take union of wrist data
-    lrw_start_list, lrw_end_list = wrist_union(lw_start, lw_end, rw_start, rw_end)
-    # Take intersection with respiration data
-    joint_start_list, joint_end_list = wrist_chest_intersection(lrw_start_list, lrw_end_list, respiration_start, respiration_end)
-    if len(joint_start_list) == 0:
-        print "Nothing on this day"
-    for i in range(len(joint_start_list)):
-        print joint_start_list[i], joint_end_list[i]
-    ## Construct DF
-    ## Participant id, date, iter, pre/post quit,
-    ##
-    temp = np.array([participant_id, current_date, iter, current_date.date() >= quit_date.date(),
-             joint_start_list, joint_end_list])
-
-## WITH START AND END TIMES DEFINED
-## NEXT DEFINE HQ WINDOWS FOR L/R wrist
-## AND RESPIRATION
-
-for i in range(len(wpc_start_list)):
-    print wpc_start_list[i], wpc_end_list[i]
-
-for i in range(len(respiration_start)):
-    print respiration_start[i], respiration_end[i]
-
-for i in range(len(lrw_start_list)):
-    print lrw_start_list[i], lrw_end_list[i]
+    # Get wake,sleep, daystart, dayend
+    wakeup_ts_list, wakeup_date_list = wakeup(participant_zip, participant_id)
+    sleep_ts_list, sleep_date_list = sleep(participant_zip, participant_id)
+    daystart_ts_list, daystart_date_list = daystart(participant_zip, participant_id)
+    dayend_ts_list, dayend_date_list = dayend(participant_zip, participant_id)
+    # Bring in Left, Right, and Resp for participant_id
+    leftwrist_ts_list = leftwrist_dq(participant_zip, participant_id)
+    rightwrist_ts_list = rightwrist_dq(participant_zip, participant_id)
+    respiration_ts_list = respiration_dq(participant_zip, participant_id)
+    # Get range of dates from entry to exit
+    entry_date = participant_dates['start_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
+    quit_date = participant_dates['quit_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
+    end_date = participant_dates['actual_end_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
+    # Convert to DATETIME object
+    local_tz = pytz.timezone('US/Central')
+    entry_date = datetime.strptime(entry_date, '%m/%d/%y')
+    quit_date = datetime.strptime(quit_date, '%m/%d/%y')
+    end_date = datetime.strptime(end_date, '%m/%d/%y')
+    entry_date = entry_date.replace(tzinfo=local_tz)
+    quit_date = quit_date.replace(tzinfo=local_tz)
+    end_date = end_date.replace(tzinfo=local_tz)
+    # Setup iteration
+    current_date = entry_date
+    date_iter = timedelta(days=1)
+    date_range_length = (end_date - entry_date).days + 1
+    for iter in range(date_range_length):
+        # Update current_date and start + end times
+        current_date = entry_date + date_iter * iter
+        print current_date.date()
+        start_time, end_time = currentday_startend(current_date, daystart_ts_list, wakeup_ts_list, wakeup_date_list, dayend_ts_list, sleep_ts_list, sleep_date_list)
+        # Clean raw data for the current_date
+        lw_start, lw_end = leftwrist_day(start_time, end_time, leftwrist_ts_list)
+        rw_start, rw_end = rightwrist_day(start_time, end_time, rightwrist_ts_list)
+        respiration_start, respiration_end = respiration_day(start_time, end_time, respiration_ts_list)
+        # Take union of wrist data
+        lrw_start_list, lrw_end_list = wrist_union(lw_start, lw_end, rw_start, rw_end)
+        # Take intersection with respiration data
+        joint_start_list, joint_end_list = wrist_chest_intersection(lrw_start_list, lrw_end_list, respiration_start, respiration_end, end_time)
+        if len(joint_start_list) == 0:
+            print "Nothing on this day"
+        ## Construct DF
+        ## Participant id, date, iter, pre/post quit,
+        ##
+        partition_length = len(joint_start_list)
+        if partition_length == 0:
+            temp = {'id': [participant_id], 'date': [current_date.date()], 'study_day': [iter+1], 'prequit': [current_date.date() < quit_date.date()], 'hq_start': [-1], 'hq_end': [-1],  'start_time': [start_time], 'end_time': [end_time]}
+        else:
+            temp = {'id': np.repeat(participant_id, partition_length), 'date': np.repeat(current_date.date(), partition_length), 'study_day': np.repeat(iter+1, partition_length), 'prequit': np.repeat(current_date.date() >= quit_date.date(), partition_length), 'hq_start': joint_start_list, 'hq_end': joint_end_list, 'start_time': np.repeat(start_time, partition_length), 'end_time': np.repeat(end_time, partition_length)}
+        df = pd.DataFrame(data = temp)
+        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
+        save_filename = 'hq-episodes.csv'
+        if os.path.isfile(save_dir + save_filename):
+            append_write = 'a'  # append if already exists
+            header_binary = False
+        else:
+            append_write = 'w'  # make a new file if not
+            header_binary = True
+        temp_csv_file = open(save_dir+save_filename, append_write)
+        df.to_csv(temp_csv_file, header=header_binary, index=False)
+        temp_csv_file.close()
+        print('Added to hq-episode file!')
+    return None
