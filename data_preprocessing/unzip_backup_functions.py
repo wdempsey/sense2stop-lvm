@@ -748,7 +748,7 @@ def study_days(participant_zip, participant_id, participant_dates):
         else:
             temp = {'id': np.repeat(participant_id, partition_length), 'date': np.repeat(current_date.date(), partition_length), 'study_day': np.repeat(iter+1, partition_length), 'prequit': np.repeat(current_date.date() >= quit_date.date(), partition_length), 'hq_start': joint_start_list, 'hq_end': joint_end_list, 'start_time': np.repeat(start_time, partition_length), 'end_time': np.repeat(end_time, partition_length)}
         df = pd.DataFrame(data = temp)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
+        save_dir = global_dir
         save_filename = 'hq-episodes-backup.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a'  # append if already exists
