@@ -1,5 +1,5 @@
 import glob
-import zipfile
+from zipfile import ZipFile
 from unzip_backup_functions import *
 
 dir = './data-streams-backup/Processed Phone Backup Files'
@@ -15,7 +15,7 @@ for participant_id in all_participant_ids:
         file_name = glob.glob(dir + zip_name)
         file_exists = False
         try:
-        	participant_zip = zipfile.ZipFile(file_name[0])
+        	participant_zip = ZipFile(file_name[0])
         	file_exists = True
         except:
         	print('participant '+ str(participant_id) + ' does not have cloud back up data!')
