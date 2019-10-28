@@ -2,11 +2,9 @@ import glob
 import zipfile
 from unzip_backup_functions import *
 
-# dir = "/Volumes/dav/MD2K Processed Data/Data streams - backup files"
-dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/Data streams - phone backup files/Processed Phone Backup Files'
+dir = './data-streams-backup/Processed Phone Backup Files'
 
 all_participant_ids = range(201, 223) + range(228,254)
-#all_participant_ids = range(238, 254)
 
 participant_dates = pd.read_csv('/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/participant-dates.csv')
 
