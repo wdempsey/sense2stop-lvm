@@ -9,7 +9,7 @@ import pytz
 from helpers import *
 
 # global_dir = "/Volumes/dav/MD2K Processed Data/smoking-lvm-cleaned-data/"
-global_dir = "./cleaned-data/"
+global_dir = "../cleaned-data/"
 
 def smoking_episode(participant_zip, participant_id):
     # Inputs: zipfile, participant_id
