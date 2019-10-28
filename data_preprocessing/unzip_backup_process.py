@@ -6,7 +6,7 @@ dir = './data-streams-backup/Processed Phone Backup Files'
 
 all_participant_ids = range(201, 223) + range(228,254)
 
-participant_dates = pd.read_csv('./cleaned-data/participant-dates.csv')
+participant_dates = pd.read_csv('../cleaned-data/participant-dates.csv')
 
 for participant_id in all_participant_ids:
         print('Now on participant ' + str(participant_id))
