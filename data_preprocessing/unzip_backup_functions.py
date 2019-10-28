@@ -9,7 +9,7 @@ import pytz
 from helpers import *
 
 # global_dir = "/Volumes/dav/MD2K Processed Data/smoking-lvm-cleaned-data/"
-global_dir = "/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/"
+global_dir = "./cleaned-data/"
 
 def smoking_episode(participant_zip, participant_id):
     # Inputs: zipfile, participant_id
@@ -54,7 +54,7 @@ def puff_probability(participant_zip, participant_id):
     # Inputs: zipfile, participant_id
     # Output: add to csv (prints when done)
     zip_namelist = participant_zip.namelist()
-    csv_marker = 'PUFF_PROBABILITY' 
+    csv_marker = 'PUFF_PROBABILITY'
     csv_matching = [s for s in zip_namelist if csv_marker in s]
     csv_matching = [s for s in csv_matching if '.csv' in s]
     if csv_matching == []:
@@ -96,7 +96,7 @@ def random_ema(participant_zip, participant_id):
     zip_matching = [s for s in zip_matching if 'csv' in s]
     if not zip_matching:
         print("No RANDOM_EMA for participant " + str(participant_id))
-        return      
+        return
     tempfile = participant_zip.open(zip_matching[0])
     tempfile = tempfile.readlines()
     ts_list = []
@@ -192,8 +192,8 @@ def event_contingent_ema(participant_zip, participant_id):
     zip_matching = [s for s in zip_matching if 'csv' in s]
     if not zip_matching:
         print("No SMOKING_EMA for participant " + str(participant_id))
-        return 
-    else: 
+        return
+    else:
         csv_file = participant_zip.open(zip_matching[0])
         tempfile = csv_file.readlines()
         ts_list = []
@@ -240,8 +240,8 @@ def wakeup(participant_zip, participant_id):
     zip_matching = [s for s in zip_matching if 'csv' in s]
     if not zip_matching:
         print("No WAKEUP for participant " + str(participant_id))
-        return 
-    else: 
+        return
+    else:
         csv_file = participant_zip.open(zip_matching[0])
         tempfile = csv_file.readlines()
         local_tz = pytz.timezone('US/Central')

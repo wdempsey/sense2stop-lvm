@@ -6,7 +6,7 @@ dir = './data-streams-backup/Processed Phone Backup Files'
 
 all_participant_ids = range(201, 223) + range(228,254)
 
-participant_dates = pd.read_csv('/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/participant-dates.csv')
+participant_dates = pd.read_csv('./cleaned-data/participant-dates.csv')
 
 for participant_id in all_participant_ids:
         print('Now on participant ' + str(participant_id))
@@ -17,7 +17,6 @@ for participant_id in all_participant_ids:
         try:
         	participant_zip = zipfile.ZipFile(file_name[0])
         	file_exists = True
-
         except:
         	print('participant '+ str(participant_id) + ' does not have cloud back up data!')
         if not file_exists:
