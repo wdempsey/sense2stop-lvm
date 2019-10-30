@@ -30,3 +30,4 @@ for participant_id in all_participant_ids:
     end_of_day_ema(participant_zip, participant_id)
     random_ema(participant_zip, participant_id)
     event_contingent_ema(participant_zip, participant_id)
+    self_report_smoking(participant_zip, participant_id)
