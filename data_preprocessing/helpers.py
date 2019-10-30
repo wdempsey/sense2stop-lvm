@@ -1,5 +1,8 @@
 from datetime import datetime
 import pytz
+import sys
+
+python_version = int(sys.version[0])
 
 def unix_date(intime):
     local_tz = pytz.timezone('US/Central')
@@ -86,19 +89,28 @@ def strip_random_ema_json(json_data):
     # 14: access, 15: smoking location,
     htm_questions = range(0, 6)
     ratings_questions = range(7, 16)
-    data.extend([json_data['status'].encode('utf-8')])
+    if python_version == 3:
+        data.extend([json_data['status']])
+    else:
+        data.extend([json_data['status'].encode('utf-8')])
     if ((json_data['status'] == 'COMPLETED' or
         json_data['status'] == 'ABANDONED_BY_TIMEOUT') and 'question_answers' in json_data):
         for i in htm_questions:
             if json_data['question_answers'][i]['response'] == []:
                 data.extend(['None'])
             else:
-                data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
+                if python_version == 3:
+                    data.extend([json_data['question_answers'][i]['response'][0]])
+                else:
+                    data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
         for i in ratings_questions:
             if json_data['question_answers'][i]['response'] == []:
                 data.extend(['None'])
             else:
-                data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
+                if python_version == 3:
+                    data.extend([(to_likert(json_data['question_answers'][i]['response'][0]))])
+                else:
+                    data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
     else:
         data.extend(['NA'] * (len(htm_questions) + len(ratings_questions)) )
     return data
@@ -111,7 +123,10 @@ def strip_end_of_day_ema_json(json_data):
                   '4:00 pm - 5:00 pm', '5:00 pm - 6:00 pm',
                   '6:00 pm - 7:00 pm', '7:00 pm - 8:00 pm']
     binary_outcome = []
-    binary_outcome.extend([json_data['status'].encode('utf-8')])
+    if python_version == 3:
+        binary_outcome.extend([json_data['status']])
+    else:
+        binary_outcome.extend([json_data['status'].encode('utf-8')])
     if (json_data['status'] == 'COMPLETED' or
         json_data['status'] == 'ABANDONED_BY_TIMEOUT'):
         response = json_data['question_answers'][0]['response']
@@ -132,19 +147,28 @@ def strip_event_contingent_json(json_data):
     # 9: see/smell, 10: access, 11: smoking_location
     htm_questions = range(0, 2)
     ratings_questions = range(3, 12)
-    data.extend([json_data['status'].encode('utf-8')])
+    if python_version == 3:
+        data.extend([json_data['status']])
+    else:
+        data.extend([json_data['status'].encode('utf-8')])
     if ((json_data['status'] == 'COMPLETED' or
         json_data['status'] == 'ABANDONED_BY_TIMEOUT')) and 'question_answers' in json_data:
         for i in htm_questions:
             if json_data['question_answers'][i]['response'] is None:
                 data.extend(['None'])
             else:
-                data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
+                if python_version == 3:
+                    data.extend([json_data['question_answers'][i]['response'][0]])
+                else:
+                    data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
         for i in ratings_questions:
             if json_data['question_answers'][i]['response'] == []:
                 data.extend(['None'])
             else:
-                data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
+                if python_version == 3:
+                    data.extend([(to_likert(json_data['question_answers'][i]['response'][0]))])
+                else:
+                    data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
     else:
         data.extend(['NA'] * (len(htm_questions) + len(ratings_questions)) )
     return data
@@ -152,5 +176,8 @@ def strip_event_contingent_json(json_data):
 
 def strip_self_report_smoking_json(json_data):
     data = []
-    data.extend([json_data['message'].encode('utf-8')])
+    if python_version == 3:
+        data.extend([json_data['message']])
+    else:
+        data.extend([json_data['message'].encode('utf-8')])
     return data

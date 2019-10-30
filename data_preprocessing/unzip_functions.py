@@ -958,7 +958,7 @@ def study_days(participant_zip, participant_id, participant_dates):
     for iter in range(date_range_length):
         # Update current_date and start + end times
         current_date = entry_date + date_iter * iter
-        print current_date.date()
+        print(current_date.date())
         start_time, end_time = currentday_startend(current_date, daystart_ts_list, wakeup_ts_list, wakeup_date_list, dayend_ts_list, sleep_ts_list, sleep_date_list)
         # Clean raw data for the current_date
         lw_start, lw_end = leftwrist_day(start_time, end_time, leftwrist_ts_list)
@@ -969,7 +969,7 @@ def study_days(participant_zip, participant_id, participant_dates):
         # Take intersection with respiration data
         joint_start_list, joint_end_list = wrist_chest_intersection(lrw_start_list, lrw_end_list, respiration_start, respiration_end, end_time)
         if len(joint_start_list) == 0:
-            print "Nothing on this day"
+            print("Nothing on this day")
         ## Construct DF
         ## Participant id, date, iter, pre/post quit,
         ##

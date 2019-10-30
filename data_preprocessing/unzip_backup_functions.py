@@ -46,7 +46,7 @@ def smoking_episode(participant_zip, participant_id):
             append_write = 'w'  # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        df.to_csv(temp_csv_file, header=header_binary, index=False)
+        df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to episode file!')
         return None
@@ -84,7 +84,7 @@ def puff_probability(participant_zip, participant_id):
             append_write = 'w'  # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        df.to_csv(temp_csv_file, header=header_binary, index=False)
+        df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to puff probability file!')
 
@@ -134,7 +134,7 @@ def random_ema(participant_zip, participant_id):
         append_write = 'w' # make a new file if not
         header_binary = True
     temp_csv_file = open(save_dir+save_filename, append_write)
-    json_df.to_csv(temp_csv_file, header=header_binary, index=False)
+    json_df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
     temp_csv_file.close()
     print('Added to random ema file!')
 
@@ -183,7 +183,7 @@ def end_of_day_ema(participant_zip, participant_id):
             append_write = 'w' # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        json_df.to_csv(temp_csv_file, header=header_binary, index=False)
+        json_df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to end of day ema file!')
         return None
@@ -234,7 +234,7 @@ def event_contingent_ema(participant_zip, participant_id):
             append_write = 'w' # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        json_df.to_csv(temp_csv_file, header=header_binary, index=False)
+        json_df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to event contingent ema file!')
         return None
@@ -281,7 +281,7 @@ def self_report_smoking(participant_zip, participant_id):
             append_write = 'w' # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        json_df.to_csv(temp_csv_file, header=header_binary, index=False)
+        json_df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to self report smoking file!')
         return None
@@ -820,7 +820,7 @@ def study_days(participant_zip, participant_id, participant_dates):
             append_write = 'w'  # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        df.to_csv(temp_csv_file, header=header_binary, index=False)
+        df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to hq-episode file!')
     return None
