@@ -93,12 +93,12 @@ def strip_random_ema_json(json_data):
             if json_data['question_answers'][i]['response'] == []:
                 data.extend(['None'])
             else:
-                data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])                    
+                data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
         for i in ratings_questions:
             if json_data['question_answers'][i]['response'] == []:
                 data.extend(['None'])
-            else:                    
-                data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])                    
+            else:
+                data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
     else:
         data.extend(['NA'] * (len(htm_questions) + len(ratings_questions)) )
     return data
@@ -139,12 +139,18 @@ def strip_event_contingent_json(json_data):
             if json_data['question_answers'][i]['response'] is None:
                 data.extend(['None'])
             else:
-                data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])                    
+                data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
         for i in ratings_questions:
             if json_data['question_answers'][i]['response'] == []:
                 data.extend(['None'])
-            else:  
-                data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])                    
+            else:
+                data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
     else:
         data.extend(['NA'] * (len(htm_questions) + len(ratings_questions)) )
+    return data
+
+
+def strip_self_report_smoking_json(json_data):
+    data = []
+    data.extend([json_data['message'].encode('utf-8')])
     return data

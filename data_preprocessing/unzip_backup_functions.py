@@ -247,7 +247,7 @@ def self_report_smoking(participant_zip, participant_id):
     zip_matching = [s for s in zip_namelist if csv_marker in s]
     zip_matching = [s for s in zip_matching if 'csv' in s]
     if not zip_matching:
-        print("No SMOKING_EMA for participant " + str(participant_id))
+        print("No SELF_REPORT_SMOKING for participant " + str(participant_id))
         return
     else:
         csv_file = participant_zip.open(zip_matching[0])
@@ -262,14 +262,10 @@ def self_report_smoking(participant_zip, participant_id):
             ts, values = line.rstrip().split(',', 1)
             ts_list.append(ts)
             json_data = json.loads(values)
-            stripped_json = strip_event_contingent_json(json_data)
+            stripped_json = strip_self_report_smoking_json(json_data)
             json_list.append(stripped_json)
         json_df = pd.DataFrame(json_list,
-                               columns=['status', 'smoke', 'when_smoke',
-                                        'urge', 'cheerful', 'happy',
-                                        'angry', 'stress', 'sad',
-                                        'see_or_smell',
-                                        'access', 'smoking_location'])
+                               columns=['message'])
         json_df['participant_id'] = participant_id
         json_df['timestamp'] = ts_list
         json_df['date'] = json_df['timestamp'].apply(unix_date)
@@ -277,7 +273,7 @@ def self_report_smoking(participant_zip, participant_id):
         json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
         json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
         save_dir = global_dir
-        save_filename = 'eventcontingent-ema-backup.csv'
+        save_filename = 'self-report-smoking-backup.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a' # append if already exists
             header_binary = False
@@ -287,7 +283,7 @@ def self_report_smoking(participant_zip, participant_id):
         temp_csv_file = open(save_dir+save_filename, append_write)
         json_df.to_csv(temp_csv_file, header=header_binary, index=False)
         temp_csv_file.close()
-        print('Added to event contingent ema file!')
+        print('Added to self report smoking file!')
         return None
 
 def wakeup(participant_zip, participant_id):
