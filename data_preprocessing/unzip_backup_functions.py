@@ -6,10 +6,12 @@ import json
 import os
 import os.path
 import pytz
+import sys
 from helpers import *
 
 # global_dir = "/Volumes/dav/MD2K Processed Data/smoking-lvm-cleaned-data/"
 global_dir = "../cleaned-data/"
+python_version = int(sys.version[0])
 
 def smoking_episode(participant_zip, participant_id):
     # Inputs: zipfile, participant_id
@@ -21,7 +23,6 @@ def smoking_episode(participant_zip, participant_id):
     if csv_matching == []:
         print("No PUFFMARKER_SMOKING_EPISODE data for participant " + str(participant_id))
         return
-
     csv_file = participant_zip.open(csv_matching[0])
     temp = csv_file.read()
     if not temp or temp == 'BZh9\x17rE8P\x90\x00\x00\x00\x00':
@@ -102,14 +103,16 @@ def random_ema(participant_zip, participant_id):
     ts_list = []
     json_list = []
     for line in tempfile:
-        line = line.replace("\n", "")
+        if python_version == 3:
+            line = line.decode().replace("\n", "")
+        else:
+            line = line.replace("\n", "")
         ts, values = line.rstrip().split(',', 1)
         ts_list.append(ts)
         #values = values.replace("\'", "")
         json_data = json.loads(values)
         stripped_json = strip_random_ema_json(json_data)
         json_list.append(stripped_json)
-
     json_df = pd.DataFrame(json_list,
                            columns=['status', 'smoke', 'when_smoke', 'eat',
                                     'when_eat', 'drink', 'when_drink',
@@ -151,13 +154,15 @@ def end_of_day_ema(participant_zip, participant_id):
         ts_list = []
         json_list = []
         for line in tempfile:
-            line = line.replace("\n", "")
+            if python_version == 3:
+                line = line.decode().replace("\n", "")
+            else:
+                line = line.replace("\n", "")
             ts, values = line.rstrip().split(',', 1)
             ts_list.append(ts)
             json_data = json.loads(values)
             stripped_json = strip_end_of_day_ema_json(json_data)
             json_list.append(stripped_json)
-
         json_df = pd.DataFrame(json_list,
                                columns=['status', '8to9', '9to10', '10to11',
                                         '11to12', '12to13', '13to14',
@@ -199,13 +204,15 @@ def event_contingent_ema(participant_zip, participant_id):
         ts_list = []
         json_list = []
         for line in tempfile:
-            line = line.replace("\n", "")
+            if python_version == 3:
+                line = line.decode().replace("\n", "")
+            else:
+                line = line.replace("\n", "")
             ts, values = line.rstrip().split(',', 1)
             ts_list.append(ts)
             json_data = json.loads(values)
             stripped_json = strip_event_contingent_json(json_data)
             json_list.append(stripped_json)
-
         json_df = pd.DataFrame(json_list,
                                columns=['status', 'smoke', 'when_smoke',
                                         'urge', 'cheerful', 'happy',
@@ -232,6 +239,56 @@ def event_contingent_ema(participant_zip, participant_id):
         print('Added to event contingent ema file!')
         return None
 
+def self_report_smoking(participant_zip, participant_id):
+    # Inputs: zipfile, participant_id
+    # Output: add to csv (prints when done)
+    zip_namelist = participant_zip.namelist()
+    csv_marker = 'SELF_REPORT_SMOKING'
+    zip_matching = [s for s in zip_namelist if csv_marker in s]
+    zip_matching = [s for s in zip_matching if 'csv' in s]
+    if not zip_matching:
+        print("No SMOKING_EMA for participant " + str(participant_id))
+        return
+    else:
+        csv_file = participant_zip.open(zip_matching[0])
+        tempfile = csv_file.readlines()
+        ts_list = []
+        json_list = []
+        for line in tempfile:
+            if python_version == 3:
+                line = line.decode().replace("\n", "")
+            else:
+                line = line.replace("\n", "")
+            ts, values = line.rstrip().split(',', 1)
+            ts_list.append(ts)
+            json_data = json.loads(values)
+            stripped_json = strip_event_contingent_json(json_data)
+            json_list.append(stripped_json)
+        json_df = pd.DataFrame(json_list,
+                               columns=['status', 'smoke', 'when_smoke',
+                                        'urge', 'cheerful', 'happy',
+                                        'angry', 'stress', 'sad',
+                                        'see_or_smell',
+                                        'access', 'smoking_location'])
+        json_df['participant_id'] = participant_id
+        json_df['timestamp'] = ts_list
+        json_df['date'] = json_df['timestamp'].apply(unix_date)
+        json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
+        json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
+        json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
+        save_dir = global_dir
+        save_filename = 'eventcontingent-ema-backup.csv'
+        if os.path.isfile(save_dir + save_filename):
+            append_write = 'a' # append if already exists
+            header_binary = False
+        else:
+            append_write = 'w' # make a new file if not
+            header_binary = True
+        temp_csv_file = open(save_dir+save_filename, append_write)
+        json_df.to_csv(temp_csv_file, header=header_binary, index=False)
+        temp_csv_file.close()
+        print('Added to event contingent ema file!')
+        return None
 
 def wakeup(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
@@ -249,14 +306,16 @@ def wakeup(participant_zip, participant_id):
         wakeup_ts_list = []
         wakeup_date_list = []
         for line in tempfile:
-            line = line.replace("\n", "")
+            if python_version == 3:
+                line = line.decode().replace("\n", "")
+            else:
+                line = line.replace("\n", "")
             ts, values = line.rstrip().split(',', 2)
             ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
             wakeup_ts_list.append(ts)
             date = datetime.fromtimestamp(int(values)/1000, global_tz)
             wakeup_date_list.append(date)
         return wakeup_ts_list, wakeup_date_list
-
 
 def sleep(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
@@ -274,14 +333,16 @@ def sleep(participant_zip, participant_id):
         sleep_ts_list = []
         sleep_date_list = []
         for line in tempfile:
-            line = line.replace("\n", "")
+            if python_version == 3:
+                line = line.decode().replace("\n", "")
+            else:
+                line = line.replace("\n", "")
             ts, values = line.rstrip().split(',', 2)
             ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
             sleep_ts_list.append(ts)
             date = datetime.fromtimestamp(int(values)/1000, global_tz)
             sleep_date_list.append(date)
         return sleep_ts_list, sleep_date_list
-
 
 def daystart(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
@@ -299,14 +360,16 @@ def daystart(participant_zip, participant_id):
         daystart_ts_list = []
         daystart_date_list = []
         for line in tempfile:
-            line = line.replace("\n", "")
+            if python_version == 3:
+                line = line.decode().replace("\n", "")
+            else:
+                line = line.replace("\n", "")
             ts, values = line.rstrip().split(',', 2)
             ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
             daystart_ts_list.append(ts)
             date = datetime.fromtimestamp(int(values)/1000, local_tz)
             daystart_date_list.append(date)
         return daystart_ts_list, daystart_date_list
-
 
 def dayend(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
@@ -323,14 +386,16 @@ def dayend(participant_zip, participant_id):
         dayend_ts_list = []
         dayend_date_list = []
         for line in tempfile:
-            line = line.replace("\n", "")
+            if python_version == 3:
+                line = line.decode().replace("\n", "")
+            else:
+                line = line.replace("\n", "")
             ts, values = line.rstrip().split(',', 2)
             ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
             dayend_ts_list.append(ts)
             date = datetime.fromtimestamp(int(values)/1000, local_tz)
             dayend_date_list.append(date)
         return dayend_ts_list, dayend_date_list
-
 
 def leftwrist_dq(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
@@ -346,13 +411,15 @@ def leftwrist_dq(participant_zip, participant_id):
         tempfile = csv_file.readlines()
         leftwrist_ts_list = []
         for line in tempfile:
-            line = line.replace("\n", "")
+            if python_version == 3:
+                line = line.decode().replace("\n", "")
+            else:
+                line = line.replace("\n", "")
             ts, values = line.rstrip().split(',', 2)
             if values[1] == '0':
                 ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
                 leftwrist_ts_list.append(ts)
     return leftwrist_ts_list
-
 
 def rightwrist_dq(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
@@ -368,13 +435,15 @@ def rightwrist_dq(participant_zip, participant_id):
         tempfile = csv_file.readlines()
         rightwrist_ts_list = []
         for line in tempfile:
-            line = line.replace("\n", "")
+            if python_version == 3:
+                line = line.decode().replace("\n", "")
+            else:
+                line = line.replace("\n", "")
             ts, values = line.rstrip().split(',', 2)
             if values[1] == '0':
                 ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
                 rightwrist_ts_list.append(ts)
     return rightwrist_ts_list
-
 
 def respiration_dq(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
@@ -390,13 +459,15 @@ def respiration_dq(participant_zip, participant_id):
         tempfile = csv_file.readlines()
         respiration_ts_list = []
         for line in tempfile:
-            line = line.replace("\n", "")
+            if python_version == 3:
+                line = line.decode().replace("\n", "")
+            else:
+                line = line.replace("\n", "")
             ts, values = line.rstrip().split(',', 2)
             if values[1] == '0':
                 ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
                 respiration_ts_list.append(ts)
         return respiration_ts_list
-
 
 def currentday_startend(current_date, daystart_ts_list,
                         wakeup_ts_list, wakeup_date_list,
@@ -456,7 +527,6 @@ def currentday_startend(current_date, daystart_ts_list,
         end_time = end_time + timedelta(days=1)
     return start_time, end_time
 
-
 def leftwrist_day(start_time, end_time, leftwrist_ts_list):
     ## LEFT WRIST
     lw_jumpstart_list = [start_time]
@@ -503,7 +573,6 @@ def leftwrist_day(start_time, end_time, leftwrist_ts_list):
     else:
         return [], []
 
-
 def rightwrist_day(start_time, end_time, rightwrist_ts_list):
     rw_jumpstart_list = [start_time]
     rw_jumpend_list = []
@@ -546,7 +615,6 @@ def rightwrist_day(start_time, end_time, rightwrist_ts_list):
         return rw_start, rw_end
     else:
         return [], []
-
 
 def respiration_day(start_time, end_time, respiration_ts_list):
     respiration_jumpstart_list = [start_time]
@@ -711,12 +779,12 @@ def study_days(participant_zip, participant_id, participant_dates):
     # Get range of dates from entry to exit
     entry_date = participant_dates['start_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
     quit_date = participant_dates['quit_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
-    end_date = participant_dates['actual_end_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
+    end_date = participant_dates['expected_end_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
     # Convert to DATETIME object
     local_tz = pytz.timezone('US/Central')
-    entry_date = datetime.strptime(entry_date, '%m/%d/%y')
-    quit_date = datetime.strptime(quit_date, '%m/%d/%y')
-    end_date = datetime.strptime(end_date, '%m/%d/%y')
+    entry_date = datetime.strptime(entry_date, "%m/%d/%Y")
+    quit_date = datetime.strptime(quit_date, '%m/%d/%Y')
+    end_date = datetime.strptime(end_date, '%m/%d/%Y')
     entry_date = entry_date.replace(tzinfo=local_tz)
     quit_date = quit_date.replace(tzinfo=local_tz)
     end_date = end_date.replace(tzinfo=local_tz)
@@ -727,7 +795,7 @@ def study_days(participant_zip, participant_id, participant_dates):
     for iter in range(date_range_length):
         # Update current_date and start + end times
         current_date = entry_date + date_iter * iter
-        print current_date.date()
+        print(current_date.date())
         start_time, end_time = currentday_startend(current_date, daystart_ts_list, wakeup_ts_list, wakeup_date_list, dayend_ts_list, sleep_ts_list, sleep_date_list)
         # Clean raw data for the current_date
         lw_start, lw_end = leftwrist_day(start_time, end_time, leftwrist_ts_list)
@@ -738,10 +806,9 @@ def study_days(participant_zip, participant_id, participant_dates):
         # Take intersection with respiration data
         joint_start_list, joint_end_list = wrist_chest_intersection(lrw_start_list, lrw_end_list, respiration_start, respiration_end, end_time)
         if len(joint_start_list) == 0:
-            print "Nothing on this day"
+            print("Nothing on this day")
         ## Construct DF
         ## Participant id, date, iter, pre/post quit,
-        ##
         partition_length = len(joint_start_list)
         if partition_length == 0:
             temp = {'id': [participant_id], 'date': [current_date.date()], 'study_day': [iter+1], 'prequit': [current_date.date() < quit_date.date()], 'hq_start': [-1], 'hq_end': [-1],  'start_time': [start_time], 'end_time': [end_time]}

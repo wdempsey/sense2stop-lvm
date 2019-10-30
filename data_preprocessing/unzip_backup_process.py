@@ -4,9 +4,11 @@ from unzip_backup_functions import *
 
 dir = '../data-streams-backup/Processed Phone Backup Files'
 
-all_participant_ids = range(201, 223) + range(228,271)
+# all_participant_ids = list(range(201, 223)) + list(range(228,271))
+# Python 3 version
+all_participant_ids = list(range(201, 223)) + list(range(228,271))
 
-participant_dates = pd.read_csv('../cleaned-data/participant-dates.csv')
+participant_dates = pd.read_csv('../cleaned-data/participant-dates-v2.csv')
 
 print('About to start the loop')
 
