@@ -1007,7 +1007,7 @@ def study_days(participant_zip, participant_id, participant_dates):
 	# Get range of dates from entry to exit
 	entry_date = participant_dates['start_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
 	quit_date = participant_dates['quit_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
-	end_date = participant_dates['actual_end_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
+	end_date = participant_dates['expected_end_date'][np.where(participant_dates['participant'] == participant_id)[0][0]]
 	# Convert to DATETIME object
 	local_tz = pytz.timezone('US/Central')
 	entry_date = datetime.strptime(entry_date, '%m/%d/%Y')
