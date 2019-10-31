@@ -7,6 +7,10 @@ import os
 import os.path
 import bz2
 import pytz
+import sys
+
+global_dir = "../cleaned-data/"
+python_version = int(sys.version[0])
 
 def unix_date(intime):
     local_tz = pytz.timezone('US/Central')
@@ -103,7 +107,7 @@ def smoking_episode(participant_zip, participant_id):
         df['hour'] = df['timestamp'].apply(hour_of_day)
         df['minute'] = df['timestamp'].apply(minute_of_day)
         df['day_of_week'] =  df['timestamp'].apply(day_of_week)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
+        save_dir = global_dir
         save_filename = 'puff-episode.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a'  # append if already exists
@@ -112,7 +116,7 @@ def smoking_episode(participant_zip, participant_id):
             append_write = 'w'  # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        df.to_csv(temp_csv_file, header=header_binary, index=False)
+        df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to episode file!')
         return None
@@ -137,7 +141,7 @@ def puff_probability(participant_zip, participant_id):
         df['hour'] = df['timestamp'].apply(hour_of_day)
         df['minute'] = df['timestamp'].apply(minute_of_day)
         df['day_of_week'] =  df['timestamp'].apply(day_of_week)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
+        save_dir = global_dir
         save_filename = 'puff-probability.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a'  # append if already exists
@@ -146,89 +150,87 @@ def puff_probability(participant_zip, participant_id):
             append_write = 'w'  # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        df.to_csv(temp_csv_file, header=header_binary, index=False)
+        df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to puff probability file!')
 
 
 def strip_random_ema_json(json_data):
-    data = []
-    # 0: smoked?, 1: when smoke,
-    # 2: eaten, 3: when eaten,
-    # 4: drink, 5: when drink
-    # 7: urge, 8: cheerful, 9:happy, 10:angry,
-    # 11: stressed, 12: sad, 13:see/smell,
-    # 14: access, 15: smoking location,
-    htm_questions = range(0, 6)
-    ratings_questions = range(7, 16)
-    data.extend([json_data['status'].encode('utf-8')])
-    if (json_data['status'] == 'COMPLETED' or
-        json_data['status'] == 'ABANDONED_BY_TIMEOUT'):
-        for i in htm_questions:
-            if json_data['question_answers'][i]['response'] is None:
-                data.extend(['None'])
-            else:
-                data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
-        for i in ratings_questions:
-            if json_data['question_answers'][i]['response'] is None:
-                data.extend(['None'])
-            else:
-                data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
-    else:
-        data.extend(['NA'] * (len(htm_questions) + len(ratings_questions)) )
-    return data
-
+	data = []
+	# 0: smoked?, 1: when smoke,
+	# 2: eaten, 3: when eaten,
+	# 4: drink, 5: when drink
+	# 7: urge, 8: cheerful, 9:happy, 10:angry,
+	# 11: stressed, 12: sad, 13:see/smell,
+	# 14: access, 15: smoking location,
+	htm_questions = range(0, 6)
+	ratings_questions = range(7, 16)
+	data.extend([json_data['status'].encode('utf-8')])
+	if (json_data['status'] == 'COMPLETED' or
+	    json_data['status'] == 'ABANDONED_BY_TIMEOUT'):
+	    for i in htm_questions:
+	        if json_data['question_answers'][i]['response'] is None:
+	            data.extend(['None'])
+	        else:
+	            data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
+	    for i in ratings_questions:
+	        if json_data['question_answers'][i]['response'] is None:
+	            data.extend(['None'])
+	        else:
+	            data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
+	else:
+	    data.extend(['NA'] * (len(htm_questions) + len(ratings_questions)) )
+	return data
 
 def random_ema(participant_zip, participant_id):
     # Inputs: zipfile, participant_id
     # Output: add to csv (prints when done)
-    zip_namelist = participant_zip.namelist()
-    bz2_marker = 'EMA+RANDOM_EMA+PHONE.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    bz2_file = participant_zip.open(zip_matching[0])
-    tempfile = bz2.decompress(bz2_file.read())
-
-    tempfile = tempfile.rstrip('\n').split('\r')
-    tempfile.pop()
-
-    ts_list = []
-    offset_list = []
-    json_list = []
-    for line in tempfile:
-        line = line.replace("\n", "")
-        ts, offset, values = line.rstrip().split(',', 2)
-        ts_list.append(ts)
-        offset_list.append(offset)
-        values = values.replace("\'", "")
-        json_data = json.loads(values)
-        stripped_json = strip_random_ema_json(json_data)
-        json_list.append(stripped_json)
-
-    json_df = pd.DataFrame(json_list,
-                           columns=['status', 'smoke', 'when_smoke', 'eat',
-                                    'when_eat', 'drink', 'when_drink',
-                                    'urge', 'cheerful', 'happy', 'angry',
-                                    'stress', 'sad', 'see_or_smell',
-                                    'access', 'smoking_location'])
-    json_df['participant_id'] = participant_id
-    json_df['timestamp'] = ts_list
-    json_df['offset'] = offset_list
-    json_df['date'] = json_df['timestamp'].apply(unix_date)
-    json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
-    json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
-    json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
-    save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
-    save_filename = 'random-ema.csv'
-    if os.path.isfile(save_dir + save_filename):
-        append_write = 'a' # append if already exists
-        header_binary = False
-    else:
-        append_write = 'w' # make a new file if not
-        header_binary = True
-    temp_csv_file = open(save_dir+save_filename, append_write)
-    json_df.to_csv(temp_csv_file, header=header_binary, index=False)
-    temp_csv_file.close()
-    print('Added to random ema file!')
+	zip_namelist = participant_zip.namelist()
+	bz2_marker = 'EMA+RANDOM_EMA+PHONE.csv.bz2'
+	zip_matching = [s for s in zip_namelist if bz2_marker in s]
+	bz2_file = participant_zip.open(zip_matching[0])
+	tempfile = bz2.decompress(bz2_file.read())
+	if python_version == 3:
+			tempfile = tempfile.decode('utf-8')
+	tempfile = tempfile.rstrip('\n').split('\r')
+	tempfile.pop()
+	ts_list = []
+	offset_list = []
+	json_list = []
+	for line in tempfile:
+	    line = line.replace("\n", "")
+	    ts, offset, values = line.rstrip().split(',', 2)
+	    ts_list.append(ts)
+	    offset_list.append(offset)
+	    values = values.replace("\'", "")
+	    json_data = json.loads(values)
+	    stripped_json = strip_random_ema_json(json_data)
+	    json_list.append(stripped_json)
+	json_df = pd.DataFrame(json_list,
+	                       columns=['status', 'smoke', 'when_smoke', 'eat',
+	                                'when_eat', 'drink', 'when_drink',
+	                                'urge', 'cheerful', 'happy', 'angry',
+	                                'stress', 'sad', 'see_or_smell',
+	                                'access', 'smoking_location'])
+	json_df['participant_id'] = participant_id
+	json_df['timestamp'] = ts_list
+	json_df['offset'] = offset_list
+	json_df['date'] = json_df['timestamp'].apply(unix_date)
+	json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
+	json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
+	json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
+	save_dir = global_dir
+	save_filename = 'random-ema.csv'
+	if os.path.isfile(save_dir + save_filename):
+	    append_write = 'a' # append if already exists
+	    header_binary = False
+	else:
+	    append_write = 'w' # make a new file if not
+	    header_binary = True
+	temp_csv_file = open(save_dir+save_filename, append_write)
+	json_df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
+	temp_csv_file.close()
+	print('Added to random ema file!')
 
 
 def strip_end_of_day_ema_json(json_data):
@@ -257,174 +259,231 @@ def strip_end_of_day_ema_json(json_data):
 
 
 def end_of_day_ema(participant_zip, participant_id):
-    # Inputs: zipfile, participant_id
-    # Output: add to csv (prints when done)
-    zip_namelist = participant_zip.namelist()
-    bz2_marker = 'EMA+END_OF_DAY_EMA+PHONE.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No end of day ema")
-        return None
-    else:
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
-        ts_list = []
-        offset_list = []
-        json_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            ts_list.append(ts)
-            offset_list.append(offset)
-            values = values.replace("\'", "")
-            json_data = json.loads(values)
-            stripped_json = strip_end_of_day_ema_json(json_data)
-            json_list.append(stripped_json)
-
-        json_df = pd.DataFrame(json_list,
-                               columns=['status', '8to9', '9to10', '10to11',
-                                        '11to12', '12to13', '13to14',
-                                        '14to15', '15to16', '16to17', '17to18',
-                                        '18to19', '19to20'])
-        json_df['participant_id'] = participant_id
-        json_df['timestamp'] = ts_list
-        json_df['offset'] = offset_list
-        json_df['date'] = json_df['timestamp'].apply(unix_date)
-        json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
-        json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
-        json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
-        save_filename = 'eod-ema.csv'
-        if os.path.isfile(save_dir + save_filename):
-            append_write = 'a' # append if already exists
-            header_binary = False
-        else:
-            append_write = 'w' # make a new file if not
-            header_binary = True
-        temp_csv_file = open(save_dir+save_filename, append_write)
-        json_df.to_csv(temp_csv_file, header=header_binary, index=False)
-        temp_csv_file.close()
-        print('Added to end of day ema file!')
-        return None
-
+	# Inputs: zipfile, participant_id
+	# Output: add to csv (prints when done)
+	zip_namelist = participant_zip.namelist()
+	bz2_marker = 'EMA+END_OF_DAY_EMA+PHONE.csv.bz2'
+	zip_matching = [s for s in zip_namelist if bz2_marker in s]
+	if not zip_matching:
+	    print("No end of day ema")
+	    return None
+	else:
+		bz2_file = participant_zip.open(zip_matching[0])
+		tempfile = bz2.decompress(bz2_file.read())
+		if python_version == 3:
+			tempfile = tempfile.decode('utf-8')
+		tempfile = tempfile.rstrip('\n').split('\r')
+		tempfile.pop()
+		ts_list = []
+		offset_list = []
+		json_list = []
+		for line in tempfile:
+			line = line.replace("\n", "")
+			ts, offset, values = line.rstrip().split(',', 2)
+			ts_list.append(ts)
+			offset_list.append(offset)
+			values = values.replace("\'", "")
+			json_data = json.loads(values)
+			stripped_json = strip_end_of_day_ema_json(json_data)
+			json_list.append(stripped_json)
+		json_df = pd.DataFrame(json_list,
+		                       columns=['status', '8to9', '9to10', '10to11',
+		                                '11to12', '12to13', '13to14',
+		                                '14to15', '15to16', '16to17', '17to18',
+		                                '18to19', '19to20'])
+		json_df['participant_id'] = participant_id
+		json_df['timestamp'] = ts_list
+		json_df['offset'] = offset_list
+		json_df['date'] = json_df['timestamp'].apply(unix_date)
+		json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
+		json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
+		json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
+		save_dir = global_dir
+		save_filename = 'eod-ema.csv'
+		if os.path.isfile(save_dir + save_filename):
+		    append_write = 'a' # append if already exists
+		    header_binary = False
+		else:
+		    append_write = 'w' # make a new file if not
+		    header_binary = True
+		temp_csv_file = open(save_dir+save_filename, append_write)
+		json_df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
+		temp_csv_file.close()
+		print('Added to end of day ema file!')
+		return None
 
 def event_contingent_ema(participant_zip, participant_id):
-    # Inputs: zipfile, participant_id
-    # Output: add to csv (prints when done)
-    zip_namelist = participant_zip.namelist()
-    bz2_marker = 'EMA+SMOKING_EMA+PHONE.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No event contingent ema")
-        return None
-    else:
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
-
-        ts_list = []
-        offset_list = []
-        json_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            ts_list.append(ts)
-            offset_list.append(offset)
-            values = values.replace("\'", "")
-            json_data = json.loads(values)
-            stripped_json = strip_event_contingent_json(json_data)
-            json_list.append(stripped_json)
-
-        json_df = pd.DataFrame(json_list,
-                               columns=['status', 'smoke', 'when_smoke',
-                                        'urge', 'cheerful', 'happy',
-                                        'angry', 'stress', 'sad',
-                                        'see_or_smell',
-                                        'access', 'smoking_location'])
-        json_df['participant_id'] = participant_id
-        json_df['timestamp'] = ts_list
-        json_df['offset'] = offset_list
-        json_df['date'] = json_df['timestamp'].apply(unix_date)
-        json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
-        json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
-        json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
-        save_filename = 'eventcontingent-ema.csv'
-        if os.path.isfile(save_dir + save_filename):
-            append_write = 'a' # append if already exists
-            header_binary = False
-        else:
-            append_write = 'w' # make a new file if not
-            header_binary = True
-        temp_csv_file = open(save_dir+save_filename, append_write)
-        json_df.to_csv(temp_csv_file, header=header_binary, index=False)
-        temp_csv_file.close()
-        print('Added to event contingent ema file!')
-        return None
+	# Inputs: zipfile, participant_id
+	# Output: add to csv (prints when done)
+	zip_namelist = participant_zip.namelist()
+	bz2_marker = 'EMA+SMOKING_EMA+PHONE.csv.bz2'
+	zip_matching = [s for s in zip_namelist if bz2_marker in s]
+	if not zip_matching:
+	    print("No event contingent ema")
+	    return None
+	else:
+		bz2_file = participant_zip.open(zip_matching[0])
+		tempfile = bz2.decompress(bz2_file.read())
+		if python_version == 3:
+			tempfile = tempfile.decode('utf-8')
+		tempfile = tempfile.rstrip('\n').split('\r')
+		tempfile.pop()
+		ts_list = []
+		offset_list = []
+		json_list = []
+		for line in tempfile:
+		    line = line.replace("\n", "")
+		    ts, offset, values = line.rstrip().split(',', 2)
+		    ts_list.append(ts)
+		    offset_list.append(offset)
+		    values = values.replace("\'", "")
+		    json_data = json.loads(values)
+		    stripped_json = strip_event_contingent_json(json_data)
+		    json_list.append(stripped_json)
+		json_df = pd.DataFrame(json_list,
+		                       columns=['status', 'smoke', 'when_smoke',
+		                                'urge', 'cheerful', 'happy',
+		                                'angry', 'stress', 'sad',
+		                                'see_or_smell',
+		                                'access', 'smoking_location'])
+		json_df['participant_id'] = participant_id
+		json_df['timestamp'] = ts_list
+		json_df['offset'] = offset_list
+		json_df['date'] = json_df['timestamp'].apply(unix_date)
+		json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
+		json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
+		json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
+		save_dir = global_dir
+		save_filename = 'eventcontingent-ema.csv'
+		if os.path.isfile(save_dir + save_filename):
+		    append_write = 'a' # append if already exists
+		    header_binary = False
+		else:
+		    append_write = 'w' # make a new file if not
+		    header_binary = True
+		temp_csv_file = open(save_dir+save_filename, append_write)
+		json_df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
+		temp_csv_file.close()
+		print('Added to event contingent ema file!')
+		return None
 
 
 def strip_event_contingent_json(json_data):
-    data = []
-    # 0: puffed?, 1: when puff,
-    # 3: urge, 4: cheerful, 5: happy
-    # 6: angry, 7: stress 8: sad
-    # 9: see/smell, 10: access, 11: smoking_location
-    htm_questions = range(0, 2)
-    ratings_questions = range(3, 12)
-    data.extend([json_data['status'].encode('utf-8')])
-    if (json_data['status'] == 'COMPLETED' or
-        json_data['status'] == 'ABANDONED_BY_TIMEOUT'):
-        for i in htm_questions:
-            if json_data['question_answers'][i]['response'] is None:
-                data.extend(['None'])
-            else:
-                data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
-        for i in ratings_questions:
-            if json_data['question_answers'][i]['response'] is None:
-                data.extend(['None'])
-            else:
-                data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
-    else:
-        data.extend(['NA'] * (len(htm_questions) + len(ratings_questions)) )
-    return data
+	data = []
+	# 0: puffed?, 1: when puff,
+	# 3: urge, 4: cheerful, 5: happy
+	# 6: angry, 7: stress 8: sad
+	# 9: see/smell, 10: access, 11: smoking_location
+	htm_questions = range(0, 2)
+	ratings_questions = range(3, 12)
+	data.extend([json_data['status'].encode('utf-8')])
+	if (json_data['status'] == 'COMPLETED' or
+	    json_data['status'] == 'ABANDONED_BY_TIMEOUT'):
+	    for i in htm_questions:
+	        if json_data['question_answers'][i]['response'] is None:
+	            data.extend(['None'])
+	        else:
+	            data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
+	    for i in ratings_questions:
+	        if json_data['question_answers'][i]['response'] is None:
+	            data.extend(['None'])
+	        else:
+	            data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
+	else:
+	    data.extend(['NA'] * (len(htm_questions) + len(ratings_questions)) )
+	return data
 
+def self_report_smoking(participant_zip, participant_id):
+	# Inputs: zipfile, participant_id
+	# Output: add to csv (prints when done)
+	zip_namelist = participant_zip.namelist()
+	bz2_marker = 'SMOKING+SELF_REPORT+PHONE.csv.bz2'
+	zip_matching = [s for s in zip_namelist if bz2_marker in s]
+	if not zip_matching:
+	    print("No self report smoking")
+	    return None
+	else:
+		bz2_file = participant_zip.open(zip_matching[0])
+		tempfile = bz2.decompress(bz2_file.read())
+		if python_version == 3:
+			tempfile = tempfile.decode('utf-8')
+		tempfile = tempfile.rstrip('\n').split('\r')
+		tempfile.pop()
+		ts_list = []
+		offset_list = []
+		json_list = []
+		for line in tempfile:
+			line = line.replace("\n", "")
+			ts, offset, values = line.rstrip().split(',', 2)
+			ts_list.append(ts)
+			offset_list.append(offset)
+			values = values.replace("\'", "")
+			json_data = json.loads(values)
+			stripped_json = strip_smoking_self_report_json(json_data)
+			json_list.append(stripped_json)
+		json_df = pd.DataFrame(json_list, columns=['message'])
+		json_df['participant_id'] = participant_id
+		json_df['timestamp'] = ts_list
+		json_df['offset'] = offset_list
+		json_df['date'] = json_df['timestamp'].apply(unix_date)
+		json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
+		json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
+		json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
+		save_dir = global_dir
+		save_filename = 'self-report-smoking.csv'
+		if os.path.isfile(save_dir + save_filename):
+		    append_write = 'a' # append if already exists
+		    header_binary = False
+		else:
+		    append_write = 'w' # make a new file if not
+		    header_binary = True
+		temp_csv_file = open(save_dir+save_filename, append_write)
+		json_df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
+		temp_csv_file.close()
+		print('Added to smoking self report file!')
+		return None
+
+def strip_smoking_self_report_json(json_data):
+	data = []
+	if python_version == 3:
+		data.extend([json_data['message']])
+	else:
+		data.extend([json_data['message'].encode('utf-8')])
+	return data
 
 def cstress(participant_zip, participant_id):
-    # Inputs: zipfile, participant_id
-    # Output: add to csv (prints when done)
-    zip_namelist = participant_zip.namelist()
-    bz2_marker = 'STRESS_LABEL+PHONE.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    bz2_file = participant_zip.open(zip_matching[0])
-    temp = bz2_file.read()
-    if not temp or temp == 'BZh9\x17rE8P\x90\x00\x00\x00\x00':
-        return None
-    else:
-        bz2_file = participant_zip.open(zip_matching[0])
-        newfile = pd.read_csv(bz2_file, compression='bz2', header=None)
-        df = pd.DataFrame(np.array(newfile).reshape(-1, 3),
-                          columns=['timestamp', 'offset', 'event'])
-        df['participant_id'] = participant_id
-        df['date'] = df['timestamp'].apply(unix_date)
-        df['hour'] = df['timestamp'].apply(hour_of_day)
-        df['minute'] = df['timestamp'].apply(minute_of_day)
-        df['day_of_week'] =  df['timestamp'].apply(day_of_week)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
-        save_filename = 'stress-label.csv'
-        if os.path.isfile(save_dir + save_filename):
-            append_write = 'a'  # append if already exists
-            header_binary = False
-        else:
-            append_write = 'w'  # make a new file if not
-            header_binary = True
-        temp_csv_file = open(save_dir+save_filename, append_write)
-        df.to_csv(temp_csv_file, header=header_binary, index=False)
-        temp_csv_file.close()
-        print('Added to stress label file!')
-        return None
+	# Inputs: zipfile, participant_id
+	# Output: add to csv (prints when done)
+	zip_namelist = participant_zip.namelist()
+	bz2_marker = 'STRESS_LABEL+PHONE.csv.bz2'
+	zip_matching = [s for s in zip_namelist if bz2_marker in s]
+	bz2_file = participant_zip.open(zip_matching[0])
+	temp = bz2_file.read()
+	if not temp or temp == 'BZh9\x17rE8P\x90\x00\x00\x00\x00':
+	    return None
+	else:
+	    bz2_file = participant_zip.open(zip_matching[0])
+	    newfile = pd.read_csv(bz2_file, compression='bz2', header=None)
+	    df = pd.DataFrame(np.array(newfile).reshape(-1, 3),
+	                      columns=['timestamp', 'offset', 'event'])
+	    df['participant_id'] = participant_id
+	    df['date'] = df['timestamp'].apply(unix_date)
+	    df['hour'] = df['timestamp'].apply(hour_of_day)
+	    df['minute'] = df['timestamp'].apply(minute_of_day)
+	    df['day_of_week'] =  df['timestamp'].apply(day_of_week)
+	    save_dir = global_dir
+	    save_filename = 'stress-label.csv'
+	    if os.path.isfile(save_dir + save_filename):
+	        append_write = 'a'  # append if already exists
+	        header_binary = False
+	    else:
+	        append_write = 'w'  # make a new file if not
+	        header_binary = True
+	    temp_csv_file = open(save_dir+save_filename, append_write)
+	    df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
+	    temp_csv_file.close()
+	    print('Added to stress label file!')
+	    return None
 
 def stress_episodes(participant_zip, participant_id):
     # Inputs: zipfile, participant_id
@@ -445,7 +504,7 @@ def stress_episodes(participant_zip, participant_id):
         df['start_date'] = df['start_ts'].apply(unix_date)
         df['peak_date'] = df['peak_ts'].apply(unix_date)
         df['end_date'] = df['end_ts'].apply(unix_date)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
+        save_dir = global_dir
         save_filename = 'stress-episodes.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a'  # append if already exists
@@ -454,239 +513,249 @@ def stress_episodes(participant_zip, participant_id):
             append_write = 'w'  # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        df.to_csv(temp_csv_file, header=header_binary, index=False)
+        df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to stress label file!')
         return None
 
 
 def wakeup(participant_zip, participant_id):
-    zip_namelist = participant_zip.namelist()
-    bz2_marker = 'WAKEUP+PHONE.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No WAKE UP file")
-        return None, None
-    else:
-        local_tz = pytz.timezone('US/Central')
-        global_tz = pytz.timezone('GMT')
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
-        wakeup_ts_list = []
-        wakeup_date_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
-            wakeup_ts_list.append(ts)
-            date = datetime.fromtimestamp(int(values)/1000, global_tz)
-            wakeup_date_list.append(date)
-        return wakeup_ts_list, wakeup_date_list
-
+	zip_namelist = participant_zip.namelist()
+	bz2_marker = 'WAKEUP+PHONE.csv.bz2'
+	zip_matching = [s for s in zip_namelist if bz2_marker in s]
+	if not zip_matching:
+		print("No WAKE UP file")
+		return None, None
+	else:
+		local_tz = pytz.timezone('US/Central')
+		global_tz = pytz.timezone('GMT')
+		bz2_file = participant_zip.open(zip_matching[0])
+		tempfile = bz2.decompress(bz2_file.read())
+		if python_version == 3:
+			tempfile = tempfile.decode('utf-8')
+		tempfile = tempfile.rstrip('\n').split('\r')
+		tempfile.pop()
+		wakeup_ts_list = []
+		wakeup_date_list = []
+		for line in tempfile:
+			line = line.replace("\n", "")
+			ts, offset, values = line.rstrip().split(',', 2)
+			ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
+			wakeup_ts_list.append(ts)
+			date = datetime.fromtimestamp(int(values)/1000, global_tz)
+			wakeup_date_list.append(date)
+		return wakeup_ts_list, wakeup_date_list
 
 def sleep(participant_zip, participant_id):
-    zip_namelist = participant_zip.namelist()
-    bz2_marker = 'SLEEP+PHONE.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No SLEEP file")
-        return None, None
-    else:
-        local_tz = pytz.timezone('US/Central')
-        global_tz = pytz.timezone('GMT')
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
-        sleep_ts_list = []
-        sleep_date_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
-            sleep_ts_list.append(ts)
-            date = datetime.fromtimestamp(int(values)/1000, global_tz)
-            sleep_date_list.append(date)
-        return sleep_ts_list, sleep_date_list
+	zip_namelist = participant_zip.namelist()
+	bz2_marker = 'SLEEP+PHONE.csv.bz2'
+	zip_matching = [s for s in zip_namelist if bz2_marker in s]
+	if not zip_matching:
+		print("No SLEEP file")
+		return None, None
+	else:
+		local_tz = pytz.timezone('US/Central')
+		global_tz = pytz.timezone('GMT')
+		bz2_file = participant_zip.open(zip_matching[0])
+		tempfile = bz2.decompress(bz2_file.read())
+		if python_version == 3:
+			tempfile = tempfile.decode('utf-8')
+		tempfile = tempfile.rstrip('\n').split('\r')
+		tempfile.pop()
+		sleep_ts_list = []
+		sleep_date_list = []
+		for line in tempfile:
+			line = line.replace("\n", "")
+			ts, offset, values = line.rstrip().split(',', 2)
+			ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
+			sleep_ts_list.append(ts)
+			date = datetime.fromtimestamp(int(values)/1000, global_tz)
+			sleep_date_list.append(date)
+		return sleep_ts_list, sleep_date_list
 
 
 def daystart(participant_zip, participant_id):
-    zip_namelist = participant_zip.namelist()
-    bz2_marker = 'DAY_START+PHONE.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No DAY START file")
-        return None, None
-    else:
-        global_tz = pytz.timezone('GMT')
-        local_tz = pytz.timezone('US/Central')
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
-        daystart_ts_list = []
-        daystart_date_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
-            daystart_ts_list.append(ts)
-            date = datetime.fromtimestamp(int(values)/1000, local_tz)
-            daystart_date_list.append(date)
-        return daystart_ts_list, daystart_date_list
+	zip_namelist = participant_zip.namelist()
+	bz2_marker = 'DAY_START+PHONE.csv.bz2'
+	zip_matching = [s for s in zip_namelist if bz2_marker in s]
+	if not zip_matching:
+		print("No DAY START file")
+		return None, None
+	else:
+		global_tz = pytz.timezone('GMT')
+		local_tz = pytz.timezone('US/Central')
+		bz2_file = participant_zip.open(zip_matching[0])
+		tempfile = bz2.decompress(bz2_file.read())
+		if python_version == 3:
+			tempfile = tempfile.decode('utf-8')
+		tempfile = tempfile.rstrip('\n').split('\r')
+		tempfile.pop()
+		daystart_ts_list = []
+		daystart_date_list = []
+		for line in tempfile:
+			line = line.replace("\n", "")
+			ts, offset, values = line.rstrip().split(',', 2)
+			ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
+			daystart_ts_list.append(ts)
+			date = datetime.fromtimestamp(int(values)/1000, local_tz)
+			daystart_date_list.append(date)
+		return daystart_ts_list, daystart_date_list
 
 
 def dayend(participant_zip, participant_id):
-    zip_namelist = participant_zip.namelist()
-    bz2_marker = 'DAY_END+PHONE.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No DAY END file")
-        return None, None
-    else:
-        local_tz = pytz.timezone('US/Central')
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
-        dayend_ts_list = []
-        dayend_date_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
-            dayend_ts_list.append(ts)
-            date = datetime.fromtimestamp(int(values)/1000, local_tz)
-            dayend_date_list.append(date)
-        return dayend_ts_list, dayend_date_list
-
+	zip_namelist = participant_zip.namelist()
+	bz2_marker = 'DAY_END+PHONE.csv.bz2'
+	zip_matching = [s for s in zip_namelist if bz2_marker in s]
+	if not zip_matching:
+		print("No DAY END file")
+		return None, None
+	else:
+		local_tz = pytz.timezone('US/Central')
+		bz2_file = participant_zip.open(zip_matching[0])
+		tempfile = bz2.decompress(bz2_file.read())
+		if python_version == 3:
+			tempfile = tempfile.decode('utf-8')
+		tempfile = tempfile.rstrip('\n').split('\r')
+		tempfile.pop()
+		dayend_ts_list = []
+		dayend_date_list = []
+		for line in tempfile:
+			line = line.replace("\n", "")
+			ts, offset, values = line.rstrip().split(',', 2)
+			ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
+			dayend_ts_list.append(ts)
+			date = datetime.fromtimestamp(int(values)/1000, local_tz)
+			dayend_date_list.append(date)
+		return dayend_ts_list, dayend_date_list
 
 def leftwrist_dq(participant_zip, participant_id):
-    zip_namelist = participant_zip.namelist()
-    bz2_marker = '+DATA_QUALITY+ACCELEROMETER+MOTION_SENSE+LEFT_WRIST.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No LEFT WRIST file")
-        return None
-    else:
-        local_tz = pytz.timezone('US/Central')
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
-        leftwrist_ts_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            if values == '0':
-                ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
-                leftwrist_ts_list.append(ts)
-    return leftwrist_ts_list
+	zip_namelist = participant_zip.namelist()
+	bz2_marker = '+DATA_QUALITY+ACCELEROMETER+MOTION_SENSE+LEFT_WRIST.csv.bz2'
+	zip_matching = [s for s in zip_namelist if bz2_marker in s]
+	if not zip_matching:
+		print("No LEFT WRIST file")
+		return None
+	else:
+		local_tz = pytz.timezone('US/Central')
+		bz2_file = participant_zip.open(zip_matching[0])
+		tempfile = bz2.decompress(bz2_file.read())
+		if python_version == 3:
+			tempfile = tempfile.decode('utf-8')
+		tempfile = tempfile.rstrip('\n').split('\r')
+		tempfile.pop()
+		leftwrist_ts_list = []
+		for line in tempfile:
+			line = line.replace("\n", "")
+			ts, offset, values = line.rstrip().split(',', 2)
+			if values == '0':
+			    ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
+			    leftwrist_ts_list.append(ts)
+	return leftwrist_ts_list
 
 
 def rightwrist_dq(participant_zip, participant_id):
-    zip_namelist = participant_zip.namelist()
-    bz2_marker = '+DATA_QUALITY+ACCELEROMETER+MOTION_SENSE+RIGHT_WRIST.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No RIGHT WRIST file")
-        return None
-    else:
-        local_tz = pytz.timezone('US/Central')
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
-        rightwrist_ts_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            if values == '0':
-                ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
-                rightwrist_ts_list.append(ts)
-    return rightwrist_ts_list
-
+	zip_namelist = participant_zip.namelist()
+	bz2_marker = '+DATA_QUALITY+ACCELEROMETER+MOTION_SENSE+RIGHT_WRIST.csv.bz2'
+	zip_matching = [s for s in zip_namelist if bz2_marker in s]
+	if not zip_matching:
+		print("No RIGHT WRIST file")
+		return None
+	else:
+		local_tz = pytz.timezone('US/Central')
+		bz2_file = participant_zip.open(zip_matching[0])
+		tempfile = bz2.decompress(bz2_file.read())
+		if python_version == 3:
+			tempfile = tempfile.decode('utf-8')
+		tempfile = tempfile.rstrip('\n').split('\r')
+		tempfile.pop()
+		rightwrist_ts_list = []
+		for line in tempfile:
+			line = line.replace("\n", "")
+			ts, offset, values = line.rstrip().split(',', 2)
+			if values == '0':
+				ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
+				rightwrist_ts_list.append(ts)
+	return rightwrist_ts_list
 
 def respiration_dq(participant_zip, participant_id):
-    zip_namelist = participant_zip.namelist()
-    bz2_marker = '+DATA_QUALITY+RESPIRATION+AUTOSENSE_CHEST+CHEST.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No RESPIRATION file")
-        return None
-    else:
-        local_tz = pytz.timezone('US/Central')
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
-        respiration_ts_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            if values == '0':
-                ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
-                respiration_ts_list.append(ts)
-        return respiration_ts_list
+	zip_namelist = participant_zip.namelist()
+	bz2_marker = '+DATA_QUALITY+RESPIRATION+AUTOSENSE_CHEST+CHEST.csv.bz2'
+	zip_matching = [s for s in zip_namelist if bz2_marker in s]
+	if not zip_matching:
+		print("No RESPIRATION file")
+		return None
+	else:
+		local_tz = pytz.timezone('US/Central')
+		bz2_file = participant_zip.open(zip_matching[0])
+		tempfile = bz2.decompress(bz2_file.read())
+		if python_version == 3:
+			tempfile = tempfile.decode('utf-8')
+		tempfile = tempfile.rstrip('\n').split('\r')
+		tempfile.pop()
+		respiration_ts_list = []
+		for line in tempfile:
+			line = line.replace("\n", "")
+			ts, offset, values = line.rstrip().split(',', 2)
+			if values == '0':
+				ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
+				respiration_ts_list.append(ts)
+		return respiration_ts_list
 
 
 def currentday_startend(current_date, daystart_ts_list,
                         wakeup_ts_list, wakeup_date_list,
                         dayend_ts_list,
                         sleep_ts_list, sleep_date_list):
-    # CHECK IF DAYSTART/DAYEND EXIST FOR THAT DAY
-    # ELSE USE WAKEUP/SLEEP
-    # IF WAKEUP/SLEEP EMPTY, USE MOST RECENT DAY
-    start_time = -1
-    for daystart in daystart_ts_list:
-        if daystart.date() == current_date.date():
-            start_time = daystart
-    if start_time == -1:
-        start_time = current_date
-        if len(wakeup_ts_list) == 0:
-            min_gap = 1000
-            for daystart in daystart_ts_list:
-                current_gap = abs((daystart - start_time).days)
-                if current_gap < min_gap:
-                    wakeup_hour = int(daystart.strftime('%H'))
-                    wakeup_minute = int(daystart.strftime('%M'))
-                    start_time = start_time.replace(hour=wakeup_hour,minute=wakeup_minute)
-                    min_gap = current_gap
-        else:
-            start_time = current_date
-            for iter in range(0,len(wakeup_ts_list)):
-                wakeup_ts = wakeup_ts_list[iter]
-                if current_date.date() >= wakeup_ts.date():
-                    wakeup_hour = int(wakeup_date_list[iter].strftime('%H'))
-                    wakeup_minute = int(wakeup_date_list[iter].strftime('%M'))
-                    start_time = start_time.replace(hour=wakeup_hour,minute=wakeup_minute)
-    end_time = - 1
-    for dayend in dayend_ts_list:
-        if dayend.date() == current_date.date():
-            end_time = dayend
-    if end_time == -1:
-        end_time = current_date
-        if len(sleep_ts_list) == 0:
-            min_gap = 1000
-            for dayend in sleep_ts_list:
-                current_gap = abs((dayend - end_time).days)
-                if current_gap < min_gap:
-                    sleep_hour = int(dayend.strftime('%H'))
-                    sleep_minute = int(dayend.strftime('%M'))
-                    end_time = end_time.replace(hour=sleep_hour,minute=sleep_minute)
-                    min_gap = current_gap
-        else:
-            end_time = current_date
-            for iter in range(0,len(sleep_ts_list)):
-                sleep_ts = sleep_ts_list[iter]
-                if current_date.date() >= sleep_ts.date():
-                    sleep_hour = int(sleep_date_list[iter].strftime('%H'))
-                    sleep_minute = int(sleep_date_list[iter].strftime('%M'))
-                    end_time = end_time.replace(hour=sleep_hour,minute=sleep_minute)
-    return start_time, end_time
-
+	# CHECK IF DAYSTART/DAYEND EXIST FOR THAT DAY
+	# ELSE USE WAKEUP/SLEEP
+	# IF WAKEUP/SLEEP EMPTY, USE MOST RECENT DAY
+	start_time = -1
+	for daystart in daystart_ts_list:
+		if daystart.date() == current_date.date():
+			start_time = daystart
+	if start_time == -1:
+		start_time = current_date
+		if len(wakeup_ts_list) == 0:
+			min_gap = 1000
+			for daystart in daystart_ts_list:
+				current_gap = abs((daystart - start_time).days)
+				if current_gap < min_gap:
+					wakeup_hour = int(daystart.strftime('%H'))
+					wakeup_minute = int(daystart.strftime('%M'))
+					start_time = start_time.replace(hour=wakeup_hour,minute=wakeup_minute)
+					min_gap = current_gap
+		else:
+			start_time = current_date
+			for iter in range(0,len(wakeup_ts_list)):
+				wakeup_ts = wakeup_ts_list[iter]
+				if current_date.date() >= wakeup_ts.date():
+					wakeup_hour = int(wakeup_date_list[iter].strftime('%H'))
+					wakeup_minute = int(wakeup_date_list[iter].strftime('%M'))
+					start_time = start_time.replace(hour=wakeup_hour,minute=wakeup_minute)
+	end_time = - 1
+	for dayend in dayend_ts_list:
+		if dayend.date() == current_date.date():
+			end_time = dayend
+	if end_time == -1:
+		end_time = current_date
+		if len(sleep_ts_list) == 0:
+			min_gap = 1000
+			for dayend in sleep_ts_list:
+				current_gap = abs((dayend - end_time).days)
+				if current_gap < min_gap:
+					sleep_hour = int(dayend.strftime('%H'))
+					sleep_minute = int(dayend.strftime('%M'))
+					end_time = end_time.replace(hour=sleep_hour,minute=sleep_minute)
+					min_gap = current_gap
+		else:
+			end_time = current_date
+			for iter in range(0,len(sleep_ts_list)):
+				sleep_ts = sleep_ts_list[iter]
+				if current_date.date() >= sleep_ts.date():
+					sleep_hour = int(sleep_date_list[iter].strftime('%H'))
+					sleep_minute = int(sleep_date_list[iter].strftime('%M'))
+					end_time = end_time.replace(hour=sleep_hour,minute=sleep_minute)
+	return start_time, end_time
 
 def leftwrist_day(start_time, end_time, leftwrist_ts_list):
     ## LEFT WRIST
@@ -979,7 +1048,7 @@ def study_days(participant_zip, participant_id, participant_dates):
         else:
             temp = {'id': np.repeat(participant_id, partition_length), 'date': np.repeat(current_date.date(), partition_length), 'study_day': np.repeat(iter+1, partition_length), 'prequit': np.repeat(current_date.date() >= quit_date.date(), partition_length), 'hq_start': joint_start_list, 'hq_end': joint_end_list, 'start_time': np.repeat(start_time, partition_length), 'end_time': np.repeat(end_time, partition_length)}
         df = pd.DataFrame(data = temp)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data (Northwestern)/smoking-lvm-cleaned-data/'
+        save_dir = global_dir
         save_filename = 'hq-episodes.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a'  # append if already exists
@@ -988,7 +1057,7 @@ def study_days(participant_zip, participant_id, participant_dates):
             append_write = 'w'  # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        df.to_csv(temp_csv_file, header=header_binary, index=False)
+        df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to hq-episode file!')
     return None
