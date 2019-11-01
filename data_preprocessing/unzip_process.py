@@ -1,5 +1,5 @@
 import glob
-import zipfile
+from zipfile import ZipFile
 import pandas as pd
 from unzip_functions import *
 
@@ -19,7 +19,7 @@ for participant_id in all_participant_ids:
 	# File name we are dealing with
 	zip_name = '/'+str(participant_id)+'*.zip'
 	file_name = glob.glob(dir + zip_name)
-	participant_zip = zipfile.ZipFile(file_name[0])
+	participant_zip = ZipFile(file_name[0])
 	# Add the HQ Windows to a CSV file
 	study_days(participant_zip, participant_id, participant_dates)
 	# Add to cStress episodes
