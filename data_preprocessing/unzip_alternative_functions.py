@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from datetime import timedelta
 import json
 import os
 import os.path
@@ -10,11 +11,20 @@ import sys
 global_dir = "../cleaned-data/"
 python_version = int(sys.version[0])
 
+def unix_to_datetime(intime):
+    local_tz = pytz.timezone('US/Central')
+    date = datetime.fromtimestamp(int(intime)/1000, local_tz)
+    return date
+
 def unix_date(intime):
     local_tz = pytz.timezone('US/Central')
     date = datetime.fromtimestamp(int(intime)/1000, local_tz)
     return date.strftime('%Y-%m-%d %H:%M:%S')
 
+def unix_date_gmt(intime):
+    global_tz = pytz.timezone('GMT')
+    date = datetime.fromtimestamp(int(intime)/1000, global_tz)
+    return date.strftime('%Y-%m-%d %H:%M:%S')
 
 def hour_of_day(intime):
     local_tz = pytz.timezone('US/Central')
@@ -107,7 +117,7 @@ def smoking_episode(participant_zip, participant_id):
         df['hour'] = df['timestamp'].apply(hour_of_day)
         df['minute'] = df['timestamp'].apply(minute_of_day)
         df['day_of_week'] =  df['timestamp'].apply(day_of_week)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+        save_dir = global_dir
         save_filename = 'puff-episode-alternative.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a'  # append if already exists
@@ -142,7 +152,7 @@ def puff_probability(participant_zip, participant_id):
         df['hour'] = df['timestamp'].apply(hour_of_day)
         df['minute'] = df['timestamp'].apply(minute_of_day)
         df['day_of_week'] =  df['timestamp'].apply(day_of_week)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+        save_dir = global_dir
         save_filename = 'puff-probability-alternative.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a'  # append if already exists
@@ -196,6 +206,8 @@ def random_ema(participant_zip, participant_id):
     ts_list = []
     json_list = []
     for line in tempfile:
+        if python_version == 3:
+            line = line.decode('utf-8')
         line = line.replace("\n", "")
         ts, values = line.rstrip().split(',', 1)
         ts_list.append(ts)
@@ -203,7 +215,6 @@ def random_ema(participant_zip, participant_id):
         json_data = json.loads(values)
         stripped_json = strip_random_ema_json(json_data)
         json_list.append(stripped_json)
-
     json_df = pd.DataFrame(json_list,
                            columns=['status', 'smoke', 'when_smoke', 'eat',
                                     'when_eat', 'drink', 'when_drink',
@@ -216,7 +227,7 @@ def random_ema(participant_zip, participant_id):
     json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
     json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
     json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
-    save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+    save_dir = global_dir
     save_filename = 'random-ema-alternative.csv'
     if os.path.isfile(save_dir + save_filename):
         append_write = 'a' # append if already exists
@@ -268,13 +279,14 @@ def end_of_day_ema(participant_zip, participant_id):
         ts_list = []
         json_list = []
         for line in tempfile:
+            if python_version == 3:
+                line = line.decode('utf-8')
             line = line.replace("\n", "")
             ts, values = line.rstrip().split(',', 1)
             ts_list.append(ts)
             json_data = json.loads(values)
             stripped_json = strip_end_of_day_ema_json(json_data)
             json_list.append(stripped_json)
-
         json_df = pd.DataFrame(json_list,
                                columns=['status', '8to9', '9to10', '10to11',
                                         '11to12', '12to13', '13to14',
@@ -286,7 +298,7 @@ def end_of_day_ema(participant_zip, participant_id):
         json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
         json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
         json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+        save_dir = global_dir
         save_filename = 'eod-ema-alternative.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a' # append if already exists
@@ -317,13 +329,14 @@ def event_contingent_ema(participant_zip, participant_id):
         ts_list = []
         json_list = []
         for line in tempfile:
+            if python_version == 3:
+                line = line.decode('utf-8')
             line = line.replace("\n", "")
             ts, values = line.rstrip().split(',', 1)
             ts_list.append(ts)
             json_data = json.loads(values)
             stripped_json = strip_event_contingent_json(json_data)
             json_list.append(stripped_json)
-
         json_df = pd.DataFrame(json_list,
                                columns=['status', 'smoke', 'when_smoke',
                                         'urge', 'cheerful', 'happy',
@@ -336,7 +349,7 @@ def event_contingent_ema(participant_zip, participant_id):
         json_df['hour'] = json_df['timestamp'].apply(hour_of_day)
         json_df['minute'] = json_df['timestamp'].apply(minute_of_day)
         json_df['day_of_week'] = json_df['timestamp'].apply(day_of_week)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+        save_dir = global_dir
         save_filename = 'eventcontingent-ema-alternative.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a' # append if already exists
@@ -392,6 +405,8 @@ def self_report_smoking(participant_zip, participant_id):
         ts_list = []
         json_list = []
         for line in tempfile:
+            if python_version == 3:
+                line = line.decode('utf-8')
             line = line.replace("\n", "")
             ts, values = line.rstrip().split(',', 1)
             ts_list.append(ts)
@@ -447,7 +462,7 @@ def stress_episodes(participant_zip, participant_id):
         df['start_date'] = df['start_ts'].apply(unix_date)
         df['peak_date'] = df['peak_ts'].apply(unix_date)
         df['end_date'] = df['end_ts'].apply(unix_date)
-        save_dir = '/Users/walterdempsey/Box/MD2K Processed Data/smoking-lvm-cleaned-data/'
+        save_dir = global_dir
         save_filename = 'stress-episodes-alternative.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a'  # append if already exists
@@ -463,185 +478,166 @@ def stress_episodes(participant_zip, participant_id):
 
 def wakeup(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
-    bz2_marker = 'WAKEUP+PHONE.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No WAKE UP file")
-        return None, None
+    csv_marker = 'WAKEUP'
+    csv_matching = [s for s in zip_namelist if csv_marker in s]
+    csv_matching = [s for s in csv_matching if '.csv' in s]
+    csv_file = participant_zip.open(csv_matching[0])
+    temp = csv_file.read()
+    if not temp or temp == 'BZh9\x17rE8P\x90\x00\x00\x00\x00':
+        print ('No Wakeup file')
     else:
+        csv_file = participant_zip.open(csv_matching[0])
+        newfile = pd.read_csv(csv_file, header=None)
+        df = pd.DataFrame(np.array(newfile).reshape(-1, 2),
+                          columns=['timestamp', 'date'])
         local_tz = pytz.timezone('US/Central')
         global_tz = pytz.timezone('GMT')
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        if python_version == 3:
-            tempfile = tempfile.decode('utf-8')
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
         wakeup_ts_list = []
         wakeup_date_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
-            wakeup_ts_list.append(ts)
-            date = datetime.fromtimestamp(int(values)/1000, global_tz)
-            wakeup_date_list.append(date)
+        for iter in range(df.shape[0]):
+            wakeup_ts_list.append(datetime.fromtimestamp(int(df['timestamp'][iter])/1000, local_tz))
+            wakeup_date_list.append(datetime.fromtimestamp(int(df['date'][iter])/1000, global_tz))
         return wakeup_ts_list, wakeup_date_list
 
 def sleep(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
-    bz2_marker = 'SLEEP+PHONE.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No SLEEP file")
-        return None, None
+    csv_marker = 'SLEEP'
+    csv_matching = [s for s in zip_namelist if csv_marker in s]
+    csv_matching = [s for s in csv_matching if '.csv' in s]
+    csv_file = participant_zip.open(csv_matching[0])
+    temp = csv_file.read()
+    if not temp or temp == 'BZh9\x17rE8P\x90\x00\x00\x00\x00':
+        print ('No SLEEP file')
     else:
+        csv_file = participant_zip.open(csv_matching[0])
+        newfile = pd.read_csv(csv_file, header=None)
+        df = pd.DataFrame(np.array(newfile).reshape(-1, 2),
+                          columns=['timestamp', 'date'])
         local_tz = pytz.timezone('US/Central')
         global_tz = pytz.timezone('GMT')
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        if python_version == 3:
-            tempfile = tempfile.decode('utf-8')
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
         sleep_ts_list = []
         sleep_date_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
-            sleep_ts_list.append(ts)
-            date = datetime.fromtimestamp(int(values)/1000, global_tz)
-            sleep_date_list.append(date)
+        for iter in range(df.shape[0]):
+            sleep_ts_list.append(datetime.fromtimestamp(int(df['timestamp'][iter])/1000, local_tz))
+            sleep_date_list.append(datetime.fromtimestamp(int(df['date'][iter])/1000, global_tz))
         return sleep_ts_list, sleep_date_list
-
 
 def daystart(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
-    bz2_marker = 'DAY_START+PHONE.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No DAY START file")
-        return None, None
+    csv_marker = 'DAY_START'
+    csv_matching = [s for s in zip_namelist if csv_marker in s]
+    csv_matching = [s for s in csv_matching if '.csv' in s]
+    csv_file = participant_zip.open(csv_matching[0])
+    temp = csv_file.read()
+    if not temp or temp == 'BZh9\x17rE8P\x90\x00\x00\x00\x00':
+        print ('No Day Start file')
     else:
-        global_tz = pytz.timezone('GMT')
+        csv_file = participant_zip.open(csv_matching[0])
+        newfile = pd.read_csv(csv_file, header=None)
+        df = pd.DataFrame(np.array(newfile).reshape(-1, 2),
+                          columns=['timestamp', 'date'])
         local_tz = pytz.timezone('US/Central')
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        if python_version == 3:
-            tempfile = tempfile.decode('utf-8')
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
+        global_tz = pytz.timezone('GMT')
         daystart_ts_list = []
         daystart_date_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
-            daystart_ts_list.append(ts)
-            date = datetime.fromtimestamp(int(values)/1000, local_tz)
-            daystart_date_list.append(date)
+        for iter in range(df.shape[0]):
+            daystart_ts_list.append(datetime.fromtimestamp(int(df['timestamp'][iter])/1000, local_tz))
+            daystart_date_list.append(datetime.fromtimestamp(int(df['date'][iter])/1000, global_tz))
         return daystart_ts_list, daystart_date_list
 
 
 def dayend(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
-    bz2_marker = 'DAY_END+PHONE.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No DAY END file")
-        return None, None
+    csv_marker = 'DAY_END'
+    csv_matching = [s for s in zip_namelist if csv_marker in s]
+    csv_matching = [s for s in csv_matching if '.csv' in s]
+    csv_file = participant_zip.open(csv_matching[0])
+    temp = csv_file.read()
+    if not temp or temp == 'BZh9\x17rE8P\x90\x00\x00\x00\x00':
+        print ('No Day END file')
     else:
+        csv_file = participant_zip.open(csv_matching[0])
+        newfile = pd.read_csv(csv_file, header=None)
+        df = pd.DataFrame(np.array(newfile).reshape(-1, 2),
+                          columns=['timestamp', 'date'])
         local_tz = pytz.timezone('US/Central')
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        if python_version == 3:
-            tempfile = tempfile.decode('utf-8')
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
+        global_tz = pytz.timezone('GMT')
         dayend_ts_list = []
         dayend_date_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
-            dayend_ts_list.append(ts)
-            date = datetime.fromtimestamp(int(values)/1000, local_tz)
-            dayend_date_list.append(date)
+        for iter in range(df.shape[0]):
+            dayend_ts_list.append(datetime.fromtimestamp(int(df['timestamp'][iter])/1000, local_tz))
+            dayend_date_list.append(datetime.fromtimestamp(int(df['date'][iter])/1000, global_tz))
         return dayend_ts_list, dayend_date_list
 
 def leftwrist_dq(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
-    bz2_marker = '+DATA_QUALITY+ACCELEROMETER+MOTION_SENSE+LEFT_WRIST.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No LEFT WRIST file")
+    csv_marker = 'ACCELEROMETER_DATA_QUALITY_LEFT_WRIST_MOTION_SENSE'
+    csv_matching = [s for s in zip_namelist if csv_marker in s]
+    csv_matching = [s for s in csv_matching if '.csv' in s]
+    csv_file = participant_zip.open(csv_matching[0])
+    temp = csv_file.read()
+    if not temp or temp == 'BZh9\x17rE8P\x90\x00\x00\x00\x00':
+        print ('No left wrist file')
         return None
     else:
         local_tz = pytz.timezone('US/Central')
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        if python_version == 3:
-            tempfile = tempfile.decode('utf-8')
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
-        leftwrist_ts_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            if values == '0':
-                ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
-                leftwrist_ts_list.append(ts)
-    return leftwrist_ts_list
+        csv_file = participant_zip.open(csv_matching[0])
+        newfile = pd.read_csv(csv_file, header=None)
+        df = pd.DataFrame(np.array(newfile).reshape(-1, 2),
+                          columns=['timestamp', 'values'])
+        leftwrist_dq_list = []
+        df_leftwrist = df[df['values'] == 0]['timestamp']
+        df_leftwrist = df_leftwrist.reset_index()
+        for iter in range(df_leftwrist.shape[0]):
+            leftwrist_dq_list.append(datetime.fromtimestamp(df_leftwrist['timestamp'][iter]/1000, local_tz))
+        return leftwrist_dq_list
 
 
 def rightwrist_dq(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
-    bz2_marker = '+DATA_QUALITY+ACCELEROMETER+MOTION_SENSE+RIGHT_WRIST.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No RIGHT WRIST file")
+    csv_marker = 'ACCELEROMETER_DATA_QUALITY_RIGHT_WRIST_MOTION_SENSE'
+    csv_matching = [s for s in zip_namelist if csv_marker in s]
+    csv_matching = [s for s in csv_matching if '.csv' in s]
+    csv_file = participant_zip.open(csv_matching[0])
+    temp = csv_file.read()
+    if not temp or temp == 'BZh9\x17rE8P\x90\x00\x00\x00\x00':
+        print ('No right wrist file')
         return None
     else:
         local_tz = pytz.timezone('US/Central')
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        if python_version == 3:
-            tempfile = tempfile.decode('utf-8')
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
-        rightwrist_ts_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            if values == '0':
-                ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
-                rightwrist_ts_list.append(ts)
-    return rightwrist_ts_list
+        csv_file = participant_zip.open(csv_matching[0])
+        newfile = pd.read_csv(csv_file, header=None)
+        df = pd.DataFrame(np.array(newfile).reshape(-1, 2),
+                          columns=['timestamp', 'values'])
+        rightwrist_dq_list = []
+        df_rightwrist = df[df['values'] == 0]['timestamp']
+        df_rightwrist = df_rightwrist.reset_index()
+        for iter in range(df_rightwrist.shape[0]):
+            rightwrist_dq_list.append(datetime.fromtimestamp(df_rightwrist['timestamp'][iter]/1000, local_tz))
+        return rightwrist_dq_list
 
 def respiration_dq(participant_zip, participant_id):
     zip_namelist = participant_zip.namelist()
-    bz2_marker = '+DATA_QUALITY+RESPIRATION+AUTOSENSE_CHEST+CHEST.csv.bz2'
-    zip_matching = [s for s in zip_namelist if bz2_marker in s]
-    if not zip_matching:
-        print("No RESPIRATION file")
+    csv_marker = 'RESPIRATION_DATA_QUALITY_CHEST_AUTOSENSE_CHEST'
+    csv_matching = [s for s in zip_namelist if csv_marker in s]
+    csv_matching = [s for s in csv_matching if '.csv' in s]
+    csv_file = participant_zip.open(csv_matching[0])
+    temp = csv_file.read()
+    if not temp or temp == 'BZh9\x17rE8P\x90\x00\x00\x00\x00':
+        print ('No chest data file')
         return None
     else:
         local_tz = pytz.timezone('US/Central')
-        bz2_file = participant_zip.open(zip_matching[0])
-        tempfile = bz2.decompress(bz2_file.read())
-        if python_version == 3:
-            tempfile = tempfile.decode('utf-8')
-        tempfile = tempfile.rstrip('\n').split('\r')
-        tempfile.pop()
-        respiration_ts_list = []
-        for line in tempfile:
-            line = line.replace("\n", "")
-            ts, offset, values = line.rstrip().split(',', 2)
-            if values == '0':
-                ts = datetime.fromtimestamp(int(ts)/1000, local_tz)
-                respiration_ts_list.append(ts)
-        return respiration_ts_list
+        csv_file = participant_zip.open(csv_matching[0])
+        newfile = pd.read_csv(csv_file, header=None)
+        df = pd.DataFrame(np.array(newfile).reshape(-1, 2),
+                          columns=['timestamp', 'values'])
+        respiration_dq_list = []
+        df_respiration = df[df['values'] == 0]['timestamp']
+        df_respiration = df_respiration.reset_index()
+        for iter in range(df_respiration.shape[0]):
+            respiration_dq_list.append(datetime.fromtimestamp(df_respiration['timestamp'][iter]/1000, local_tz))
+        return respiration_dq_list
 
 
 def currentday_startend(current_date, daystart_ts_list,
