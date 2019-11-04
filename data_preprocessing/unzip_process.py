@@ -4,9 +4,9 @@ import pandas as pd
 from unzip_functions import *
 
 # Insert the directory name where the bz2 file is kept
-dir = '../data-streams/'
+dir = "../data-streams/"
 
-participant_dates = pd.read_csv('../cleaned-data/participant-dates-v2.csv')
+participant_dates = pd.read_csv("../cleaned-data/participant-dates-v2.csv")
 
 # No cloud data for 255-270
 if python_version == 3:
