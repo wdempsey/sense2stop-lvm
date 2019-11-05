@@ -126,7 +126,7 @@ def smoking_episode(participant_zip, participant_id):
             append_write = 'w'  # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        df.to_csv(temp_csv_file, header=header_binary, index=False)
+        df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to episode file!')
         return None
@@ -161,7 +161,7 @@ def puff_probability(participant_zip, participant_id):
             append_write = 'w'  # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        df.to_csv(temp_csv_file, header=header_binary, index=False)
+        df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to puff probability file!')
 
@@ -176,19 +176,28 @@ def strip_random_ema_json(json_data):
     # 14: access, 15: smoking location,
     htm_questions = range(0, 6)
     ratings_questions = range(7, 16)
-    data.extend([json_data['status'].encode('utf-8')])
+    if python_version == 3:
+        data.extend([json_data['status']])
+    else:
+        data.extend([json_data['status'].encode('utf-8')])
     if (json_data['status'] == 'COMPLETED' or
         json_data['status'] == 'ABANDONED_BY_TIMEOUT'):
         for i in htm_questions:
             if json_data['question_answers'][i]['response'] == []:
                 data.extend(['None'])
             else:
-                data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
+                if python_version == 3:
+                    data.extend([json_data['question_answers'][i]['response'][0]])
+                else:
+                    data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
         for i in ratings_questions:
             if json_data['question_answers'][i]['response'] == []:
                 data.extend(['None'])
             else:
-                data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
+                if python_version == 3:
+                    data.extend([(to_likert(json_data['question_answers'][i]['response'][0]))])
+                else:
+                    data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
     else:
         data.extend(['NA'] * (len(htm_questions) + len(ratings_questions)) )
     return data
@@ -236,7 +245,7 @@ def random_ema(participant_zip, participant_id):
         append_write = 'w' # make a new file if not
         header_binary = True
     temp_csv_file = open(save_dir+save_filename, append_write)
-    json_df.to_csv(temp_csv_file, header=header_binary, index=False)
+    json_df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
     temp_csv_file.close()
     print('Added to random ema file!')
 
@@ -249,7 +258,13 @@ def strip_end_of_day_ema_json(json_data):
                   '4:00 pm - 5:00 pm', '5:00 pm - 6:00 pm',
                   '6:00 pm - 7:00 pm', '7:00 pm - 8:00 pm']
     binary_outcome = []
-    binary_outcome.extend([json_data['status'].encode('utf-8')])
+    if python_version == 3:
+        binary_outcome.extend([json_data['status']])
+    else:
+        if python_version == 3:
+            binary_outcome.extend([json_data['status']])
+        else:
+            binary_outcome.extend([json_data['status'].encode('utf-8')])
     if (json_data['status'] == 'COMPLETED' or
         json_data['status'] == 'ABANDONED_BY_TIMEOUT'):
         response = json_data['question_answers'][0]['response']
@@ -307,7 +322,7 @@ def end_of_day_ema(participant_zip, participant_id):
             append_write = 'w' # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        json_df.to_csv(temp_csv_file, header=header_binary, index=False)
+        json_df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to end of day ema file!')
         return None
@@ -358,7 +373,7 @@ def event_contingent_ema(participant_zip, participant_id):
             append_write = 'w' # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        json_df.to_csv(temp_csv_file, header=header_binary, index=False)
+        json_df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to event contingent ema file!')
         return None
@@ -372,19 +387,28 @@ def strip_event_contingent_json(json_data):
     # 9: see/smell, 10: access, 11: smoking_location
     htm_questions = range(0, 2)
     ratings_questions = range(3, 12)
-    data.extend([json_data['status'].encode('utf-8')])
+    if python_version == 3:
+        data.extend([json_data['status']])
+    else:
+        data.extend([json_data['status'].encode('utf-8')])
     if (json_data['status'] == 'COMPLETED' or
         json_data['status'] == 'ABANDONED_BY_TIMEOUT'):
         for i in htm_questions:
             if json_data['question_answers'][i]['response'] is None:
                 data.extend(['None'])
             else:
-                data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
+                if python_version == 3:
+                    data.extend([json_data['question_answers'][i]['response'][0]])
+                else:
+                    data.extend([json_data['question_answers'][i]['response'][0].encode('utf-8')])
         for i in ratings_questions:
             if json_data['question_answers'][i]['response'] is None:
                 data.extend(['None'])
             else:
-                data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
+                if python_version == 3:
+                    data.extend([(to_likert(json_data['question_answers'][i]['response'][0]))])
+                else:
+                    data.extend([(to_likert(json_data['question_answers'][i]['response'][0])).encode('utf-8')])
     else:
         data.extend(['NA'] * (len(htm_questions) + len(ratings_questions)) )
     return data
@@ -429,7 +453,7 @@ def self_report_smoking(participant_zip, participant_id):
             append_write = 'w' # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        json_df.to_csv(temp_csv_file, header=header_binary, index=False)
+        json_df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to smoking self report file!')
         return None
@@ -439,7 +463,10 @@ def strip_self_report_smoking_json(json_data):
     if python_version == 3:
         data.extend([json_data['message']])
     else:
-        data.extend([json_data['message'].encode('utf-8')])
+        if python_version == 3:
+            data.extend([json_data['message']])
+        else:
+            data.extend([json_data['message'].encode('utf-8')])
     return data
 
 def stress_episodes(participant_zip, participant_id):
@@ -471,7 +498,7 @@ def stress_episodes(participant_zip, participant_id):
             append_write = 'w'  # make a new file if not
             header_binary = True
         temp_csv_file = open(save_dir+save_filename, append_write)
-        df.to_csv(temp_csv_file, header=header_binary, index=False)
+        df.to_csv(temp_csv_file, header=header_binary, index=False, line_terminator = '\n')
         temp_csv_file.close()
         print('Added to stress episodes file!')
 
@@ -983,7 +1010,7 @@ def study_days(participant_zip, participant_id, participant_dates):
             temp = {'id': np.repeat(participant_id, partition_length), 'date': np.repeat(current_date.date(), partition_length), 'study_day': np.repeat(iter+1, partition_length), 'prequit': np.repeat(current_date.date() >= quit_date.date(), partition_length), 'hq_start': joint_start_list, 'hq_end': joint_end_list, 'start_time': np.repeat(start_time, partition_length), 'end_time': np.repeat(end_time, partition_length)}
         df = pd.DataFrame(data = temp)
         save_dir = global_dir
-        save_filename = 'hq-episodes.csv'
+        save_filename = 'hq-episodes-alternative.csv'
         if os.path.isfile(save_dir + save_filename):
             append_write = 'a'  # append if already exists
             header_binary = False
