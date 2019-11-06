@@ -1,40 +1,26 @@
-import glob
-from zipfile import ZipFile
-import pandas as pd
-from unzip_functions import *
+import os; os.chdir("C:/Users/wdem/Documents/GitHub/sense2stop-lvm/data_preprocessing")
+from unzip_combine_functions import *
+import sys
 
-# Insert the directory name where the bz2 file is kept
-dir = "../data-streams/"
+global_dir = "../cleaned-data/"
+python_version = int(sys.version[0])
 
-participant_dates = pd.read_csv("../cleaned-data/participant-dates-v2.csv")
-
-# No cloud data for 255-270
 if python_version == 3:
-	all_participant_ids = list(range(201, 223)) + list(range(228,254))
+	all_participant_ids = list(range(201, 271))
 else:
-	all_participant_ids = range(201, 223) + range(228,254)
+	all_participant_ids = range(201, 271)
 
-for participant_id in all_participant_ids:
-	print('Now on participant ' + str(participant_id))
-	# File name we are dealing with
-	zip_name = '/'+str(participant_id)+'*.zip'
-	file_name = glob.glob(dir + zip_name)
-	participant_zip = ZipFile(file_name[0])
-	# Add the HQ Windows to a CSV file
-	study_days(participant_zip, participant_id, participant_dates)
-	# Add to cStress episodes
-	stress_episodes(participant_zip, participant_id)
-	# Add to cStress
-	cstress(participant_zip, participant_id)
-	# Add to puffMarker probability
-	smoking_episode(participant_zip, participant_id)
-	# Add to puffMaker episode
-	puff_probability(participant_zip, participant_id)
-	# Add to Random EMA
-	random_ema(participant_zip, participant_id)
-	# Add to End-of-Day EMA
-	end_of_day_ema(participant_zip, participant_id)
-	# Add to Event-Contingent
-	event_contingent_ema(participant_zip, participant_id)
-	# Add to self report
-	self_report_smoking(participant_zip, participant_id)
+# Combine the HQ Windows to a CSV file
+combine_study_days('hq-episodes', all_participant_ids)
+# Combine puffMarker probability
+combine_smoking_episode('puff-episode', all_participant_ids)
+# Combine puffMaker episode
+combine_puff_probability('puff-probability', all_participant_ids)
+# Combine Random EMA
+combine_random_ema('random-ema', all_participant_ids)
+# Combine End-of-Day EMA
+combine_end_of_day_ema('eod-ema', all_participant_ids)
+# Combine Event-Contingent
+combine_event_contingent_ema('eventcontingent-ema', all_participant_ids)
+# Combine self report
+combine_self_report_smoking('self-report-smoking', all_participant_ids)
