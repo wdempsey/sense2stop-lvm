@@ -1,18 +1,16 @@
 # Sense2Stop: Smoking detection via hierarchical latent marked point processes  #
 
-This project focuses on detection of smoking episodes. We use self-report and sensors to measure smoking episodes.  Time-varying covariates such as urge are measured via self-report.  Location (GPS) is measured via sensors.  Stress is measured both via self-report and sensors.  
+This project is statistical mdoels for detection of smoking episodes using self-report and sensors to measure smoking episodes.  Time-varying covariates such as urge and stress are measured via self-report.  Interventions are provided over the study in order to reduce proximal stress.  The proposed model attempts to account for the uncertainty in event times when jointly modeling risk and time-varying health processes (e.g., urge/stress) as well as in assessing impact of intervention on proximal risk of smoking.
 
 ## Project Description # #
-This project includes the code needed to reproduce the results in the project 
-
-"Mark it a Puff". If using this code please cite the paper using the following bibtex: 
+This project includes the code needed to reproduce results.  This includes (A) exploratory data analysis, (B) algorithmic development, and (C) application of models to the cleaned datasets. If using this code please cite the paper using the following bibtex: 
 
 ```tex
-@InProceedings{dempsey:2019,
+@article{dempsey:2020,
 author = {Dempsey, Walter},
-title = {The Most Amazing Paper},
-booktitle = {Best Conference},
-year = {2019}}
+title = {Hierarchical point process and multi-scale measurements: data integration for latent recurrent event analysis under uncertainty},
+booktitle = {arXiv},
+year = {2020}}
 ```
 The goal of this project is to do. 
 
