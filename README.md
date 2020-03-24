@@ -18,12 +18,17 @@ The goal of this project is to do.
 
 If there are steps to run the code list them as follows: 
 
-0. Dependencies. If there are any dependencies list them. 
-1. Get the data
-* Where is the data, who is in charge of it, how do they get it. 
-* Are there preprocessing steps? If so what folder are they in, for example: [the data preprocessing directory](/data_preprocessing)
-2. Run methods. Point people towards the folder with methods. [the methods directory](/methods)
-3. Evaluate. Point people towards the folder with evaluation functions [the evaluation directory](/evaluation)
+0. Dependencies: all code is developed in Python.  
+* Python packages are dealt with by virtual environment (`pipenv` package)
+1. Data access, preprocessing, and exploratory data analysis
+* Data is stored on [Box](https://account.box.com/login) and is owned by PI [Bonnie Spring](https://www.feinberg.northwestern.edu/faculty-profiles/az/profile.html?xid=16136).  Access is limited to the study team; however, 
+* [Data preprocessing](/data_preprocessing) converts the raw data into a set of data files
+* [Exploratory data analysis](/mems) is presented as a set of ipython notebooks. Descriptive statistics are used to inform the prior on the measurement-error models using in the analysis phase
+2. The [methods directory](/methods) contains all algorithms for MCMC estimation.  Algorithms are developed within the [pymc3](https://docs.pymc.io/).  The algorithm, at a high-level, performs the following
+* Sample event times given observations and parameters (using reversible-MCMC adjustment)
+* Sample parameters given latent event times (using pyMC3 software) 
+3. All evaluation functions can be found in the [the evaluation directory](/evaluation).  In particular, we perform posterior predictive checks to confirm model fit to the data.
+4. Final project report can be foudn in [the write-up directory](/writeup)
 
 # Notes #
 
