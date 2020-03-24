@@ -28,16 +28,4 @@ If there are steps to run the code list them as follows:
 * Sample event times given observations and parameters (using reversible-MCMC adjustment)
 * Sample parameters given latent event times (using pyMC3 software) 
 3. All evaluation functions can be found in the [the evaluation directory](/evaluation).  In particular, we perform posterior predictive checks to confirm model fit to the data.
-4. Final project report can be foudn in [the write-up directory](/writeup)
-
-# Notes #
-
-To see more tips on README's see [here](https://github.com/tchapi/markdown-cheatsheet/blob/master/README.md)
-
-SOMETHING TO NOTE: Readmes are incredibly sensitive to spaces, if you are not sure why something isn't working double check the example and make sure you have the spacing right. 
-
-Here is an example code block:
-
-```
-mvn dependency:build-classpath -Dmdep.outputFile=classpath.out
-```
+4. Final project report can be found in [the write-up directory](/write-up)
