@@ -2,7 +2,7 @@
 
 This project is statistical mdoels for detection of smoking episodes using self-report and sensors to measure smoking episodes.  Time-varying covariates such as urge and stress are measured via self-report.  Interventions are provided over the study in order to reduce proximal stress.  The proposed model attempts to account for the uncertainty in event times when jointly modeling risk and time-varying health processes (e.g., urge/stress) as well as in assessing impact of intervention on proximal risk of smoking.
 
-## Project Description # #
+## Project Description ##
 This project includes the code needed to reproduce results.  This includes (A) exploratory data analysis, (B) algorithmic development, and (C) application of models to the cleaned datasets. If using this code please cite the paper using the following bibtex: 
 
 ```tex
