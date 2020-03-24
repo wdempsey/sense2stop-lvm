@@ -1,32 +1,38 @@
 # Data pre-processing #
 
 This code focuses on pre-processing of the Sense2Stop data. The
-original files were stored as individual zip files
-
-We use self-report
-and sensors to measure smoking episodes.  Time-varying covariates such
-as urge are measured via self-report.  Location (GPS) is measured via
-sensors.  Stress is measured both via self-report and sensors.
+original files were stored as individual zip files in [Box](http://box.com/).
 
 ## Code Description ##
 
-If there are steps to run the code list them as follows: 
+There are 3 sources of data:
 
-0. Dependencies. If there are any dependencies list them. 
-1. Get the data
-* Where is the data, who is in charge of it, how do they get it. 
-* Are there preprocessing steps? If so what folder are they in, for example: [the data preprocessing directory](/data_preprocessing)
-2. Run methods. Point people towards the folder with methods. [the methods directory](/methods)
-3. Evaluate. Point people towards the folder with evaluation functions [the evaluation directory](/evaluation)
+1. Cloud data: data that was sent to the mCerebrum cloud storage in real-time. 
+    + This data can be missing if syncing did not occur properly
+2. Phone (backup) data: data that was stored on the phone and uploaded when the study participant returned study equipment at the end of the study
+    + This data can be missing if the participant did not return the equipment
+3. Alternative storage: the mCerebrum system did not properly store data for participants 223-227.  Therefore, this data was _recovered_, resulting in slightly different storage structure
 
-# Notes #
+We performed a [data source comparison](/data_source_comparison) and found that the phone data, if available, was always a superset of the cloud data.  Therefore, we prioritize phone data and then use cloud data when this is not available.  
 
-To see more tips on README's see [here](https://github.com/tchapi/markdown-cheatsheet/blob/master/README.md)
-
-SOMETHING TO NOTE: Readmes are incredibly sensitive to spaces, if you are not sure why something isn't working double check the example and make sure you have the spacing right. 
-
-Here is an example code block:
+Running the following sequence of scripts:
 
 ```
-mvn dependency:build-classpath -Dmdep.outputFile=classpath.out
+python unzip_process.py # De
+python unzip_backup_process.py 
+python unzip_alternative_process.py 
+python unzip_combine.py 
 ```
+
+This will produce a set of `final` csv files located at `/Box/MD2K Northwestern/Processed Data/smoking-lvm-cleaned-data/final`.  These files are:
+* `eod-ema-final.csv`: End-of-day EMAs (ecological momentary assessments)
+* `eventcontingent-ema-final.csv`: Event-contingent EMAs.  
+    + A subset of self-reported smoking times at which EMAs were triggered
+* `hq-episodes-final.csv`: Partition of each user-day into high-quality data episodes.  These are windows over which HTMGs and puffMarker can be triggered.
+* `puff-episode-final.csv`: PuffMarker detected smoking episodes
+* `puff-probability-final.csv`: Hand-to-mouth-gestures (HTMGs) 
+* `random-ema-final.csv`: Random EMAs
+* `self-report-smoking-final.csv`: Self-reported smoking times
+
+
+
