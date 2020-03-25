@@ -1,19 +1,26 @@
-# Measurement-error model (Mem) development
+# Measurement-error models (Mems): Exploratory Data Analysis (EDA)
 
-This folder contains a series of ipython notebooks that perform various checks to inform the 
-
+This folder contains a series of ipython notebooks that compute descriptive statistics to inform the measurement-error models.  Since there is not a large prior literature on many of these measurements, EDA is used to construct data-informed priors.  
 
 1. How well does HTMGs cover smoking events reported in other measurements? 
     +  `contingent_htmgs.ipynb`: 
     +  `eod_htmgs.ipynb`: 
     +  `random_htmgs.ipynb`:
+    +  `puffmarker_htmgs.ipynb`:
+    +  EDA suggests the average number of HTMGs in the 10-minutes after a smoking event is XX with a standard deviation of XX.  
+    +  EDA suggests the average number of HTMGs in the 10-minute window prior to the random EMA with `No` response is XX with a standard deviation of XX.
+    +  For a hierarchical point process model, this suggests smoking increases the joint rate by XX with some uncertainty
 2. How reliable are events reported in eod_ema in tracking smoking events reported in other measurements?
     + `sr_eod.ipynb`: Recall of 
     + `sr_eod.ipynb`: Recall of 
     + `sr_eod.ipynb`: Recall of 
-    + Suggests if the user had an event AND reports in the evening, then the plus/minus on this report is within a 1 hour window.
+    + Suggests if the user had an event AND reports in the evening, then the plus/minus on this report is within a 1 hour window.  
+    + We model this as given an event at time T, the user _recalls_ an event at time Z which is normally distributed with mean T and variance that is inverse-wishart distributed with mean 45 and variance 10.
+    + Future work can adjust model based on dependence on type of other measurement since self-report had higher recall than random EMA which had higher recall than puffMarker, but this was not considered here.
 3. How reliable is puffMarker? We compare when both self-report and random EMA responses to puffMarker.  
     + `sr_puffmarker.ipynb`: For every self-report of 'Yes', we ask if 
     + `random_puffmarker`: 
     + Suggest false-positive:
     + Suggests false-negative:
+4. How reliable is random EMA?
+5. How reliable is self-report?
