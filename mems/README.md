@@ -1,10 +1,9 @@
 # Measurement-error models (Mems): Exploratory Data Analysis (EDA)
 
-This folder contains a series of ipython notebooks that compute descriptive statistics to inform the measurement-error models.  Since there is not a large prior literature on many of these measurements, EDA is used to construct data-informed priors.  
+This folder contains a series of ipython notebooks that compute descriptive statistics to inform measurement-error models.  Since there is not a large prior literature on many of these measurements, EDA is used to construct data-informed priors.  We answer the following questoins
 
 1. How well does HTMGs cover smoking events reported in other measurements? 
-    +  `contingent_htmgs.ipynb`: 
-    +  `eod_htmgs.ipynb`: 
+    +  `sr_htmgs.ipynb`: For every `Yes` in self-report, computes the number of HTMGs in a window of length delta=5,15,30 
     +  `random_htmgs.ipynb`:
     +  `puffmarker_htmgs.ipynb`:
     +  EDA suggests the average number of HTMGs in the 10-minutes after a smoking event is XX with a standard deviation of XX.  
@@ -24,3 +23,10 @@ This folder contains a series of ipython notebooks that compute descriptive stat
     + Suggests false-negative:
 4. How reliable is random EMA?
 5. How reliable is self-report?
+
+# Priors for recurrent event analysis: Exploratory Data Analysis (EDA)
+
+6. How does the number of smoking events vary across study-day?
+    + `survival.ipynb`: Contains all recurrent event analysis.  
+    + EOD EMA
+    + Self-report + Random EMA:
