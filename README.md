@@ -20,6 +20,8 @@ If there are steps to run the code list them as follows:
 
 0. Dependencies: all code is developed in Python.  
 * Python packages are dealt with by virtual environment (`pipenv` package)
+* _Symbolic links_: Please setup symbolic links for linking to the Box directory since the data location can change across OS and systems.  
+  + Requires 4 symbolic links: 'cleaned_data', 'data_streams', 'data_streams_backup', 'final_data'
 1. Data access, preprocessing, and exploratory data analysis
 * Data is stored on [Box](https://account.box.com/login) and is owned by PI [Bonnie Spring](https://www.feinberg.northwestern.edu/faculty-profiles/az/profile.html?xid=16136).  Access is limited to the study team; however, 
 * [Data preprocessing](/data_preprocessing) converts the raw data into a set of data files
