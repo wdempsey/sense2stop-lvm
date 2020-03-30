@@ -10,11 +10,11 @@ This folder contains a series of ipython notebooks that compute descriptive stat
     +  EDA suggests the average number of HTMGs in the 15-minute window prior to the random EMA with `No` response is 0.586 with a standard deviation of 0.531.
     +  For a hierarchical point process model, this suggests smoking increases the joint rate by 1 in a five minute window around the event.  This is inexact, of course, but suggests HTMGs contain some relevant information for pinpointing smoking event times
 2. How reliable are events reported in eod_ema in tracking smoking events reported in other measurements?
-    + `sr_eod.ipynb`: Recall of 
-    + `sr_eod.ipynb`: Recall of 
-    + `sr_eod.ipynb`: Recall of 
+    + `sr_eod.ipynb`: Recall of self-report
+    + `pM_eod.ipynb`: Recall of puffMarker episodes
+    + `random_eod.ipynb`: Recall of random EMA
     + Suggests if the user had an event AND reports in the evening, then the plus/minus on this report is within a 1 hour window.  
-    + We model this as given an event at time T, the user _recalls_ an event at time Z which is normally distributed with mean T and variance that is inverse-wishart distributed with mean 45 and variance 10.
+    + We model this as given an event at time T, the user _recalls_ an event at time Z which is normally distributed with mean T and variance that is inverse-wishart distributed with mean 45.
     + Future work can adjust model based on dependence on type of other measurement since self-report had higher recall than random EMA which had higher recall than puffMarker, but this was not considered here.
 3. How reliable is puffMarker? We compare when both self-report and random EMA responses to puffMarker.  
     + `sr_puffmarker.ipynb`: For every self-report of 'Yes', we ask if 
