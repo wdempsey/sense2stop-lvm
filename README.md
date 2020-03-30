@@ -25,7 +25,7 @@ If there are steps to run the code list them as follows:
 1. Data access, preprocessing, and exploratory data analysis
 * Data is stored on [Box](https://account.box.com/login) and is owned by PI [Bonnie Spring](https://www.feinberg.northwestern.edu/faculty-profiles/az/profile.html?xid=16136).  Access is limited to the study team; however, 
 * [Data preprocessing](/data_preprocessing) converts the raw data into a set of data files
-* [Exploratory data analysis](/mems) is presented as a set of ipython notebooks. Descriptive statistics are used to inform the prior on the measurement-error models using in the analysis phase
+* [Exploratory data analysis](/exploratory_data_analysis) is presented as a set of ipython notebooks. Descriptive statistics are used to inform the prior on the measurement-error models using in the analysis phase
 2. The [methods directory](/methods) contains all algorithms for MCMC estimation.  Algorithms are developed within the [pymc3](https://docs.pymc.io/).  The algorithm, at a high-level, performs the following
 * Sample event times given observations and parameters (using reversible-MCMC adjustment)
 * Sample parameters given latent event times (using pyMC3 software) 
