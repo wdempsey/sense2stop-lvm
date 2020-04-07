@@ -6,8 +6,8 @@ This folder contains a series of ipython notebooks that compute descriptive stat
     +  `sr_htmgs.ipynb`: For every `Yes` in self-report, computes the number of HTMGs in a window of length delta=5,15,30 
     +  `random_htmgs.ipynb`:
     +  `puffmarker_htmgs.ipynb`:
-    +  EDA suggests the average number of HTMGs in the 5-minutes around a smoking event is 1.525 with a standard deviation of 1.663.  
-    +  EDA suggests the average number of HTMGs in the 15-minute window prior to the random EMA with `No` response is 0.586 with a standard deviation of 0.531.
+    +  EDA suggests the average number of HTMGs in the 15-minutes around a smoking event is 2.916 with a standard deviation of 2.787.  
+    +  EDA suggests the average number of HTMGs in the 15-minute window prior to the random EMA with `No` response is 1.787 with a standard deviation of 1.238.
     +  For a hierarchical point process model, this suggests smoking increases the joint rate by 1 in a five minute window around the event.  This is inexact, of course, but suggests HTMGs contain some relevant information for pinpointing smoking event times
 2. How reliable are events reported in eod_ema in tracking smoking events reported in other measurements?
     + `sr_eod.ipynb`: Recall of self-report
