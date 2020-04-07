@@ -18,8 +18,8 @@ The goal of this project is to do.
 
 If there are steps to run the code list them as follows: 
 
-0. Dependencies: all code is developed in Python.  
-* Python packages are dealt with by virtual environment (`pipenv` package)
+0. Dependencies: all code is developed in Python using [Anaconda])(https://anaconda.org/about).
+* The Anaconda environment can be installed using [bayesian.yml](./bayesian.yml). See [here](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) for instructions on creating the environment
 * _Symbolic links_: Please setup symbolic links for linking to the Box directory since the data location can change across OS and systems.  
   + Requires 4 symbolic links: 'cleaned_data', 'data_streams', 'data_streams_backup', 'final_data'
 1. Data access, preprocessing, and exploratory data analysis
