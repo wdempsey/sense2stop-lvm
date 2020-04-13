@@ -24,7 +24,15 @@ If there are steps to run the code list them as follows:
 conda env create -f bayesian.yml
 ```
 * _Symbolic links_: Please setup symbolic links for linking to the Box directory since the data location can change across OS and systems.  
-  + Requires 4 symbolic links: 'cleaned_data', 'data_streams', 'data_streams_backup', 'final_data'
+  + Requires 4 symbolic links
+    - 'cleaned_data' maps to location `...\Box\MD2K Northwestern\Processed Data\smoking-lvm-cleaned-data`
+    - 'data_streams' maps to location `...\Box\MD2K Northwestern\Processed Data\Data streams`
+    - 'data_streams_backup' maps to location `...\Box\MD2K Northwestern\Processed Data\Data streams - phone backup files`
+    - 'final_data` maps to location `...\Box\MD2K Northwestern\Processed Data\smoking-lvm-cleaned-data\final`
+  + For example: On Windows the following run from home directory will generate the correct symbolic link for `final_data`
+  ```
+  mklink /d final_data ...\Box\MD2K Northwestern\Processed Data\smoking-lvm-cleaned-data\final
+  ```
 1. Data access, preprocessing, and exploratory data analysis
 * Data is stored on [Box](https://account.box.com/login) and is owned by PI [Bonnie Spring](https://www.feinberg.northwestern.edu/faculty-profiles/az/profile.html?xid=16136).  Access is limited to the study team; however, 
 * [Data preprocessing](/data_preprocessing) converts the raw data into a set of data files
