@@ -1,3 +1,6 @@
-# Measurement-error models (Mems): Methods
+# Measurement-Error Models (MEMs): Methods
 
-# ADD LATER
+| <img height=0 width=1000> File Name <img height=0 width=1000> | <img height=0 width=1000> Brief Description <img height=0 width=1000> |
+|:-----------------------------:|:-----------------------------------------------------------------------|
+| [`models-sr.py`](https://github.com/wdempsey/sense2stop-lvm/blob/master/methods/models-sr.py) | Using self-report (SR) data only, three log-linear models of mean counts (`mu`) were considered: (1) `log(mu) = beta0 + beta1 * is_post_quit` (2) `log(mu) = beta0 + beta1 * study_day` (3) `log(mu) = beta0 + beta1 * is_post_quit + beta2 * study_day + beta3 * is_post_quit * study_day`. The posterior distribution of `betai`'s and 95% credible intervals for `mu` were estimated using each model for `mu`. Prior distributions for `betai`'s were all specified to be `Normal(0,1)` while a Poisson likelihood was chosen to describe the count data. In this file, the variable `study_day` represents the number of days elapsed since participant entry into the study at Day 0 (index begins at zero). In contrast, the variable `day_since_quit` represents the number of days before or after Quit Date: `day_since_quit` is equal to 0 if a given day corresponds to Quit Date itself, while a negative or positive value corresponds to number of days before or after Quit Date, respectively. The variable `is_post_quit` is simply a binary variable equal to 0 if `day_since_quit` is negative (before Quit Date), and equal to 1 if `day_since_quit` is zero or positive (on or after Quit Date). |
+
