@@ -176,10 +176,10 @@ collect_data_analysis['2'] = data_analysis
 # Remove variable from workspace
 del data_analysis
 
-#%%
-
 # collect_results is a dictionary that will collect results across all models
 collect_results={}
+
+#%%
 
 ###############################################################################
 # Estimation using pymc3
@@ -316,9 +316,14 @@ with pm.Model() as model:
     mu = np.exp(logmu)
     Y_hat = pm.Poisson('Y_hat', mu=mu, observed=Y_observed)
 
+with model:
+    step0 = pm.NUTS([beta0, beta1, beta2])
+    step1 = pm.Slice([beta3], w=0.3)
+    comp_step = pm.CompoundStep([step0, step1])
+
 # Sample from posterior distribution
 with model:
-    posterior_samples = pm.sample(2000, tune=3000, cores=1)
+    posterior_samples = pm.sample(2000, tune=3000, cores=1, init='jitter+adapt_diag', step=comp_step)
 
 # Calculate 95% credible interval
 model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
@@ -345,14 +350,17 @@ del model, posterior_samples, model_summary_logscale
 ###############################################################################
 # Model 0
 pm.traceplot(collect_results['0']['posterior_samples'])
+print(collect_results['0']['model_summary_logscale'])
 print(collect_results['0']['model_summary_expscale'])
 
 # Model 1
 pm.traceplot(collect_results['1']['posterior_samples'])
+print(collect_results['1']['model_summary_logscale'])
 print(collect_results['1']['model_summary_expscale'])
 
 # Model 2
 pm.traceplot(collect_results['2']['posterior_samples'])
+print(collect_results['2']['model_summary_logscale'])
 print(collect_results['2']['model_summary_expscale'])
 
 
