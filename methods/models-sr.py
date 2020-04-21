@@ -7,11 +7,13 @@ from datetime import datetime
 import os
 
 # List down file paths
-dir = ".../smoking-lvm-cleaned-data/final"
+dir_data = ".../smoking-lvm-cleaned-data/final"
 
 # Read in data
-data_dates = pd.read_csv(os.path.join(os.path.realpath(dir), 'participant-dates.csv'))
-data_selfreport = pd.read_csv(os.path.join(os.path.realpath(dir), 'self-report-smoking-final.csv'))
+data_dates = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'participant-dates.csv'))
+data_selfreport = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'self-report-smoking-final.csv'))
+
+#%%
 
 ###############################################################################
 # Data preparation: data_dates data frame
@@ -50,12 +52,16 @@ data_dates = (
                  "expected_end_date_unixts","actual_end_date_unixts"]]
 )
 
+#%%
+
 ###############################################################################
 # Merge data_selfreport with data_dates
 ###############################################################################
 data_selfreport = data_dates.merge(data_selfreport, 
                                    how = 'left', 
                                    on = 'participant_id')
+
+#%%
 
 ###############################################################################
 # Data preparation: data_selfreport data frame
@@ -98,6 +104,8 @@ def round_day(raw_day):
         
     return out_day
 
+#%%
+
 data_selfreport["delta"] = data_selfreport["message"].apply(lambda x: calculate_delta(x))
 data_selfreport["smoked_unixts"] = data_selfreport["begin_unixts"] - data_selfreport["delta"]
 
@@ -123,12 +131,22 @@ data_selfreport["day_since_quit"] = (
 data_selfreport = data_selfreport.dropna(how = 'any', subset=['smoked_unixts'])
 data_selfreport["study_day"] = data_selfreport["study_day"].apply(lambda x: np.int(x))
 data_selfreport["day_since_quit"] = data_selfreport["day_since_quit"].apply(lambda x: np.int(x))
-data_selfreport["is_post_quit"] = data_selfreport["day_since_quit"].apply(lambda x: 0 if x < 0 else 1)
+
+# Create a new variable, is_post_quit: whether a given day falls before or on/after 12AM on Quit Date
+data_selfreport["is_post_quit"] = data_selfreport["day_since_quit"].apply(lambda x: -1 if x < 0 else 1)
+
+# Create a new variable, day_within_period: 
+# if is_post_quit<0, number of days after 12AM on start of study
+# if is_post_quit>=0, number of days after 12AM on Quit Date
+# hence day_within_period is a count variable with ZERO as minimum value
+data_selfreport["day_within_period"] = np.where(data_selfreport["is_post_quit"]<0,
+                                                data_selfreport["study_day"], 
+                                                data_selfreport["day_since_quit"])
 
 # Finally, select subset of columns
 use_these_columns = ["participant_id", "start_date_unixts", "quit_date_unixts",
                      "expected_end_date_unixts","actual_end_date_unixts",
-                     "study_day", "day_since_quit", "is_post_quit",
+                     "is_post_quit", "study_day", "day_since_quit", "day_within_period",
                      "begin_unixts", "smoked_unixts"]
 data_selfreport = data_selfreport.loc[:, use_these_columns]
 
@@ -142,8 +160,8 @@ collect_data_analysis = {}
 
 data_analysis = (
     data_selfreport
-        .loc[:, ['participant_id','is_post_quit','smoked_unixts']]
-        .groupby(['participant_id','is_post_quit'])
+        .loc[:, ['participant_id','study_day','smoked_unixts']]
+        .groupby(['participant_id','study_day'])
         .agg('count')
         .reset_index(drop=False)
         .rename(columns={"smoked_unixts": "count"})
@@ -153,25 +171,14 @@ collect_data_analysis['0'] = data_analysis
 
 data_analysis = (
     data_selfreport
-        .loc[:, ['participant_id','study_day','smoked_unixts']]
-        .groupby(['participant_id','study_day'])
+        .loc[:, ['participant_id','is_post_quit','day_within_period','smoked_unixts']]
+        .groupby(['participant_id','is_post_quit','day_within_period'])
         .agg('count')
         .reset_index(drop=False)
         .rename(columns={"smoked_unixts": "count"})
 )
 
 collect_data_analysis['1'] = data_analysis
-
-data_analysis = (
-    data_selfreport
-        .loc[:, ['participant_id','is_post_quit','study_day','smoked_unixts']]
-        .groupby(['participant_id','is_post_quit','study_day'])
-        .agg('count')
-        .reset_index(drop=False)
-        .rename(columns={"smoked_unixts": "count"})
-)
-
-collect_data_analysis['2'] = data_analysis
 
 # Remove variable from workspace
 del data_analysis
@@ -192,26 +199,22 @@ with pm.Model() as model:
     # -------------------------------------------------------------------------
     # Outcome Data
     Y_observed = pm.Data('count', use_this_data['count'].values)
-    
-    # Covariate Data
-    is_post_quit = pm.Data('is_post_quit', use_this_data['is_post_quit'].values)
 
     # -------------------------------------------------------------------------
     # Priors
     # -------------------------------------------------------------------------
-    beta0 = pm.Normal('beta0', mu=0, sd=1)
-    beta1 = pm.Normal('beta1', mu=0, sd=1)
+    beta = pm.Normal('beta', mu=0, sd=10)
     
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
-    logmu = beta0 + beta1*is_post_quit
+    logmu = beta
     mu = np.exp(logmu)
     Y_hat = pm.Poisson('Y_hat', mu=mu, observed=Y_observed)
 
 # Sample from posterior distribution
 with model:
-    posterior_samples = pm.sample(3000, tune=2000, cores=1)
+    posterior_samples = pm.sample(draws=3000, tune=7000, cores=1)
 
 # Calculate 95% credible interval
 model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
@@ -222,14 +225,20 @@ model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
 
 # Transform coefficients and recover mu value
 model_summary_expscale = np.exp(model_summary_logscale)
+model_summary_expscale = model_summary_expscale.rename(index=lambda x: 'exp('+x+')') 
 
+# Round up to 3 decimal places
+model_summary_logscale = model_summary_logscale.round(3)
+model_summary_expscale = model_summary_expscale.round(3)
+
+# Collect results
 collect_results['0'] = {'model':model, 
                         'posterior_samples':posterior_samples,
                         'model_summary_logscale':model_summary_logscale,
                         'model_summary_expscale':model_summary_expscale}
 
 # Remove variable from workspace
-del model, posterior_samples, model_summary_logscale
+del model, posterior_samples, model_summary_logscale, model_summary_expscale
 
 #%%
 
@@ -246,24 +255,32 @@ with pm.Model() as model:
     Y_observed = pm.Data('count', use_this_data['count'].values)
     
     # Covariate Data
-    study_day = pm.Data('study_day', use_this_data['study_day'].values)
+    is_post_quit = pm.Data('is_post_quit', use_this_data['is_post_quit'].values)
+    day_within_period = pm.Data('day_within_period', use_this_data['day_within_period'].values)
 
     # -------------------------------------------------------------------------
     # Priors
     # -------------------------------------------------------------------------
-    beta0 = pm.Normal('beta0', mu=0, sd=1)
-    beta1 = pm.Normal('beta1', mu=0, sd=1)
+    beta_intercept_all = pm.Normal('beta_intercept_all', mu=0, sd=10)
+    beta_prequit = pm.Normal('beta_prequit', mu=0, sd=10)
+    beta_postquit = pm.Normal('beta_postquit', mu=0, sd=10)
     
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
-    logmu = beta0 + beta1*study_day
-    mu = np.exp(logmu)
+    logmu_prequit = beta_intercept_all + beta_prequit
+    mu_prequit = np.exp(logmu_prequit)
+
+    logmu_postquit = beta_intercept_all + beta_postquit
+    mu_postquit = np.exp(logmu_postquit)
+
+    mu = pm.math.switch(np.array(is_post_quit == 1), mu_postquit, mu_prequit)
+
     Y_hat = pm.Poisson('Y_hat', mu=mu, observed=Y_observed)
 
 # Sample from posterior distribution
 with model:
-    posterior_samples = pm.sample(3000, tune=2000, cores=1)
+    posterior_samples = pm.sample(draws=3000, tune=7000, cores=1, max_treedepth=20)
 
 # Calculate 95% credible interval
 model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
@@ -274,21 +291,28 @@ model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
 
 # Transform coefficients and recover mu value
 model_summary_expscale = np.exp(model_summary_logscale)
+model_summary_expscale = model_summary_expscale.rename(index=lambda x: 'exp('+x+')') 
 
+# Round up to 3 decimal places
+model_summary_logscale = model_summary_logscale.round(3)
+model_summary_expscale = model_summary_expscale.round(3)
+
+# Collect results
 collect_results['1'] = {'model':model, 
                         'posterior_samples':posterior_samples,
                         'model_summary_logscale':model_summary_logscale,
                         'model_summary_expscale':model_summary_expscale}
 
 # Remove variable from workspace
-del model, posterior_samples, model_summary_logscale
+del model, posterior_samples, model_summary_logscale, model_summary_expscale
+
 
 #%%
 
 ###############################################################################
 # Estimation using pymc3
 ###############################################################################
-use_this_data = collect_data_analysis['2']
+use_this_data = collect_data_analysis['1']
 
 with pm.Model() as model:
     # -------------------------------------------------------------------------
@@ -299,31 +323,35 @@ with pm.Model() as model:
     
     # Covariate Data
     is_post_quit = pm.Data('is_post_quit', use_this_data['is_post_quit'].values)
-    study_day = pm.Data('study_day', use_this_data['study_day'].values)
+    day_within_period = pm.Data('day_within_period', use_this_data['day_within_period'].values)
 
     # -------------------------------------------------------------------------
     # Priors
     # -------------------------------------------------------------------------
-    beta0 = pm.Normal('beta0', mu=0, sd=1)
-    beta1 = pm.Normal('beta1', mu=0, sd=1)
-    beta2 = pm.Normal('beta2', mu=0, sd=1)
-    beta3 = pm.Normal('beta3', mu=0, sd=1)
+    beta_intercept_all = pm.Normal('beta_intercept_all', mu=0, sd=10)
+    
+    beta_prequit_0 = pm.Normal('beta_prequit_0', mu=0, sd=10)
+    beta_prequit_1 = pm.Normal('beta_prequit_1', mu=0, sd=10)
+
+    beta_postquit_0 = pm.Normal('beta_postquit_0', mu=0, sd=10)
+    beta_postquit_1 = pm.Normal('beta_postquit_1', mu=0, sd=10)
     
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
-    logmu = beta0 + beta1*is_post_quit + beta2*study_day + beta2*is_post_quit*study_day
-    mu = np.exp(logmu)
-    Y_hat = pm.Poisson('Y_hat', mu=mu, observed=Y_observed)
+    logmu_prequit = beta_intercept_all + beta_prequit_0 + beta_prequit_0*day_within_period
+    mu_prequit = np.exp(logmu_prequit)
 
-with model:
-    step0 = pm.NUTS([beta0, beta1, beta2])
-    step1 = pm.Slice([beta3], w=0.3)
-    comp_step = pm.CompoundStep([step0, step1])
+    logmu_postquit = beta_intercept_all + beta_postquit_0 + beta_postquit_1*day_within_period
+    mu_postquit = np.exp(logmu_postquit)
+
+    mu = pm.math.switch(np.array(is_post_quit == 1), mu_postquit, mu_prequit)
+
+    Y_hat = pm.Poisson('Y_hat', mu=mu, observed=Y_observed)
 
 # Sample from posterior distribution
 with model:
-    posterior_samples = pm.sample(2000, tune=3000, cores=1, init='jitter+adapt_diag', step=comp_step)
+    posterior_samples = pm.sample(draws=3000, tune=5000, cores=1)
 
 # Calculate 95% credible interval
 model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
@@ -334,14 +362,20 @@ model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
 
 # Transform coefficients and recover mu value
 model_summary_expscale = np.exp(model_summary_logscale)
+model_summary_expscale = model_summary_expscale.rename(index=lambda x: 'exp('+x+')') 
 
+# Round up to 3 decimal places
+model_summary_logscale = model_summary_logscale.round(3)
+model_summary_expscale = model_summary_expscale.round(3)
+
+# Collect results
 collect_results['2'] = {'model':model, 
                         'posterior_samples':posterior_samples,
                         'model_summary_logscale':model_summary_logscale,
                         'model_summary_expscale':model_summary_expscale}
 
 # Remove variable from workspace
-del model, posterior_samples, model_summary_logscale
+del model, posterior_samples, model_summary_logscale, model_summary_expscale
 
 #%%
 
