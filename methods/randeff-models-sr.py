@@ -7,7 +7,7 @@ from datetime import datetime
 import os
 
 # List down file paths
-dir_data = ".../smoking-lvm-cleaned-data/final"
+dir_data = "../smoking-lvm-cleaned-data/final"
 
 # Read in data
 data_dates = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'participant-dates.csv'))
@@ -151,10 +151,16 @@ use_these_columns = ["participant_id", "start_date_unixts", "quit_date_unixts",
 data_selfreport = data_selfreport.loc[:, use_these_columns]
 
 #%%
+###############################################################################
+# Exclude individuals before beginning data preparation
+###############################################################################
+data_selfreport = data_selfreport[data_selfreport['participant_id']!=227]
 
+#%%
 ###############################################################################
 # Data preparation: Create data to be used as input to pymc3
 ###############################################################################
+
 # Collect data to be used in analyses in a dictionary
 collect_data_analysis = {}
 
@@ -282,19 +288,18 @@ with pm.Model() as model:
     # -------------------------------------------------------------------------
     # Priors
     # -------------------------------------------------------------------------
-    beta_intercept_all = pm.Normal('beta_intercept_all', mu=0, sd=10)
     beta_prequit = pm.Normal('beta_prequit', mu=0, sd=10)
     beta_postquit = pm.Normal('beta_postquit', mu=0, sd=10)
     gamma_prequit = pm.Normal('gamma_prequit', mu=0, sd=10, shape = n_participants)
-    gamma_postquit = pm.Normal('gamma_postquit', mu=0, sd=10, shape = n_participants)
+    gamma_postquit = pm.Normal('gamma_postquit', mu=0, sd=50, shape = n_participants)
     
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
-    logmu_prequit = beta_intercept_all + beta_prequit + gamma_prequit[participant_idx]
+    logmu_prequit = beta_prequit + gamma_prequit[participant_idx]
     mu_prequit = np.exp(logmu_prequit)
 
-    logmu_postquit = beta_intercept_all + beta_postquit + gamma_postquit[participant_idx]
+    logmu_postquit = beta_postquit + gamma_postquit[participant_idx]
     mu_postquit = np.exp(logmu_postquit)
 
     mu = pm.math.switch(np.array(is_post_quit == 1), mu_postquit, mu_prequit)
@@ -304,7 +309,7 @@ with pm.Model() as model:
 #%%
 # Sample from posterior distribution
 with model:
-    posterior_samples = pm.sample(draws=3000, tune=7000, cores=1, max_treedepth=20)
+    posterior_samples = pm.sample(draws=12000, tune=8000, cores=1, max_treedepth=20)
 
 #%%
 # Calculate 95% credible interval
@@ -357,9 +362,6 @@ pm.forestplot(collect_results['1']['posterior_samples'], var_names=['gamma_prequ
 
 plt.figure(figsize=(4,8))
 pm.forestplot(collect_results['1']['posterior_samples'], var_names=['gamma_postquit'], credible_interval=0.95)
-
-plt.figure(figsize=(4,8))
-pm.forestplot(collect_results['1']['posterior_samples'], var_names=['beta_intercept_all'], credible_interval=0.95)
 
 plt.figure(figsize=(4,8))
 pm.forestplot(collect_results['1']['posterior_samples'], var_names=['beta_prequit'], credible_interval=0.95)

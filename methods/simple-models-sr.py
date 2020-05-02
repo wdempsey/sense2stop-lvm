@@ -7,7 +7,7 @@ from datetime import datetime
 import os
 
 # List down file paths
-dir_data = ".../smoking-lvm-cleaned-data/final"
+dir_data = "../smoking-lvm-cleaned-data/final"
 
 # Read in data
 data_dates = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'participant-dates.csv'))
@@ -261,17 +261,16 @@ with pm.Model() as model:
     # -------------------------------------------------------------------------
     # Priors
     # -------------------------------------------------------------------------
-    beta_intercept_all = pm.Normal('beta_intercept_all', mu=0, sd=10)
     beta_prequit = pm.Normal('beta_prequit', mu=0, sd=10)
     beta_postquit = pm.Normal('beta_postquit', mu=0, sd=10)
     
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
-    logmu_prequit = beta_intercept_all + beta_prequit
+    logmu_prequit = beta_prequit
     mu_prequit = np.exp(logmu_prequit)
-
-    logmu_postquit = beta_intercept_all + beta_postquit
+    
+    logmu_postquit = beta_postquit
     mu_postquit = np.exp(logmu_postquit)
 
     mu = pm.math.switch(np.array(is_post_quit == 1), mu_postquit, mu_prequit)
@@ -310,76 +309,6 @@ del model, posterior_samples, model_summary_logscale, model_summary_expscale
 #%%
 
 ###############################################################################
-# Estimation using pymc3
-###############################################################################
-use_this_data = collect_data_analysis['1']
-
-with pm.Model() as model:
-    # -------------------------------------------------------------------------
-    # Data
-    # -------------------------------------------------------------------------
-    # Outcome Data
-    Y_observed = pm.Data('count', use_this_data['count'].values)
-    
-    # Covariate Data
-    is_post_quit = pm.Data('is_post_quit', use_this_data['is_post_quit'].values)
-    day_within_period = pm.Data('day_within_period', use_this_data['day_within_period'].values)
-
-    # -------------------------------------------------------------------------
-    # Priors
-    # -------------------------------------------------------------------------
-    beta_intercept_all = pm.Normal('beta_intercept_all', mu=0, sd=10)
-    
-    beta_prequit_0 = pm.Normal('beta_prequit_0', mu=0, sd=10)
-    beta_prequit_1 = pm.Normal('beta_prequit_1', mu=0, sd=10)
-
-    beta_postquit_0 = pm.Normal('beta_postquit_0', mu=0, sd=10)
-    beta_postquit_1 = pm.Normal('beta_postquit_1', mu=0, sd=10)
-    
-    # -------------------------------------------------------------------------
-    # Likelihood
-    # -------------------------------------------------------------------------
-    logmu_prequit = beta_intercept_all + beta_prequit_0 + beta_prequit_0*day_within_period
-    mu_prequit = np.exp(logmu_prequit)
-
-    logmu_postquit = beta_intercept_all + beta_postquit_0 + beta_postquit_1*day_within_period
-    mu_postquit = np.exp(logmu_postquit)
-
-    mu = pm.math.switch(np.array(is_post_quit == 1), mu_postquit, mu_prequit)
-
-    Y_hat = pm.Poisson('Y_hat', mu=mu, observed=Y_observed)
-
-# Sample from posterior distribution
-with model:
-    posterior_samples = pm.sample(draws=3000, tune=5000, cores=1)
-
-# Calculate 95% credible interval
-model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
-model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
-
-# Produce trace plots
-#pm.traceplot(posterior_samples)
-
-# Transform coefficients and recover mu value
-model_summary_expscale = np.exp(model_summary_logscale)
-model_summary_expscale = model_summary_expscale.rename(index=lambda x: 'exp('+x+')') 
-
-# Round up to 3 decimal places
-model_summary_logscale = model_summary_logscale.round(3)
-model_summary_expscale = model_summary_expscale.round(3)
-
-# Collect results
-collect_results['2'] = {'model':model, 
-                        'posterior_samples':posterior_samples,
-                        'model_summary_logscale':model_summary_logscale,
-                        'model_summary_expscale':model_summary_expscale}
-
-# Remove variable from workspace
-del model, posterior_samples, model_summary_logscale, model_summary_expscale
-
-#%%
-
-###############################################################################
 # Print results from all models
 ###############################################################################
 # Model 0
@@ -391,11 +320,5 @@ print(collect_results['0']['model_summary_expscale'])
 pm.traceplot(collect_results['1']['posterior_samples'])
 print(collect_results['1']['model_summary_logscale'])
 print(collect_results['1']['model_summary_expscale'])
-
-# Model 2
-pm.traceplot(collect_results['2']['posterior_samples'])
-print(collect_results['2']['model_summary_logscale'])
-print(collect_results['2']['model_summary_expscale'])
-
 
 # %%
