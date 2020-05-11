@@ -5,7 +5,7 @@ from datetime import datetime
 import os
 
 # List down file paths
-dir_data = "../smoking-lvm-cleaned-data/final"
+dir_data = "../Processed Data/smoking-lvm-cleaned-data/final"
 
 # Read in data
 data_dates = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'participant-dates.csv'))
@@ -69,10 +69,10 @@ data_selfreport["begin_unixts"] = data_selfreport["timestamp"]/1000
 def calculate_delta(message):
     sr_accptresponse = ['Smoking Event(less than 5 minutes ago)', 
                         'Smoking Event(5 - 15 minutes ago)', 
-                        'Smoking Event(15 to 30 minutes ago)']
+                        'Smoking Event(15 - 30 minutes ago)']
     sr_dictionary = {'Smoking Event(less than 5 minutes ago)': 2.5, 
-                     'Smoking Event(15 - 30 minutes ago)': 17.5, 
-                     'Smoking Event(5 - 15 minutes ago)': 10} 
+                     'Smoking Event(5 - 15 minutes ago)': 10,
+                     'Smoking Event(15 - 30 minutes ago)': 17.5} 
 
     if message in sr_accptresponse:
         # Convert time from minutes to seconds
@@ -145,16 +145,16 @@ data_selfreport["day_within_period"] = np.where(data_selfreport["is_post_quit"]<
 use_these_columns = ["participant_id", "start_date_unixts", "quit_date_unixts",
                      "expected_end_date_unixts","actual_end_date_unixts",
                      "is_post_quit", "study_day", "day_since_quit", "day_within_period",
-                     "begin_unixts", "smoked_unixts"]
+                     "begin_unixts", "message", "delta", "smoked_unixts"]
 data_selfreport = data_selfreport.loc[:, use_these_columns]
 
 #%%
 ###############################################################################
 # Write out csv file for prepared data if write_out==True
 ###############################################################################
-write_out = False
+write_out = True
 
 if write_out:
-    data_selfreport.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_data.csv'), index=False)
+    data_selfreport.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_datapoints.csv'), index=False)
 
 # %%
