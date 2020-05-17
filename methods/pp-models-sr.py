@@ -1,4 +1,6 @@
 #%%
+import pymc3 as pm
+import arviz as az
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -188,11 +190,100 @@ data_selfreport = data_selfreport.loc[:, use_these_columns]
 
 #%%
 ###############################################################################
-# Write out csv file for prepared data if write_out==True
+# Data preparation: Create data to be used as input to pymc3
 ###############################################################################
-write_out = True
 
-if write_out:
-    data_selfreport.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_datapoints.csv'), index=False)
+# Collect data to be used in analyses in a dictionary
+collect_data_analysis = {}
+collect_data_analysis['df_datapoints'] = (
+    data_selfreport
+        .loc[:,["participant_id", "hours_between"]]
+        .dropna()
+)
+
+#%%
+# collect_results is a dictionary that will collect results across all models
+collect_results={}
+
+#%%
+
+###############################################################################
+# Estimation using pymc3
+###############################################################################
+
+use_this_data = collect_data_analysis['df_datapoints']
+
+# Create new participant id's
+participant_names = use_this_data['participant_id'].unique()
+n_participants = len(participant_names)
+d = {'participant_id':participant_names, 'participant_idx':np.array(range(0,n_participants))}
+reference_df = pd.DataFrame(d)
+use_this_data = use_this_data.merge(reference_df, how = 'left', on = 'participant_id')
+participant_idx = use_this_data['participant_idx'].values
+
+with pm.Model() as model:
+    # -------------------------------------------------------------------------
+    # Data
+    # -------------------------------------------------------------------------
+    # Outcome Data
+    Y_observed = pm.Data('hours_between', use_this_data['hours_between'].values)
+
+    # -------------------------------------------------------------------------
+    # Priors
+    # -------------------------------------------------------------------------
+    gamma = pm.Normal('gamma', mu=0, sd=10, shape=n_participants)
+
+    # -------------------------------------------------------------------------
+    # Likelihood
+    # -------------------------------------------------------------------------
+    loglamb = gamma[participant_idx]
+    lamb = np.exp(loglamb)
+    Y_hat = pm.Exponential('Y_hat', lam = lamb, observed=Y_observed)
+
+#%%
+# Sample from posterior distribution
+with model:
+    posterior_samples = pm.sample(draws=3000, tune=7000, cores=1)
+
+#%%
+# Calculate 95% credible interval
+model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
+model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
+
+# Produce trace plots
+#pm.traceplot(posterior_samples)
+
+# Transform coefficients and recover mu value
+model_summary_meanscale = np.exp(model_summary_logscale)
+model_summary_meanscale = np.power(model_summary_meanscale, -1)
+model_summary_meanscale = model_summary_meanscale.rename(index=lambda x: '1/exp('+x+')') 
+
+# Round up to 3 decimal places
+model_summary_meanscale = model_summary_meanscale.round(3)
+model_summary_meanscale = model_summary_meanscale.round(3)
+
+# Collect results
+collect_results['0'] = {'model':model, 
+                        'posterior_samples':posterior_samples,
+                        'model_summary_logscale':model_summary_logscale,
+                        'model_summary_meanscale':model_summary_meanscale}
+#%%
+# Remove variable from workspace
+del model, posterior_samples, model_summary_logscale, model_summary_meanscale
+
+#%%
+
+###############################################################################
+# Print results from all models
+###############################################################################
+import matplotlib.pyplot as plt
+
+# Model 0
+pm.traceplot(collect_results['0']['posterior_samples'])
+print(collect_results['0']['model_summary_logscale'])
+print(collect_results['0']['model_summary_meanscale'])
+
+plt.figure(figsize=(4,8))
+pm.forestplot(collect_results['0']['posterior_samples'], var_names=['gamma'], credible_interval=0.95)
 
 # %%

@@ -7,7 +7,8 @@ from datetime import datetime
 import os
 
 # List down file paths
-dir_data = "../Processed Data/smoking-lvm-cleaned-data/final"
+#dir_data = "../smoking-lvm-cleaned-data/final"
+dir_data = os.environ['dir_data']
 
 # Read in data
 data_dates = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'participant-dates.csv'))
@@ -242,13 +243,35 @@ df_trailing_zeros = (
         .rename(columns={"counts_sr": "keep_participant"})
 )
 
-df_counts_subset = df_counts.merge(df_trailing_zeros, how = 'left', on = 'participant_id')
-df_counts_subset = df_counts_subset[df_counts_subset.keep_participant==1].drop("keep_participant", axis=1)
+df_counts_subset_trailingzeros = df_counts.merge(df_trailing_zeros, how = 'left', on = 'participant_id')
+df_counts_subset_trailingzeros = df_counts_subset_trailingzeros[df_counts_subset_trailingzeros.keep_participant==1].drop("keep_participant", axis=1)
 
+# Exclude this participant
+df_counts_subset_trailingzeros = df_counts_subset_trailingzeros[df_counts_subset_trailingzeros["participant_id"] != 227]
 
 #%%
+###############################################################################
+# In df_counts, identify which individuals have zeros on all days
+###############################################################################
+
+# Note: All rows belonging to individuals whose last 7 or erlier days consist
+# of "trailing zeros" are excluded
+
+aggregations = {"counts_sr": lambda x: 1 if sum(x)>0 else 0}
+df_all_zeros = (
+    df_counts
+        .loc[:, ["participant_id","counts_sr"]]
+        .groupby("participant_id")
+        .agg(aggregations)
+        .reset_index(drop=False)
+        .rename(columns={"counts_sr": "keep_participant"})
+)
+
+df_counts_subset_allzeros = df_counts.merge(df_all_zeros, how = 'left', on = 'participant_id')
+df_counts_subset_allzeros = df_counts_subset_allzeros[df_counts_subset_allzeros.keep_participant==1].drop("keep_participant", axis=1)
+
 # Exclude this participant
-df_counts_subset = df_counts_subset[df_counts_subset["participant_id"] != 227]
+df_counts_subset_allzeros = df_counts_subset_allzeros[df_counts_subset_allzeros["participant_id"] != 227]
 
 #%%
 ###############################################################################
@@ -258,7 +281,8 @@ write_out = True
 
 if write_out:
     df_counts.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_counts_all.csv'), index=False)
-    df_counts_subset.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_counts_subset.csv'), index=False)
+    df_counts_subset_trailingzeros.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_counts_subset_trailingzeros.csv'), index=False)
+    df_counts_subset_allzeros.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_counts_subset_allzeros.csv'), index=False)
 
 #%%
 ###############################################################################
@@ -268,16 +292,17 @@ if write_out:
 # Collect data to be used in analyses in a dictionary
 collect_data_analysis = {}
 collect_data_analysis['df_counts'] = df_counts
-collect_data_analysis['df_counts_subset'] = df_counts_subset
-
+collect_data_analysis['df_counts_subset_trailingzeros'] = df_counts_subset_trailingzeros
+collect_data_analysis['df_counts_subset_allzeros'] = df_counts_subset_allzeros
 #%%
 # collect_results is a dictionary that will collect results across all models
 collect_results={}
 
+#%%
 ###############################################################################
 # Estimation using pymc3
 ###############################################################################
-use_this_data = collect_data_analysis['df_counts_subset']
+use_this_data = collect_data_analysis['df_counts_subset_allzeros']
 
 # Create new participant id's
 participant_names = use_this_data['participant_id'].unique()
@@ -343,7 +368,7 @@ del model, posterior_samples, model_summary_logscale, model_summary_expscale
 ###############################################################################
 # Estimation using pymc3
 ###############################################################################
-use_this_data = collect_data_analysis['df_counts_subset']
+use_this_data = collect_data_analysis['df_counts_subset_allzeros']
 
 # Create new participant id's
 participant_names = use_this_data['participant_id'].unique()
@@ -419,6 +444,86 @@ del model, posterior_samples, model_summary_logscale, model_summary_expscale
 #%%
 
 ###############################################################################
+# Estimation using pymc3
+###############################################################################
+use_this_data = collect_data_analysis['df_counts_subset_allzeros']
+
+# Create new participant id's
+participant_names = use_this_data['participant_id'].unique()
+n_participants = len(participant_names)
+d = {'participant_id':participant_names, 'participant_idx':np.array(range(0,n_participants))}
+reference_df = pd.DataFrame(d)
+use_this_data = use_this_data.merge(reference_df, how = 'left', on = 'participant_id')
+participant_idx = use_this_data['participant_idx'].values
+
+#%%
+
+with pm.Model() as model:
+    # -------------------------------------------------------------------------
+    # Data
+    # -------------------------------------------------------------------------
+    # Outcome Data
+    Y_observed = pm.Data('counts_sr', use_this_data['counts_sr'].values)
+    
+    # Covariate Data
+    is_post_quit = pm.Data('is_post_quit', use_this_data['is_post_quit'].values)
+    day_within_period = pm.Data('day_within_period', use_this_data['day_within_period'].values)
+
+    # -------------------------------------------------------------------------
+    # Priors
+    # -------------------------------------------------------------------------
+    beta_prequit_intercept = pm.Normal('beta_prequit_intercept', mu=0, sd=10)
+    beta_prequit_slope = pm.Normal('beta_prequit_slope', mu=0, sd=10)
+    beta_postquit_intercept = pm.Normal('beta_postquit_intercept', mu=0, sd=10)
+    beta_postquit_slope = pm.Normal('beta_postquit_slope', mu=0, sd=10)
+    gamma_prequit = pm.Normal('gamma_prequit', mu=0, sd=10, shape = n_participants)
+    gamma_postquit = pm.Normal('gamma_postquit', mu=0, sd=10, shape = n_participants)
+    
+    # -------------------------------------------------------------------------
+    # Likelihood
+    # -------------------------------------------------------------------------
+    logmu_prequit = beta_prequit_intercept + beta_prequit_slope*day_within_period + gamma_prequit[participant_idx]
+    mu_prequit = np.exp(logmu_prequit)
+
+    logmu_postquit = beta_postquit_intercept + beta_postquit_slope*day_within_period + gamma_postquit[participant_idx]
+    mu_postquit = np.exp(logmu_postquit)
+    mu = is_post_quit*mu_postquit + (1-is_post_quit)*mu_prequit
+
+    Y_hat = pm.Poisson('Y_hat', mu=mu, observed=Y_observed)
+
+#%%
+# Sample from posterior distribution
+with model:
+    posterior_samples = pm.sample(draws=15000, tune=30000, cores=1, max_treedepth=20)
+
+#%%
+# Calculate 95% credible interval
+model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
+model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
+
+# Produce trace plots
+#pm.traceplot(posterior_samples)
+
+# Transform coefficients and recover mu value
+model_summary_expscale = np.exp(model_summary_logscale)
+model_summary_expscale = model_summary_expscale.rename(index=lambda x: 'exp('+x+')') 
+
+# Round up to 3 decimal places
+model_summary_logscale = model_summary_logscale.round(3)
+model_summary_expscale = model_summary_expscale.round(3)
+
+# Collect results
+collect_results['2'] = {'model':model, 
+                        'posterior_samples':posterior_samples,
+                        'model_summary_logscale':model_summary_logscale,
+                        'model_summary_expscale':model_summary_expscale}
+#%%
+# Remove variable from workspace
+del model, posterior_samples, model_summary_logscale, model_summary_expscale
+
+#%%
+
+###############################################################################
 # Print results from all models
 ###############################################################################
 import matplotlib.pyplot as plt
@@ -448,5 +553,26 @@ pm.forestplot(collect_results['1']['posterior_samples'], var_names=['beta_prequi
 
 plt.figure(figsize=(4,8))
 pm.forestplot(collect_results['1']['posterior_samples'], var_names=['beta_postquit'], credible_interval=0.95)
+
+#%%
+# Model 2
+pm.traceplot(collect_results['2']['posterior_samples'])
+print(collect_results['2']['model_summary_logscale'])
+print(collect_results['2']['model_summary_expscale'])
+
+plt.figure(figsize=(4,8))
+pm.forestplot(collect_results['2']['posterior_samples'], var_names=['gamma_prequit'], credible_interval=0.95)
+
+plt.figure(figsize=(4,8))
+pm.forestplot(collect_results['2']['posterior_samples'], var_names=['gamma_postquit'], credible_interval=0.95)
+
+plt.figure(figsize=(4,8))
+pm.forestplot(collect_results['2']['posterior_samples'], var_names=['beta_prequit_intercept'], credible_interval=0.95)
+
+plt.figure(figsize=(4,8))
+pm.forestplot(collect_results['2']['posterior_samples'], var_names=['beta_prequit_slope'], credible_interval=0.95)
+
+plt.figure(figsize=(4,8))
+pm.forestplot(collect_results['2']['posterior_samples'], var_names=['beta_postquit_slope'], credible_interval=0.95)
 
 # %%

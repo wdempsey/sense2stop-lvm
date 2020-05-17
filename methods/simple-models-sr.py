@@ -7,7 +7,8 @@ from datetime import datetime
 import os
 
 # List down file paths
-dir_data = "../Processed Data/smoking-lvm-cleaned-data/final"
+#dir_data = "../smoking-lvm-cleaned-data/final"
+dir_data = os.environ['dir_data']
 
 # Read in data
 data_dates = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'participant-dates.csv'))
