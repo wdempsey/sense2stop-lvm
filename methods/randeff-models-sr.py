@@ -5,10 +5,12 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import os
+import pickle
 
 # List down file paths
 #dir_data = "../smoking-lvm-cleaned-data/final"
 dir_data = os.environ['dir_data']
+dir_picklejar = os.environ['dir_picklejar']
 
 # Read in data
 data_dates = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'participant-dates.csv'))
@@ -574,5 +576,12 @@ pm.forestplot(collect_results['2']['posterior_samples'], var_names=['beta_prequi
 
 plt.figure(figsize=(4,8))
 pm.forestplot(collect_results['2']['posterior_samples'], var_names=['beta_postquit_slope'], credible_interval=0.95)
+
+
+# %%
+filename = os.path.join(os.path.realpath(dir_picklejar), 'dict_randeff_models_allzeros')
+outfile = open(filename, 'wb')
+pickle.dump(collect_results, outfile)
+outfile.close()
 
 # %%

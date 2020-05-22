@@ -5,10 +5,12 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import os
+import pickle
 
 # List down file paths
 #dir_data = "../smoking-lvm-cleaned-data/final"
 dir_data = os.environ['dir_data']
+dir_picklejar = os.environ['dir_picklejar']
 
 # Read in data
 data_dates = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'participant-dates.csv'))
@@ -285,5 +287,11 @@ print(collect_results['0']['model_summary_meanscale'])
 
 plt.figure(figsize=(4,8))
 pm.forestplot(collect_results['0']['posterior_samples'], var_names=['gamma'], credible_interval=0.95)
+
+# %%
+filename = os.path.join(os.path.realpath(dir_picklejar), 'dict_pp_models')
+outfile = open(filename, 'wb')
+pickle.dump(collect_results, outfile)
+outfile.close()
 
 # %%
