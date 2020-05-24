@@ -7,6 +7,7 @@ import os
 # List down file paths
 #dir_data = "../smoking-lvm-cleaned-data/final"
 dir_data = os.environ['dir_data']
+dir_picklejar = os.environ['dir_picklejar']
 
 # Read in data
 data_dates = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'participant-dates.csv'))
@@ -45,8 +46,14 @@ data_dates["actual_end_date"]
 # More tidying up
 data_dates = (
     data_dates
-        .rename(columns={"participant": "participant_id"})
+        .rename(columns={"participant": "participant_id", 
+                         "quit_date": "quit_date_hrts",
+                         "start_date": "start_date_hrts",
+                         "actual_end_date": "actual_end_date_hrts",
+                         "expected_end_date": "expected_end_date_hrts"})
         .loc[:, ["participant_id", 
+                 "start_date_hrts","quit_date_hrts",
+                 "expected_end_date_hrts", "actual_end_date_hrts",
                  "start_date_unixts", "quit_date_unixts",
                  "expected_end_date_unixts","actual_end_date_unixts"]]
 )
@@ -132,13 +139,13 @@ data_selfreport["study_day"] = data_selfreport["study_day"].apply(lambda x: np.i
 data_selfreport["day_since_quit"] = data_selfreport["day_since_quit"].apply(lambda x: np.int(x))
 
 # Create a new variable, is_post_quit: whether a given day falls before or on/after 12AM on Quit Date
-data_selfreport["is_post_quit"] = data_selfreport["day_since_quit"].apply(lambda x: -1 if x < 0 else 1)
+data_selfreport["is_post_quit"] = data_selfreport["day_since_quit"].apply(lambda x: 0 if x < 0 else 1)
 
 # Create a new variable, day_within_period: 
 # if is_post_quit<0, number of days after 12AM on start of study
 # if is_post_quit>=0, number of days after 12AM on Quit Date
 # hence day_within_period is a count variable with ZERO as minimum value
-data_selfreport["day_within_period"] = np.where(data_selfreport["is_post_quit"]<0,
+data_selfreport["day_within_period"] = np.where(data_selfreport["is_post_quit"]==0,
                                                 data_selfreport["study_day"], 
                                                 data_selfreport["day_since_quit"])
 
@@ -156,35 +163,67 @@ data_selfreport = data_selfreport.sort_values(['participant_id','smoked_unixts']
 tmpdf = (
     data_selfreport
         .groupby("participant_id")
-        .apply(lambda x: np.append([np.nan],[x["smoked_unixts_scaled"].head(-1)]))
+        .apply(lambda x: np.append([x["smoked_unixts_scaled"].tail(-1)], [np.nan]))
         .reset_index()
-        .rename(columns={"participant_id": "participant_id", 0:"smoked_unixts_scaled_lagminus01"})
+        .rename(columns={"participant_id": "participant_id", 0:"smoked_unixts_scaled_lagplus01"})
 )
 
 tmparray = []
 for i in range(0, len(tmpdf.index)):
     current_participant_id = tmpdf["participant_id"].loc[i]
-    current_array = tmpdf[tmpdf["participant_id"]==current_participant_id]["smoked_unixts_scaled_lagminus01"]
+    current_array = tmpdf[tmpdf["participant_id"]==current_participant_id]["smoked_unixts_scaled_lagplus01"]
     idx = current_array.index[0]
     current_array = current_array[idx]
     tmparray = np.append(tmparray, current_array)
 
-data_selfreport = data_selfreport.assign(smoked_unixts_scaled_lagminus01 = tmparray)
+data_selfreport = data_selfreport.assign(smoked_unixts_scaled_lagplus01 = tmparray)
 
 data_selfreport["hours_between"] = (
     data_selfreport
-        .loc[:, ["smoked_unixts_scaled","smoked_unixts_scaled_lagminus01"]]
-        .pipe(lambda x: x["smoked_unixts_scaled"]-x["smoked_unixts_scaled_lagminus01"])
+        .loc[:, ["smoked_unixts_scaled","smoked_unixts_scaled_lagplus01"]]
+        .pipe(lambda x: x["smoked_unixts_scaled_lagplus01"] -  x["smoked_unixts_scaled"])
 )
 
 #%%
+# For each participant, count number of timestamps they have
+data_selfreport["ones"]=1
+
+data_selfreport["order_in_sequence"] = (
+    data_selfreport
+        .groupby("participant_id")["ones"]
+        .cumsum()
+)
+
+#%%
+data_selfreport = (
+    data_selfreport
+        .groupby("participant_id")["order_in_sequence"]
+        .max()
+        .reset_index()
+        .rename(columns={"participant_id":"participant_id","order_in_sequence":"max_order_in_sequence"})
+        .merge(data_selfreport, how="right", on="participant_id")
+)
+
+data_selfreport["censored"] = np.where(data_selfreport["order_in_sequence"]==data_selfreport["max_order_in_sequence"],1,0)
+
+#%%
 # Finally, select subset of columns
-use_these_columns = ["participant_id", "start_date_unixts", "quit_date_unixts",
+use_these_columns = ["participant_id",
+                     "start_date_hrts", "quit_date_hrts",
+                     "expected_end_date_hrts","actual_end_date_hrts", 
+                     "start_date_unixts", "quit_date_unixts",
                      "expected_end_date_unixts","actual_end_date_unixts",
                      "is_post_quit", "study_day", "day_since_quit", "day_within_period",
                      "begin_unixts", "message", "delta", "smoked_unixts",
-                     "smoked_unixts_scaled", "smoked_unixts_scaled_lagminus01", "hours_between"]
+                     "smoked_unixts_scaled", "smoked_unixts_scaled_lagplus01", 
+                     "hours_between","censored"]
 data_selfreport = data_selfreport.loc[:, use_these_columns]
+
+#%%
+data_selfreport = (
+    data_selfreport
+        .loc[:,["participant_id", "is_post_quit", "smoked_unixts_scaled", "hours_between","censored"]]
+)
 
 #%%
 ###############################################################################

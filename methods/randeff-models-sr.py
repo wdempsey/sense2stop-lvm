@@ -191,13 +191,13 @@ data_selfreport["study_day"] = data_selfreport["study_day"].apply(lambda x: np.i
 data_selfreport["day_since_quit"] = data_selfreport["day_since_quit"].apply(lambda x: np.int(x))
 
 # Create a new variable, is_post_quit: whether a given day falls before or on/after 12AM on Quit Date
-data_selfreport["is_post_quit"] = data_selfreport["day_since_quit"].apply(lambda x: -1 if x < 0 else 1)
+data_selfreport["is_post_quit"] = data_selfreport["day_since_quit"].apply(lambda x: 0 if x < 0 else 1)
 
 # Create a new variable, day_within_period: 
 # if is_post_quit<0, number of days after 12AM on start of study
 # if is_post_quit>=0, number of days after 12AM on Quit Date
 # hence day_within_period is a count variable with ZERO as minimum value
-data_selfreport["day_within_period"] = np.where(data_selfreport["is_post_quit"]<0,
+data_selfreport["day_within_period"] = np.where(data_selfreport["is_post_quit"]==0,
                                                 data_selfreport["study_day"], 
                                                 data_selfreport["day_since_quit"])
 
@@ -325,19 +325,20 @@ with pm.Model() as model:
     # -------------------------------------------------------------------------
     # Priors
     # -------------------------------------------------------------------------
+    beta = pm.Normal('beta', mu=0, sd=10)
     gamma = pm.Normal('gamma', mu=0, sd=10, shape=n_participants)
 
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
-    logmu = gamma[participant_idx]
+    logmu = beta + gamma[participant_idx]
     mu = np.exp(logmu)
     Y_hat = pm.Poisson('Y_hat', mu=mu, observed=Y_observed)
 
 #%%
 # Sample from posterior distribution
 with model:
-    posterior_samples = pm.sample(draws=3000, tune=7000, cores=1)
+    posterior_samples = pm.sample(draws=10000, tune=5000, cores=1, target_accept=0.90)
 
 #%%
 # Calculate 95% credible interval
@@ -345,7 +346,7 @@ model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
 model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
 
 # Produce trace plots
-#pm.traceplot(posterior_samples)
+pm.traceplot(posterior_samples)
 
 # Transform coefficients and recover mu value
 model_summary_expscale = np.exp(model_summary_logscale)
@@ -361,7 +362,6 @@ collect_results['0'] = {'model':model,
                         'model_summary_logscale':model_summary_logscale,
                         'model_summary_expscale':model_summary_expscale}
 
-#%%
 # Remove variable from workspace
 del model, posterior_samples, model_summary_logscale, model_summary_expscale
 
@@ -409,14 +409,14 @@ with pm.Model() as model:
 
     logmu_postquit = beta_postquit + gamma_postquit[participant_idx]
     mu_postquit = np.exp(logmu_postquit)
-    mu = is_post_quit*mu_postquit + (1-is_post_quit)*mu_prequit
+    mu = (1-is_post_quit)*mu_prequit + is_post_quit*mu_postquit
 
     Y_hat = pm.Poisson('Y_hat', mu=mu, observed=Y_observed)
 
 #%%
 # Sample from posterior distribution
 with model:
-    posterior_samples = pm.sample(draws=12000, tune=23000, cores=1, max_treedepth=20)
+    posterior_samples = pm.sample(draws=15000, tune=5000, cores=1, target_accept=0.90)
 
 #%%
 # Calculate 95% credible interval
@@ -424,7 +424,7 @@ model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
 model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
 
 # Produce trace plots
-#pm.traceplot(posterior_samples)
+pm.traceplot(posterior_samples)
 
 # Transform coefficients and recover mu value
 model_summary_expscale = np.exp(model_summary_logscale)
@@ -442,87 +442,6 @@ collect_results['1'] = {'model':model,
 #%%
 # Remove variable from workspace
 del model, posterior_samples, model_summary_logscale, model_summary_expscale
-
-#%%
-
-###############################################################################
-# Estimation using pymc3
-###############################################################################
-use_this_data = collect_data_analysis['df_counts_subset_allzeros']
-
-# Create new participant id's
-participant_names = use_this_data['participant_id'].unique()
-n_participants = len(participant_names)
-d = {'participant_id':participant_names, 'participant_idx':np.array(range(0,n_participants))}
-reference_df = pd.DataFrame(d)
-use_this_data = use_this_data.merge(reference_df, how = 'left', on = 'participant_id')
-participant_idx = use_this_data['participant_idx'].values
-
-#%%
-
-with pm.Model() as model:
-    # -------------------------------------------------------------------------
-    # Data
-    # -------------------------------------------------------------------------
-    # Outcome Data
-    Y_observed = pm.Data('counts_sr', use_this_data['counts_sr'].values)
-    
-    # Covariate Data
-    is_post_quit = pm.Data('is_post_quit', use_this_data['is_post_quit'].values)
-    day_within_period = pm.Data('day_within_period', use_this_data['day_within_period'].values)
-
-    # -------------------------------------------------------------------------
-    # Priors
-    # -------------------------------------------------------------------------
-    beta_prequit_intercept = pm.Normal('beta_prequit_intercept', mu=0, sd=10)
-    beta_prequit_slope = pm.Normal('beta_prequit_slope', mu=0, sd=10)
-    beta_postquit_intercept = pm.Normal('beta_postquit_intercept', mu=0, sd=10)
-    beta_postquit_slope = pm.Normal('beta_postquit_slope', mu=0, sd=10)
-    gamma_prequit = pm.Normal('gamma_prequit', mu=0, sd=10, shape = n_participants)
-    gamma_postquit = pm.Normal('gamma_postquit', mu=0, sd=10, shape = n_participants)
-    
-    # -------------------------------------------------------------------------
-    # Likelihood
-    # -------------------------------------------------------------------------
-    logmu_prequit = beta_prequit_intercept + beta_prequit_slope*day_within_period + gamma_prequit[participant_idx]
-    mu_prequit = np.exp(logmu_prequit)
-
-    logmu_postquit = beta_postquit_intercept + beta_postquit_slope*day_within_period + gamma_postquit[participant_idx]
-    mu_postquit = np.exp(logmu_postquit)
-    mu = is_post_quit*mu_postquit + (1-is_post_quit)*mu_prequit
-
-    Y_hat = pm.Poisson('Y_hat', mu=mu, observed=Y_observed)
-
-#%%
-# Sample from posterior distribution
-with model:
-    posterior_samples = pm.sample(draws=15000, tune=30000, cores=1, max_treedepth=20)
-
-#%%
-# Calculate 95% credible interval
-model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
-model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
-
-# Produce trace plots
-#pm.traceplot(posterior_samples)
-
-# Transform coefficients and recover mu value
-model_summary_expscale = np.exp(model_summary_logscale)
-model_summary_expscale = model_summary_expscale.rename(index=lambda x: 'exp('+x+')') 
-
-# Round up to 3 decimal places
-model_summary_logscale = model_summary_logscale.round(3)
-model_summary_expscale = model_summary_expscale.round(3)
-
-# Collect results
-collect_results['2'] = {'model':model, 
-                        'posterior_samples':posterior_samples,
-                        'model_summary_logscale':model_summary_logscale,
-                        'model_summary_expscale':model_summary_expscale}
-#%%
-# Remove variable from workspace
-del model, posterior_samples, model_summary_logscale, model_summary_expscale
-
 #%%
 
 ###############################################################################
@@ -536,6 +455,7 @@ print(collect_results['0']['model_summary_logscale'])
 print(collect_results['0']['model_summary_expscale'])
 
 plt.figure(figsize=(4,8))
+pm.forestplot(collect_results['0']['posterior_samples'], var_names=['beta'], credible_interval=0.95)
 pm.forestplot(collect_results['0']['posterior_samples'], var_names=['gamma'], credible_interval=0.95)
 
 #%%
@@ -545,38 +465,10 @@ print(collect_results['1']['model_summary_logscale'])
 print(collect_results['1']['model_summary_expscale'])
 
 plt.figure(figsize=(4,8))
-pm.forestplot(collect_results['1']['posterior_samples'], var_names=['gamma_prequit'], credible_interval=0.95)
-
-plt.figure(figsize=(4,8))
-pm.forestplot(collect_results['1']['posterior_samples'], var_names=['gamma_postquit'], credible_interval=0.95)
-
-plt.figure(figsize=(4,8))
 pm.forestplot(collect_results['1']['posterior_samples'], var_names=['beta_prequit'], credible_interval=0.95)
-
-plt.figure(figsize=(4,8))
 pm.forestplot(collect_results['1']['posterior_samples'], var_names=['beta_postquit'], credible_interval=0.95)
-
-#%%
-# Model 2
-pm.traceplot(collect_results['2']['posterior_samples'])
-print(collect_results['2']['model_summary_logscale'])
-print(collect_results['2']['model_summary_expscale'])
-
-plt.figure(figsize=(4,8))
-pm.forestplot(collect_results['2']['posterior_samples'], var_names=['gamma_prequit'], credible_interval=0.95)
-
-plt.figure(figsize=(4,8))
-pm.forestplot(collect_results['2']['posterior_samples'], var_names=['gamma_postquit'], credible_interval=0.95)
-
-plt.figure(figsize=(4,8))
-pm.forestplot(collect_results['2']['posterior_samples'], var_names=['beta_prequit_intercept'], credible_interval=0.95)
-
-plt.figure(figsize=(4,8))
-pm.forestplot(collect_results['2']['posterior_samples'], var_names=['beta_prequit_slope'], credible_interval=0.95)
-
-plt.figure(figsize=(4,8))
-pm.forestplot(collect_results['2']['posterior_samples'], var_names=['beta_postquit_slope'], credible_interval=0.95)
-
+pm.forestplot(collect_results['1']['posterior_samples'], var_names=['gamma_prequit'], credible_interval=0.95)
+pm.forestplot(collect_results['1']['posterior_samples'], var_names=['gamma_postquit'], credible_interval=0.95)
 
 # %%
 filename = os.path.join(os.path.realpath(dir_picklejar), 'dict_randeff_models_allzeros')

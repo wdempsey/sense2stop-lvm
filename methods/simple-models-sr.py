@@ -5,10 +5,12 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import os
+import pickle
 
 # List down file paths
 #dir_data = "../smoking-lvm-cleaned-data/final"
 dir_data = os.environ['dir_data']
+dir_picklejar = os.environ['dir_picklejar']
 
 # Read in data
 data_dates = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'participant-dates.csv'))
@@ -189,13 +191,13 @@ data_selfreport["study_day"] = data_selfreport["study_day"].apply(lambda x: np.i
 data_selfreport["day_since_quit"] = data_selfreport["day_since_quit"].apply(lambda x: np.int(x))
 
 # Create a new variable, is_post_quit: whether a given day falls before or on/after 12AM on Quit Date
-data_selfreport["is_post_quit"] = data_selfreport["day_since_quit"].apply(lambda x: -1 if x < 0 else 1)
+data_selfreport["is_post_quit"] = data_selfreport["day_since_quit"].apply(lambda x: 0 if x < 0 else 1)
 
 # Create a new variable, day_within_period: 
 # if is_post_quit<0, number of days after 12AM on start of study
 # if is_post_quit>=0, number of days after 12AM on Quit Date
 # hence day_within_period is a count variable with ZERO as minimum value
-data_selfreport["day_within_period"] = np.where(data_selfreport["is_post_quit"]<0,
+data_selfreport["day_within_period"] = np.where(data_selfreport["is_post_quit"]==0,
                                                 data_selfreport["study_day"], 
                                                 data_selfreport["day_since_quit"])
 
@@ -243,13 +245,35 @@ df_trailing_zeros = (
         .rename(columns={"counts_sr": "keep_participant"})
 )
 
-df_counts_subset = df_counts.merge(df_trailing_zeros, how = 'left', on = 'participant_id')
-df_counts_subset = df_counts_subset[df_counts_subset.keep_participant==1].drop("keep_participant", axis=1)
+df_counts_subset_trailingzeros = df_counts.merge(df_trailing_zeros, how = 'left', on = 'participant_id')
+df_counts_subset_trailingzeros = df_counts_subset_trailingzeros[df_counts_subset_trailingzeros.keep_participant==1].drop("keep_participant", axis=1)
 
+# Exclude this participant
+df_counts_subset_trailingzeros = df_counts_subset_trailingzeros[df_counts_subset_trailingzeros["participant_id"] != 227]
 
 #%%
+###############################################################################
+# In df_counts, identify which individuals have zeros on all days
+###############################################################################
+
+# Note: All rows belonging to individuals whose last 7 or erlier days consist
+# of "trailing zeros" are excluded
+
+aggregations = {"counts_sr": lambda x: 1 if sum(x)>0 else 0}
+df_all_zeros = (
+    df_counts
+        .loc[:, ["participant_id","counts_sr"]]
+        .groupby("participant_id")
+        .agg(aggregations)
+        .reset_index(drop=False)
+        .rename(columns={"counts_sr": "keep_participant"})
+)
+
+df_counts_subset_allzeros = df_counts.merge(df_all_zeros, how = 'left', on = 'participant_id')
+df_counts_subset_allzeros = df_counts_subset_allzeros[df_counts_subset_allzeros.keep_participant==1].drop("keep_participant", axis=1)
+
 # Exclude this participant
-df_counts_subset = df_counts_subset[df_counts_subset["participant_id"] != 227]
+df_counts_subset_allzeros = df_counts_subset_allzeros[df_counts_subset_allzeros["participant_id"] != 227]
 
 #%%
 ###############################################################################
@@ -259,8 +283,8 @@ write_out = True
 
 if write_out:
     df_counts.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_counts_all.csv'), index=False)
-    df_counts_subset.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_counts_subset.csv'), index=False)
-
+    df_counts_subset_trailingzeros.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_counts_subset_trailingzeros.csv'), index=False)
+    df_counts_subset_allzeros.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_counts_subset_allzeros.csv'), index=False)
 
 #%%
 ###############################################################################
@@ -270,8 +294,8 @@ if write_out:
 # Collect data to be used in analyses in a dictionary
 collect_data_analysis = {}
 collect_data_analysis['df_counts'] = df_counts
-collect_data_analysis['df_counts_subset'] = df_counts_subset
-
+collect_data_analysis['df_counts_subset_trailingzeros'] = df_counts_subset_trailingzeros
+collect_data_analysis['df_counts_subset_allzeros'] = df_counts_subset_allzeros
 #%%
 # collect_results is a dictionary that will collect results across all models
 collect_results={}
@@ -279,8 +303,9 @@ collect_results={}
 ###############################################################################
 # Estimation using pymc3
 ###############################################################################
-use_this_data = collect_data_analysis['df_counts_subset']
+use_this_data = collect_data_analysis['df_counts_subset_allzeros']
 
+#%%
 with pm.Model() as model:
     # -------------------------------------------------------------------------
     # Data
@@ -292,7 +317,7 @@ with pm.Model() as model:
     # Priors
     # -------------------------------------------------------------------------
     beta = pm.Normal('beta', mu=0, sd=10)
-    
+
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
@@ -300,16 +325,18 @@ with pm.Model() as model:
     mu = np.exp(logmu)
     Y_hat = pm.Poisson('Y_hat', mu=mu, observed=Y_observed)
 
+#%%
 # Sample from posterior distribution
 with model:
-    posterior_samples = pm.sample(draws=7000, tune=13000, cores=1)
+    posterior_samples = pm.sample(draws=1000, tune=1000, cores=1)
 
+#%%
 # Calculate 95% credible interval
 model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
 model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
 
 # Produce trace plots
-#pm.traceplot(posterior_samples)
+pm.traceplot(posterior_samples)
 
 # Transform coefficients and recover mu value
 model_summary_expscale = np.exp(model_summary_logscale)
@@ -329,52 +356,45 @@ collect_results['0'] = {'model':model,
 del model, posterior_samples, model_summary_logscale, model_summary_expscale
 
 #%%
-
 ###############################################################################
 # Estimation using pymc3
 ###############################################################################
-use_this_data = collect_data_analysis['df_counts_subset']
+use_this_data = collect_data_analysis['df_counts_subset_allzeros']
 
+#%%
 with pm.Model() as model:
     # -------------------------------------------------------------------------
     # Data
     # -------------------------------------------------------------------------
     # Outcome Data
     Y_observed = pm.Data('counts_sr', use_this_data['counts_sr'].values)
-    
-    # Covariate Data
     is_post_quit = pm.Data('is_post_quit', use_this_data['is_post_quit'].values)
-    day_within_period = pm.Data('day_within_period', use_this_data['day_within_period'].values)
 
     # -------------------------------------------------------------------------
     # Priors
     # -------------------------------------------------------------------------
     beta_prequit = pm.Normal('beta_prequit', mu=0, sd=10)
     beta_postquit = pm.Normal('beta_postquit', mu=0, sd=10)
-    
+
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
-    logmu_prequit = beta_prequit
-    mu_prequit = np.exp(logmu_prequit)
-    
-    logmu_postquit = beta_postquit
-    mu_postquit = np.exp(logmu_postquit)
-
-    mu = pm.math.switch(np.array(is_post_quit == 1), mu_postquit, mu_prequit)
-
+    logmu = beta_prequit*(1-is_post_quit) + beta_postquit*is_post_quit
+    mu = np.exp(logmu)
     Y_hat = pm.Poisson('Y_hat', mu=mu, observed=Y_observed)
 
+#%%
 # Sample from posterior distribution
 with model:
-    posterior_samples = pm.sample(draws=7000, tune=13000, cores=1, max_treedepth=20)
+    posterior_samples = pm.sample(draws=1000, tune=1000, cores=1)
 
+#%%
 # Calculate 95% credible interval
 model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
 model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
 
 # Produce trace plots
-#pm.traceplot(posterior_samples)
+pm.traceplot(posterior_samples)
 
 # Transform coefficients and recover mu value
 model_summary_expscale = np.exp(model_summary_logscale)
@@ -393,7 +413,6 @@ collect_results['1'] = {'model':model,
 # Remove variable from workspace
 del model, posterior_samples, model_summary_logscale, model_summary_expscale
 
-
 #%%
 
 ###############################################################################
@@ -408,5 +427,11 @@ print(collect_results['0']['model_summary_expscale'])
 pm.traceplot(collect_results['1']['posterior_samples'])
 print(collect_results['1']['model_summary_logscale'])
 print(collect_results['1']['model_summary_expscale'])
+
+# %%
+filename = os.path.join(os.path.realpath(dir_picklejar), 'dict_simple_models_allzeros')
+outfile = open(filename, 'wb')
+pickle.dump(collect_results, outfile)
+outfile.close()
 
 # %%

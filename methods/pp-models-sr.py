@@ -49,8 +49,14 @@ data_dates["actual_end_date"]
 # More tidying up
 data_dates = (
     data_dates
-        .rename(columns={"participant": "participant_id"})
+        .rename(columns={"participant": "participant_id", 
+                         "quit_date": "quit_date_hrts",
+                         "start_date": "start_date_hrts",
+                         "actual_end_date": "actual_end_date_hrts",
+                         "expected_end_date": "expected_end_date_hrts"})
         .loc[:, ["participant_id", 
+                 "start_date_hrts","quit_date_hrts",
+                 "expected_end_date_hrts", "actual_end_date_hrts",
                  "start_date_unixts", "quit_date_unixts",
                  "expected_end_date_unixts","actual_end_date_unixts"]]
 )
@@ -136,13 +142,13 @@ data_selfreport["study_day"] = data_selfreport["study_day"].apply(lambda x: np.i
 data_selfreport["day_since_quit"] = data_selfreport["day_since_quit"].apply(lambda x: np.int(x))
 
 # Create a new variable, is_post_quit: whether a given day falls before or on/after 12AM on Quit Date
-data_selfreport["is_post_quit"] = data_selfreport["day_since_quit"].apply(lambda x: -1 if x < 0 else 1)
+data_selfreport["is_post_quit"] = data_selfreport["day_since_quit"].apply(lambda x: 0 if x < 0 else 1)
 
 # Create a new variable, day_within_period: 
 # if is_post_quit<0, number of days after 12AM on start of study
 # if is_post_quit>=0, number of days after 12AM on Quit Date
 # hence day_within_period is a count variable with ZERO as minimum value
-data_selfreport["day_within_period"] = np.where(data_selfreport["is_post_quit"]<0,
+data_selfreport["day_within_period"] = np.where(data_selfreport["is_post_quit"]==0,
                                                 data_selfreport["study_day"], 
                                                 data_selfreport["day_since_quit"])
 
@@ -160,34 +166,60 @@ data_selfreport = data_selfreport.sort_values(['participant_id','smoked_unixts']
 tmpdf = (
     data_selfreport
         .groupby("participant_id")
-        .apply(lambda x: np.append([np.nan],[x["smoked_unixts_scaled"].head(-1)]))
+        .apply(lambda x: np.append([x["smoked_unixts_scaled"].tail(-1)], [np.nan]))
         .reset_index()
-        .rename(columns={"participant_id": "participant_id", 0:"smoked_unixts_scaled_lagminus01"})
+        .rename(columns={"participant_id": "participant_id", 0:"smoked_unixts_scaled_lagplus01"})
 )
 
 tmparray = []
 for i in range(0, len(tmpdf.index)):
     current_participant_id = tmpdf["participant_id"].loc[i]
-    current_array = tmpdf[tmpdf["participant_id"]==current_participant_id]["smoked_unixts_scaled_lagminus01"]
+    current_array = tmpdf[tmpdf["participant_id"]==current_participant_id]["smoked_unixts_scaled_lagplus01"]
     idx = current_array.index[0]
     current_array = current_array[idx]
     tmparray = np.append(tmparray, current_array)
 
-data_selfreport = data_selfreport.assign(smoked_unixts_scaled_lagminus01 = tmparray)
+data_selfreport = data_selfreport.assign(smoked_unixts_scaled_lagplus01 = tmparray)
 
 data_selfreport["hours_between"] = (
     data_selfreport
-        .loc[:, ["smoked_unixts_scaled","smoked_unixts_scaled_lagminus01"]]
-        .pipe(lambda x: x["smoked_unixts_scaled"]-x["smoked_unixts_scaled_lagminus01"])
+        .loc[:, ["smoked_unixts_scaled","smoked_unixts_scaled_lagplus01"]]
+        .pipe(lambda x: x["smoked_unixts_scaled_lagplus01"] -  x["smoked_unixts_scaled"])
 )
 
 #%%
+# For each participant, count number of timestamps they have
+data_selfreport["ones"]=1
+
+data_selfreport["order_in_sequence"] = (
+    data_selfreport
+        .groupby("participant_id")["ones"]
+        .cumsum()
+)
+
+#%%
+data_selfreport = (
+    data_selfreport
+        .groupby("participant_id")["order_in_sequence"]
+        .max()
+        .reset_index()
+        .rename(columns={"participant_id":"participant_id","order_in_sequence":"max_order_in_sequence"})
+        .merge(data_selfreport, how="right", on="participant_id")
+)
+
+data_selfreport["censored"] = np.where(data_selfreport["order_in_sequence"]==data_selfreport["max_order_in_sequence"],1,0)
+
+#%%
 # Finally, select subset of columns
-use_these_columns = ["participant_id", "start_date_unixts", "quit_date_unixts",
+use_these_columns = ["participant_id",
+                     "start_date_hrts", "quit_date_hrts",
+                     "expected_end_date_hrts","actual_end_date_hrts", 
+                     "start_date_unixts", "quit_date_unixts",
                      "expected_end_date_unixts","actual_end_date_unixts",
                      "is_post_quit", "study_day", "day_since_quit", "day_within_period",
                      "begin_unixts", "message", "delta", "smoked_unixts",
-                     "smoked_unixts_scaled", "smoked_unixts_scaled_lagminus01", "hours_between"]
+                     "smoked_unixts_scaled", "smoked_unixts_scaled_lagplus01", 
+                     "hours_between","censored"]
 data_selfreport = data_selfreport.loc[:, use_these_columns]
 
 #%%
@@ -199,8 +231,7 @@ data_selfreport = data_selfreport.loc[:, use_these_columns]
 collect_data_analysis = {}
 collect_data_analysis['df_datapoints'] = (
     data_selfreport
-        .loc[:,["participant_id", "hours_between"]]
-        .dropna()
+        .loc[:,["participant_id", "is_post_quit", "smoked_unixts_scaled", "hours_between","censored"]]
 )
 
 #%%
@@ -215,6 +246,132 @@ collect_results={}
 
 use_this_data = collect_data_analysis['df_datapoints']
 
+def exponential_log_complementary_cdf(x, lam):
+    ''' log complementary CDF of exponential distribution '''
+    return -lam*x
+
+censored = use_this_data['censored'].values.astype(bool)
+hours_between_observed = use_this_data['hours_between'].values.astype(float)
+hours_since_start_censored = use_this_data['smoked_unixts_scaled'].values.astype(float)
+
+#%%
+with pm.Model() as model:
+    # -------------------------------------------------------------------------
+    # Priors
+    # -------------------------------------------------------------------------
+    beta = pm.Normal('beta', mu=0, sd=10)
+    alpha = pm.Normal('alpha', mu=0, sd=10)
+
+    # -------------------------------------------------------------------------
+    # Likelihood
+    # -------------------------------------------------------------------------
+    loglamb_observed = beta
+    lamb_observed = np.exp(loglamb_observed)
+    Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=hours_between_observed[~censored])
+
+    loglamb_censored = alpha
+    lamb_censored = np.exp(loglamb_censored)
+    Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = hours_since_start_censored[censored], lam = lamb_censored))
+
+
+#%%
+# Sample from posterior distribution
+with model:
+    posterior_samples = pm.sample(draws=3000, tune=2000, cores=1, target_accept=0.90)
+
+#%%
+# Calculate 95% credible interval
+model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
+model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
+
+# Produce trace plots
+pm.traceplot(posterior_samples)
+
+# Collect results
+collect_results['0'] = {'model':model, 
+                        'posterior_samples':posterior_samples,
+                        'model_summary_logscale':model_summary_logscale}
+#%%
+# Remove variable from workspace
+del model, posterior_samples, model_summary_logscale
+
+
+#%%
+
+###############################################################################
+# Estimation using pymc3
+###############################################################################
+
+use_this_data = collect_data_analysis['df_datapoints']
+
+def exponential_log_complementary_cdf(x, lam):
+    ''' log complementary CDF of exponential distribution '''
+    return -lam*x
+
+censored = use_this_data['censored'].values.astype(bool)
+hours_between_observed = use_this_data['hours_between'].values.astype(float)
+hours_since_start_censored = use_this_data['smoked_unixts_scaled'].values.astype(float)
+is_post_quit = use_this_data['is_post_quit'].values.astype(float)
+
+#%%
+with pm.Model() as model:
+    # -------------------------------------------------------------------------
+    # Priors
+    # -------------------------------------------------------------------------
+    beta_prequit = pm.Normal('beta_prequit', mu=0, sd=10)
+    beta_postquit = pm.Normal('beta_postquit', mu=0, sd=10)
+    alpha = pm.Normal('alpha', mu=0, sd=10)
+
+    # -------------------------------------------------------------------------
+    # Likelihood
+    # -------------------------------------------------------------------------
+    loglamb_observed = beta_prequit*(1-is_post_quit[~censored]) + beta_postquit*is_post_quit[~censored]
+    lamb_observed = np.exp(loglamb_observed)
+    Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=hours_between_observed[~censored])
+
+    loglamb_censored = alpha
+    lamb_censored = np.exp(loglamb_censored)
+    Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = hours_since_start_censored[censored], lam = lamb_censored))
+
+
+#%%
+# Sample from posterior distribution
+with model:
+    posterior_samples = pm.sample(draws=3000, tune=2000, cores=1, target_accept=0.90)
+
+#%%
+# Calculate 95% credible interval
+model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
+model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
+
+# Produce trace plots
+pm.traceplot(posterior_samples)
+
+# Collect results
+collect_results['1'] = {'model':model, 
+                        'posterior_samples':posterior_samples,
+                        'model_summary_logscale':model_summary_logscale}
+#%%
+# Remove variable from workspace
+del model, posterior_samples, model_summary_logscale
+
+#%%
+
+###############################################################################
+# Estimation using pymc3
+###############################################################################
+
+use_this_data = collect_data_analysis['df_datapoints']
+
+def exponential_log_complementary_cdf(x, lam):
+    ''' log complementary CDF of exponential distribution '''
+    return -lam*x
+
+censored = use_this_data['censored'].values.astype(bool)
+hours_between_observed = use_this_data['hours_between'].values.astype(float)
+hours_since_start_censored = use_this_data['smoked_unixts_scaled'].values.astype(float)
+is_post_quit = use_this_data['is_post_quit'].values.astype(float)
+
 # Create new participant id's
 participant_names = use_this_data['participant_id'].unique()
 n_participants = len(participant_names)
@@ -223,29 +380,34 @@ reference_df = pd.DataFrame(d)
 use_this_data = use_this_data.merge(reference_df, how = 'left', on = 'participant_id')
 participant_idx = use_this_data['participant_idx'].values
 
+#%%
 with pm.Model() as model:
-    # -------------------------------------------------------------------------
-    # Data
-    # -------------------------------------------------------------------------
-    # Outcome Data
-    Y_observed = pm.Data('hours_between', use_this_data['hours_between'].values)
-
     # -------------------------------------------------------------------------
     # Priors
     # -------------------------------------------------------------------------
-    gamma = pm.Normal('gamma', mu=0, sd=10, shape=n_participants)
+    beta_prequit = pm.Normal('beta_prequit', mu=0, sd=10)
+    beta_postquit = pm.Normal('beta_postquit', mu=0, sd=10)
+    gamma_prequit = pm.Normal('gamma_prequit', mu=0, sd=10, shape=n_participants)
+    gamma_postquit = pm.Normal('gamma_postquit', mu=0, sd=10, shape=n_participants)
+
+    alpha = pm.Normal('alpha', mu=0, sd=10)
 
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
-    loglamb = gamma[participant_idx]
-    lamb = np.exp(loglamb)
-    Y_hat = pm.Exponential('Y_hat', lam = lamb, observed=Y_observed)
+    loglamb_observed = (beta_prequit + gamma_prequit[participant_idx][~censored])*(1-is_post_quit[~censored]) + (beta_postquit + gamma_postquit[participant_idx][~censored])*is_post_quit[~censored]
+    lamb_observed = np.exp(loglamb_observed)
+    Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=hours_between_observed[~censored])
+
+    loglamb_censored = alpha
+    lamb_censored = np.exp(loglamb_censored)
+    Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = hours_since_start_censored[censored], lam = lamb_censored))
+
 
 #%%
 # Sample from posterior distribution
 with model:
-    posterior_samples = pm.sample(draws=3000, tune=7000, cores=1)
+    posterior_samples = pm.sample(draws=5000, tune=5000, cores=1, target_accept=0.90)
 
 #%%
 # Calculate 95% credible interval
@@ -253,25 +415,15 @@ model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
 model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
 
 # Produce trace plots
-#pm.traceplot(posterior_samples)
-
-# Transform coefficients and recover mu value
-model_summary_meanscale = np.exp(model_summary_logscale)
-model_summary_meanscale = np.power(model_summary_meanscale, -1)
-model_summary_meanscale = model_summary_meanscale.rename(index=lambda x: '1/exp('+x+')') 
-
-# Round up to 3 decimal places
-model_summary_meanscale = model_summary_meanscale.round(3)
-model_summary_meanscale = model_summary_meanscale.round(3)
+pm.traceplot(posterior_samples)
 
 # Collect results
-collect_results['0'] = {'model':model, 
+collect_results['2'] = {'model':model, 
                         'posterior_samples':posterior_samples,
-                        'model_summary_logscale':model_summary_logscale,
-                        'model_summary_meanscale':model_summary_meanscale}
+                        'model_summary_logscale':model_summary_logscale}
 #%%
 # Remove variable from workspace
-del model, posterior_samples, model_summary_logscale, model_summary_meanscale
+del model, posterior_samples, model_summary_logscale
 
 #%%
 
@@ -283,10 +435,30 @@ import matplotlib.pyplot as plt
 # Model 0
 pm.traceplot(collect_results['0']['posterior_samples'])
 print(collect_results['0']['model_summary_logscale'])
-print(collect_results['0']['model_summary_meanscale'])
 
 plt.figure(figsize=(4,8))
-pm.forestplot(collect_results['0']['posterior_samples'], var_names=['gamma'], credible_interval=0.95)
+pm.forestplot(collect_results['0']['posterior_samples'], var_names=['beta'], credible_interval=0.95)
+pm.forestplot(collect_results['0']['posterior_samples'], var_names=['alpha'], credible_interval=0.95)
+
+# Model 1
+pm.traceplot(collect_results['1']['posterior_samples'])
+print(collect_results['1']['model_summary_logscale'])
+
+plt.figure(figsize=(4,8))
+pm.forestplot(collect_results['1']['posterior_samples'], var_names=['beta_prequit'], credible_interval=0.95)
+pm.forestplot(collect_results['1']['posterior_samples'], var_names=['beta_postquit'], credible_interval=0.95)
+pm.forestplot(collect_results['1']['posterior_samples'], var_names=['alpha'], credible_interval=0.95)
+
+# Model 2
+pm.traceplot(collect_results['2']['posterior_samples'])
+print(collect_results['2']['model_summary_logscale'])
+
+plt.figure(figsize=(4,8))
+pm.forestplot(collect_results['2']['posterior_samples'], var_names=['beta_prequit'], credible_interval=0.95)
+pm.forestplot(collect_results['2']['posterior_samples'], var_names=['beta_postquit'], credible_interval=0.95)
+pm.forestplot(collect_results['2']['posterior_samples'], var_names=['gamma_prequit'], credible_interval=0.95)
+pm.forestplot(collect_results['2']['posterior_samples'], var_names=['gamma_postquit'], credible_interval=0.95)
+pm.forestplot(collect_results['2']['posterior_samples'], var_names=['alpha'], credible_interval=0.95)
 
 # %%
 filename = os.path.join(os.path.realpath(dir_picklejar), 'dict_pp_models')

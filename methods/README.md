@@ -11,10 +11,12 @@ In the scripts in this folder, the variable `study_day` represents the number of
 ## Models
 | <img height=0 width=1000> File Name <img height=0 width=1000> | <img height=0 width=1000> Brief Description <img height=0 width=1000> |
 |:-----------------------------:|:-----------------------------------------------------------------------|
-| [`simple-models-sr.py`](https://github.com/wdempsey/sense2stop-lvm/blob/master/methods/simple-models-sr.py) | Using self-report (SR) data only, three log-linear models of mean counts (`mu`) were considered: (1) `log(mu) = beta` (2) `mu = posquit_mu * is_post_quit + prequit_mu*(1 - is_post_quit)` where `log(postquit_mu) = beta_postq` and `log(prequit_mu) = beta_preq`|
-| [`randeff-models-sr.py`](https://github.com/wdempsey/sense2stop-lvm/blob/master/methods/randeff-models-sr.py) | Using self-report (SR) data only, two log-linear models of mean counts for the `i`th participant (`mu_i`) were considered: (1) `log(mu_i) = gamma_i` (2) `mu_i = posquit_mu_i * is_post_quit + prequit_mu_i*(1 - is_post_quit)` where `log(postquit_mu_i) = gamma_postq_i + beta_postq` and `log(prequit_mu_i) = gamma_preq_i + beta_preq` (3) `mu_i = posquit_mu_i * is_post_quit + prequit_mu_i*(1 - is_post_quit)` where `log(postquit_mu_i) = gamma_postq_i + beta_postq_intercept + beta_postq_slope*day_within_period` and `log(prequit_mu_i) = gamma_preq_i + beta_preq_intercept+ beta_preq_slope*day_within_period`|
+| [`pp-models-sr.py`](https://github.com/wdempsey/sense2stop-lvm/blob/master/methods/pp-models-sr.py) | Using self-report (SR) data only, time-to-event models were estimated|
+| [`simple-models-sr.py`](https://github.com/wdempsey/sense2stop-lvm/blob/master/methods/simple-models-sr.py) | Using self-report (SR) data only, the following log-linear models of mean counts (`mu`) were considered: (1) `log(mu) = beta` (2) `mu = posquit_mu * is_post_quit + prequit_mu*(1 - is_post_quit)` where `log(postquit_mu) = beta_postq` and `log(prequit_mu) = beta_preq`|
+| [`randeff-models-sr.py`](https://github.com/wdempsey/sense2stop-lvm/blob/master/methods/randeff-models-sr.py) | Using self-report (SR) data only, the following log-linear models of mean counts for the `i`th participant (`mu_i`) were estimated: (1) `log(mu_i) = beta + gamma_i` (2) `mu_i = posquit_mu_i * is_post_quit + prequit_mu_i*(1 - is_post_quit)` where `log(postquit_mu_i) = gamma_postq_i + beta_postq` and `log(prequit_mu_i) = gamma_preq_i + beta_preq`|
 
 ## Other
 | <img height=0 width=800> File Name <img height=0 width=800> | <img height=0 width=1000> Brief Description <img height=0 width=1000> |
 |:-----------------------------:|:-----------------------------------------------------------------------|
 | [`open-picklejar.py`](https://github.com/wdempsey/sense2stop-lvm/blob/master/methods/open-picklejar.py) | Code to open pickled output of scripts in Models |
+
