@@ -260,7 +260,7 @@ with pm.Model() as model:
     # Priors
     # -------------------------------------------------------------------------
     beta = pm.Normal('beta', mu=0, sd=10)
-    alpha = pm.Normal('alpha', mu=0, sd=10)
+    #alpha = pm.Normal('alpha', mu=0, sd=10)
 
     # -------------------------------------------------------------------------
     # Likelihood
@@ -269,7 +269,8 @@ with pm.Model() as model:
     lamb_observed = np.exp(loglamb_observed)
     Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=hours_between_observed[~censored])
 
-    loglamb_censored = alpha
+    loglamb_censored = beta # Switched model to 1 parameter for both censored/uncensored (makes sense if final obs is "real")
+    # loglamb_censored = alpha # Model makes more sense if the final censored obs if due to dropout
     lamb_censored = np.exp(loglamb_censored)
     Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = hours_since_start_censored[censored], lam = lamb_censored))
 
@@ -320,7 +321,7 @@ with pm.Model() as model:
     # -------------------------------------------------------------------------
     beta_prequit = pm.Normal('beta_prequit', mu=0, sd=10)
     beta_postquit = pm.Normal('beta_postquit', mu=0, sd=10)
-    alpha = pm.Normal('alpha', mu=0, sd=10)
+#    alpha = pm.Normal('alpha', mu=0, sd=10)
 
     # -------------------------------------------------------------------------
     # Likelihood
@@ -329,7 +330,8 @@ with pm.Model() as model:
     lamb_observed = np.exp(loglamb_observed)
     Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=hours_between_observed[~censored])
 
-    loglamb_censored = alpha
+    loglamb_censored = beta_prequit*(1-is_post_quit[censored]) + beta_postquit*is_post_quit[censored] # Model if no dropout
+#    loglamb_censored = alpha # Model if final window is drop-out
     lamb_censored = np.exp(loglamb_censored)
     Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = hours_since_start_censored[censored], lam = lamb_censored))
 
@@ -390,7 +392,7 @@ with pm.Model() as model:
     gamma_prequit = pm.Normal('gamma_prequit', mu=0, sd=10, shape=n_participants)
     gamma_postquit = pm.Normal('gamma_postquit', mu=0, sd=10, shape=n_participants)
 
-    alpha = pm.Normal('alpha', mu=0, sd=10)
+#    alpha = pm.Normal('alpha', mu=0, sd=10)
 
     # -------------------------------------------------------------------------
     # Likelihood
@@ -399,7 +401,8 @@ with pm.Model() as model:
     lamb_observed = np.exp(loglamb_observed)
     Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=hours_between_observed[~censored])
 
-    loglamb_censored = alpha
+#    loglamb_censored = alpha
+    loglamb_censored = (beta_prequit + gamma_prequit[participant_idx][censored])*(1-is_post_quit[censored]) + (beta_postquit + gamma_postquit[participant_idx][censored])*is_post_quit[censored]
     lamb_censored = np.exp(loglamb_censored)
     Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = hours_since_start_censored[censored], lam = lamb_censored))
 
