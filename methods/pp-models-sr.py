@@ -161,8 +161,9 @@ data_selfreport["smoked_unixts_scaled"] = (
 
 #%%
 # Get number of hours elapsed between two self-reported smoking events
-data_selfreport = data_selfreport.sort_values(['participant_id','smoked_unixts'])
-data_selfreport['hours_between'] = data_selfreport.groupby("participant_id").smoked_unixts_scaled.diff().shift(-1)
+data_selfreport['date'] = pd.to_datetime(data_selfreport.date)
+data_selfreport = data_selfreport.sort_values(['participant_id','date'])
+data_selfreport['hours_between'] = data_selfreport.groupby("participant_id").date.diff().shift(-1)/np.timedelta64(1,'m')
 
 #%%
 # For each participant, count number of timestamps they have
