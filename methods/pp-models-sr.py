@@ -342,7 +342,7 @@ def exponential_log_complementary_cdf(x, lam):
     return -lam*x
 
 censored = use_this_data['censored'].values.astype(bool)
-hours_between_observed = use_this_data['hours_between'].values.astype(float)
+time_to_next_event = use_this_data['time_to_next_event'].values.astype(float)
 hours_since_start_censored = use_this_data['smoked_unixts_scaled'].values.astype(float)
 day_within_period = use_this_data['day_within_period'].values.astype(float)
 is_post_quit = use_this_data['is_post_quit'].values.astype(float)
@@ -374,12 +374,12 @@ with pm.Model() as model:
     # -------------------------------------------------------------------------
     loglamb_observed = (beta_prequit + gamma_prequit[participant_idx][~censored])*(1-is_post_quit[~censored]) + beta_prequit_day*day_within_period[~censored]*(1-is_post_quit[~censored]) + (beta_postquit + gamma_postquit[participant_idx][~censored])*is_post_quit[~censored] + beta_postquit_day*day_within_period[~censored]*is_post_quit[~censored]
     lamb_observed = np.exp(loglamb_observed)
-    Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=hours_between_observed[~censored])
+    Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=time_to_next_event[~censored])
 
 #    loglamb_censored = alpha
     loglamb_censored = (beta_prequit + gamma_prequit[participant_idx][censored])*(1-is_post_quit[censored]) + beta_prequit_day*day_within_period[censored]*(1-is_post_quit[censored]) + (beta_postquit + gamma_postquit[participant_idx][censored])*is_post_quit[censored] + beta_postquit_day*day_within_period[censored]*is_post_quit[censored]
     lamb_censored = np.exp(loglamb_censored)
-    Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = hours_since_start_censored[censored], lam = lamb_censored))
+    Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = time_to_next_event[censored], lam = lamb_censored))
 
 
 #%%
