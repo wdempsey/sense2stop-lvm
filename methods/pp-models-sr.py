@@ -162,30 +162,7 @@ data_selfreport["smoked_unixts_scaled"] = (
 #%%
 # Get number of hours elapsed between two self-reported smoking events
 data_selfreport = data_selfreport.sort_values(['participant_id','smoked_unixts'])
-
-tmpdf = (
-    data_selfreport
-        .groupby("participant_id")
-        .apply(lambda x: np.append([x["smoked_unixts_scaled"].tail(-1)], [np.nan]))
-        .reset_index()
-        .rename(columns={"participant_id": "participant_id", 0:"smoked_unixts_scaled_lagplus01"})
-)
-
-tmparray = []
-for i in range(0, len(tmpdf.index)):
-    current_participant_id = tmpdf["participant_id"].loc[i]
-    current_array = tmpdf[tmpdf["participant_id"]==current_participant_id]["smoked_unixts_scaled_lagplus01"]
-    idx = current_array.index[0]
-    current_array = current_array[idx]
-    tmparray = np.append(tmparray, current_array)
-
-data_selfreport = data_selfreport.assign(smoked_unixts_scaled_lagplus01 = tmparray)
-
-data_selfreport["hours_between"] = (
-    data_selfreport
-        .loc[:, ["smoked_unixts_scaled","smoked_unixts_scaled_lagplus01"]]
-        .pipe(lambda x: x["smoked_unixts_scaled_lagplus01"] -  x["smoked_unixts_scaled"])
-)
+data_selfreport['hours_between'] = data_selfreport.groupby("participant_id").smoked_unixts_scaled.diff().shift(-1)
 
 #%%
 # For each participant, count number of timestamps they have
@@ -231,7 +208,7 @@ data_selfreport = data_selfreport.loc[:, use_these_columns]
 collect_data_analysis = {}
 collect_data_analysis['df_datapoints'] = (
     data_selfreport
-        .loc[:,["participant_id", "is_post_quit", "smoked_unixts_scaled", "hours_between","censored"]]
+        .loc[:,["participant_id", "is_post_quit", "smoked_unixts_scaled", "hours_between","censored", "day_within_period"]]
 )
 
 #%%
@@ -252,6 +229,7 @@ def exponential_log_complementary_cdf(x, lam):
 
 censored = use_this_data['censored'].values.astype(bool)
 hours_between_observed = use_this_data['hours_between'].values.astype(float)
+day_within_period = use_this_data['day_within_period'].values.astype(float)
 hours_since_start_censored = use_this_data['smoked_unixts_scaled'].values.astype(float)
 
 #%%
@@ -260,16 +238,17 @@ with pm.Model() as model:
     # Priors
     # -------------------------------------------------------------------------
     beta = pm.Normal('beta', mu=0, sd=10)
+    beta_day = pm.Normal('beta_day', mu=0, sd=10)
     #alpha = pm.Normal('alpha', mu=0, sd=10)
 
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
-    loglamb_observed = beta
+    loglamb_observed = beta + beta_day*day_within_period[~censored]
     lamb_observed = np.exp(loglamb_observed)
     Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=hours_between_observed[~censored])
 
-    loglamb_censored = beta # Switched model to 1 parameter for both censored/uncensored (makes sense if final obs is "real")
+    loglamb_censored = beta + beta_day*day_within_period[censored] # Switched model to 1 parameter for both censored/uncensored (makes sense if final obs is "real")
     # loglamb_censored = alpha # Model makes more sense if the final censored obs if due to dropout
     lamb_censored = np.exp(loglamb_censored)
     Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = hours_since_start_censored[censored], lam = lamb_censored))
@@ -312,6 +291,7 @@ def exponential_log_complementary_cdf(x, lam):
 censored = use_this_data['censored'].values.astype(bool)
 hours_between_observed = use_this_data['hours_between'].values.astype(float)
 hours_since_start_censored = use_this_data['smoked_unixts_scaled'].values.astype(float)
+day_within_period = use_this_data['day_within_period'].values.astype(float)
 is_post_quit = use_this_data['is_post_quit'].values.astype(float)
 
 #%%
@@ -321,16 +301,18 @@ with pm.Model() as model:
     # -------------------------------------------------------------------------
     beta_prequit = pm.Normal('beta_prequit', mu=0, sd=10)
     beta_postquit = pm.Normal('beta_postquit', mu=0, sd=10)
+    beta_prequit_day = pm.Normal('beta_prequit_day', mu=0, sd=10)
+    beta_postquit_day = pm.Normal('beta_postquit_day', mu=0, sd=10)
 #    alpha = pm.Normal('alpha', mu=0, sd=10)
 
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
-    loglamb_observed = beta_prequit*(1-is_post_quit[~censored]) + beta_postquit*is_post_quit[~censored]
+    loglamb_observed = beta_prequit*(1-is_post_quit[~censored]) + beta_prequit_day*day_within_period[~censored]*(1-is_post_quit[~censored]) + beta_postquit*is_post_quit[~censored] + beta_postquit_day*day_within_period[~censored]*is_post_quit[~censored]
     lamb_observed = np.exp(loglamb_observed)
     Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=hours_between_observed[~censored])
 
-    loglamb_censored = beta_prequit*(1-is_post_quit[censored]) + beta_postquit*is_post_quit[censored] # Model if no dropout
+    loglamb_censored = beta_prequit*(1-is_post_quit[censored]) + beta_prequit_day*day_within_period[censored]*(1-is_post_quit[censored]) + beta_postquit*is_post_quit[censored] + beta_postquit_day*day_within_period[censored]*is_post_quit[censored] # Model if no dropout
 #    loglamb_censored = alpha # Model if final window is drop-out
     lamb_censored = np.exp(loglamb_censored)
     Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = hours_since_start_censored[censored], lam = lamb_censored))
@@ -372,6 +354,7 @@ def exponential_log_complementary_cdf(x, lam):
 censored = use_this_data['censored'].values.astype(bool)
 hours_between_observed = use_this_data['hours_between'].values.astype(float)
 hours_since_start_censored = use_this_data['smoked_unixts_scaled'].values.astype(float)
+day_within_period = use_this_data['day_within_period'].values.astype(float)
 is_post_quit = use_this_data['is_post_quit'].values.astype(float)
 
 # Create new participant id's
@@ -389,6 +372,8 @@ with pm.Model() as model:
     # -------------------------------------------------------------------------
     beta_prequit = pm.Normal('beta_prequit', mu=0, sd=10)
     beta_postquit = pm.Normal('beta_postquit', mu=0, sd=10)
+    beta_prequit_day = pm.Normal('beta_prequit_day', mu=0, sd=10)
+    beta_postquit_day = pm.Normal('beta_postquit_day', mu=0, sd=10)
     gamma_prequit = pm.Normal('gamma_prequit', mu=0, sd=10, shape=n_participants)
     gamma_postquit = pm.Normal('gamma_postquit', mu=0, sd=10, shape=n_participants)
 
@@ -397,12 +382,12 @@ with pm.Model() as model:
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
-    loglamb_observed = (beta_prequit + gamma_prequit[participant_idx][~censored])*(1-is_post_quit[~censored]) + (beta_postquit + gamma_postquit[participant_idx][~censored])*is_post_quit[~censored]
+    loglamb_observed = (beta_prequit + gamma_prequit[participant_idx][~censored])*(1-is_post_quit[~censored]) + beta_prequit_day*day_within_period[~censored]*(1-is_post_quit[~censored]) + (beta_postquit + gamma_postquit[participant_idx][~censored])*is_post_quit[~censored] + beta_postquit_day*day_within_period[~censored]*is_post_quit[~censored]
     lamb_observed = np.exp(loglamb_observed)
     Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=hours_between_observed[~censored])
 
 #    loglamb_censored = alpha
-    loglamb_censored = (beta_prequit + gamma_prequit[participant_idx][censored])*(1-is_post_quit[censored]) + (beta_postquit + gamma_postquit[participant_idx][censored])*is_post_quit[censored]
+    loglamb_censored = (beta_prequit + gamma_prequit[participant_idx][censored])*(1-is_post_quit[censored]) + beta_prequit_day*day_within_period[censored]*(1-is_post_quit[censored]) + (beta_postquit + gamma_postquit[participant_idx][censored])*is_post_quit[censored] + beta_postquit_day*day_within_period[censored]*is_post_quit[censored]
     lamb_censored = np.exp(loglamb_censored)
     Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = hours_since_start_censored[censored], lam = lamb_censored))
 
@@ -410,7 +395,7 @@ with pm.Model() as model:
 #%%
 # Sample from posterior distribution
 with model:
-    posterior_samples = pm.sample(draws=5000, tune=5000, cores=1, target_accept=0.90)
+    posterior_samples = pm.sample(draws=5000, tune=5000, cores=1, target_accept=0.80)
 
 #%%
 # Calculate 95% credible interval
@@ -441,7 +426,8 @@ print(collect_results['0']['model_summary_logscale'])
 
 plt.figure(figsize=(4,8))
 pm.forestplot(collect_results['0']['posterior_samples'], var_names=['beta'], credible_interval=0.95)
-pm.forestplot(collect_results['0']['posterior_samples'], var_names=['alpha'], credible_interval=0.95)
+pm.forestplot(collect_results['0']['posterior_samples'], var_names=['beta_day'], credible_interval=0.95)
+#pm.forestplot(collect_results['0']['posterior_samples'], var_names=['alpha'], credible_interval=0.95)
 
 # Model 1
 pm.traceplot(collect_results['1']['posterior_samples'])
@@ -449,8 +435,10 @@ print(collect_results['1']['model_summary_logscale'])
 
 plt.figure(figsize=(4,8))
 pm.forestplot(collect_results['1']['posterior_samples'], var_names=['beta_prequit'], credible_interval=0.95)
+pm.forestplot(collect_results['1']['posterior_samples'], var_names=['beta_prequit_day'], credible_interval=0.95)
 pm.forestplot(collect_results['1']['posterior_samples'], var_names=['beta_postquit'], credible_interval=0.95)
-pm.forestplot(collect_results['1']['posterior_samples'], var_names=['alpha'], credible_interval=0.95)
+pm.forestplot(collect_results['1']['posterior_samples'], var_names=['beta_postquit_day'], credible_interval=0.95)
+#pm.forestplot(collect_results['1']['posterior_samples'], var_names=['alpha'], credible_interval=0.95)
 
 # Model 2
 pm.traceplot(collect_results['2']['posterior_samples'])
@@ -458,13 +446,15 @@ print(collect_results['2']['model_summary_logscale'])
 
 plt.figure(figsize=(4,8))
 pm.forestplot(collect_results['2']['posterior_samples'], var_names=['beta_prequit'], credible_interval=0.95)
+pm.forestplot(collect_results['2']['posterior_samples'], var_names=['beta_prequit_day'], credible_interval=0.95)
 pm.forestplot(collect_results['2']['posterior_samples'], var_names=['beta_postquit'], credible_interval=0.95)
+pm.forestplot(collect_results['2']['posterior_samples'], var_names=['beta_postquit_day'], credible_interval=0.95)
 pm.forestplot(collect_results['2']['posterior_samples'], var_names=['gamma_prequit'], credible_interval=0.95)
 pm.forestplot(collect_results['2']['posterior_samples'], var_names=['gamma_postquit'], credible_interval=0.95)
-pm.forestplot(collect_results['2']['posterior_samples'], var_names=['alpha'], credible_interval=0.95)
+#pm.forestplot(collect_results['2']['posterior_samples'], var_names=['alpha'], credible_interval=0.95)
 
 # %%
-filename = os.path.join(os.path.realpath(dir_picklejar), 'dict_pp_models')
+filename = os.path.join(os.path.realpath(dir_picklejar), 'dict_pp_models_linear')
 outfile = open(filename, 'wb')
 pickle.dump(collect_results, outfile)
 outfile.close()
