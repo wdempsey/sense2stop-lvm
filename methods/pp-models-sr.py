@@ -162,8 +162,8 @@ data_selfreport["smoked_unixts_scaled"] = (
 #%%
 # Get number of hours elapsed between two self-reported smoking events
 data_selfreport['date'] = pd.to_datetime(data_selfreport.date)
-data_selfreport['quit_date_hrts'] = pd.to_datetime(data_selfreport['quit_date_hrts'])
-data_selfreport['time_to_quit'] = (data_selfreport.quit_date_hrts - data_selfreport.date) / np.timedelta64(1,'m')
+data_selfreport['actual_end_date_hrts'] = pd.to_datetime(data_selfreport['actual_end_date_hrts'])
+data_selfreport['time_to_quit'] = (data_selfreport.actual_end_date_hrts - data_selfreport.date) / np.timedelta64(1,'m') + 720 # Add 720 minutes to deal with quit date you can provide data still.
 data_selfreport = data_selfreport.sort_values(['participant_id','date'])
 data_selfreport['time_to_next_event'] = data_selfreport.groupby("participant_id").date.diff().shift(-1)/np.timedelta64(1,'m')
 
@@ -173,28 +173,9 @@ data_selfreport['time_to_next_event'] = data_selfreport.groupby("participant_id"
 data_selfreport["censored"] = data_selfreport["time_to_next_event"].isnull()
 
 for index in np.where(data_selfreport.censored==True):
-    print(data_selfreport['time_to_next_event'].iloc[index])
-    data_selfreport.
+    temp = data_selfreport['time_to_quit'].iloc[index]
+    data_selfreport['time_to_next_event'].iloc[index] = temp
 
-data_selfreport["ones"]=1
-
-data_selfreport["order_in_sequence"] = (
-    data_selfreport
-        .groupby("participant_id")["ones"]
-        .cumsum()
-)
-
-#%%
-data_selfreport = (
-    data_selfreport
-        .groupby("participant_id")["order_in_sequence"]
-        .max()
-        .reset_index()
-        .rename(columns={"participant_id":"participant_id","order_in_sequence":"max_order_in_sequence"})
-        .merge(data_selfreport, how="right", on="participant_id")
-)
-
-data_selfreport["censored"] = np.where(data_selfreport["order_in_sequence"]==data_selfreport["max_order_in_sequence"],1,0)
 
 #%%
 # Finally, select subset of columns
@@ -205,8 +186,7 @@ use_these_columns = ["participant_id",
                      "expected_end_date_unixts","actual_end_date_unixts",
                      "is_post_quit", "study_day", "day_since_quit", "day_within_period",
                      "begin_unixts", "message", "delta", "smoked_unixts",
-                     "smoked_unixts_scaled", "smoked_unixts_scaled_lagplus01", 
-                     "hours_between","censored"]
+                     "smoked_unixts_scaled", "time_to_next_event","censored"]
 data_selfreport = data_selfreport.loc[:, use_these_columns]
 
 #%%
@@ -218,7 +198,7 @@ data_selfreport = data_selfreport.loc[:, use_these_columns]
 collect_data_analysis = {}
 collect_data_analysis['df_datapoints'] = (
     data_selfreport
-        .loc[:,["participant_id", "is_post_quit", "smoked_unixts_scaled", "hours_between","censored", "day_within_period"]]
+        .loc[:,["participant_id", "is_post_quit", "smoked_unixts_scaled", "time_to_next_event","censored", "day_within_period"]]
 )
 
 #%%
@@ -238,7 +218,7 @@ def exponential_log_complementary_cdf(x, lam):
     return -lam*x
 
 censored = use_this_data['censored'].values.astype(bool)
-hours_between_observed = use_this_data['hours_between'].values.astype(float)
+time_to_next_event = use_this_data['time_to_next_event'].values.astype(float)
 day_within_period = use_this_data['day_within_period'].values.astype(float)
 hours_since_start_censored = use_this_data['smoked_unixts_scaled'].values.astype(float)
 
@@ -256,12 +236,12 @@ with pm.Model() as model:
     # -------------------------------------------------------------------------
     loglamb_observed = beta + beta_day*day_within_period[~censored]
     lamb_observed = np.exp(loglamb_observed)
-    Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=hours_between_observed[~censored])
+    Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=time_to_next_event[~censored])
 
     loglamb_censored = beta + beta_day*day_within_period[censored] # Switched model to 1 parameter for both censored/uncensored (makes sense if final obs is "real")
     # loglamb_censored = alpha # Model makes more sense if the final censored obs if due to dropout
     lamb_censored = np.exp(loglamb_censored)
-    Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = hours_since_start_censored[censored], lam = lamb_censored))
+    Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = time_to_next_event[censored], lam = lamb_censored))
 
 
 #%%
@@ -299,7 +279,7 @@ def exponential_log_complementary_cdf(x, lam):
     return -lam*x
 
 censored = use_this_data['censored'].values.astype(bool)
-hours_between_observed = use_this_data['hours_between'].values.astype(float)
+time_to_next_event = use_this_data['time_to_next_event'].values.astype(float)
 hours_since_start_censored = use_this_data['smoked_unixts_scaled'].values.astype(float)
 day_within_period = use_this_data['day_within_period'].values.astype(float)
 is_post_quit = use_this_data['is_post_quit'].values.astype(float)
@@ -320,12 +300,12 @@ with pm.Model() as model:
     # -------------------------------------------------------------------------
     loglamb_observed = beta_prequit*(1-is_post_quit[~censored]) + beta_prequit_day*day_within_period[~censored]*(1-is_post_quit[~censored]) + beta_postquit*is_post_quit[~censored] + beta_postquit_day*day_within_period[~censored]*is_post_quit[~censored]
     lamb_observed = np.exp(loglamb_observed)
-    Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=hours_between_observed[~censored])
+    Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=time_to_next_event[~censored])
 
     loglamb_censored = beta_prequit*(1-is_post_quit[censored]) + beta_prequit_day*day_within_period[censored]*(1-is_post_quit[censored]) + beta_postquit*is_post_quit[censored] + beta_postquit_day*day_within_period[censored]*is_post_quit[censored] # Model if no dropout
 #    loglamb_censored = alpha # Model if final window is drop-out
     lamb_censored = np.exp(loglamb_censored)
-    Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = hours_since_start_censored[censored], lam = lamb_censored))
+    Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = time_to_next_event[censored], lam = lamb_censored))
 
 
 #%%
