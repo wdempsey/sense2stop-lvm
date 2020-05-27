@@ -162,11 +162,20 @@ data_selfreport["smoked_unixts_scaled"] = (
 #%%
 # Get number of hours elapsed between two self-reported smoking events
 data_selfreport['date'] = pd.to_datetime(data_selfreport.date)
+data_selfreport['quit_date_hrts'] = pd.to_datetime(data_selfreport['quit_date_hrts'])
+data_selfreport['time_to_quit'] = (data_selfreport.quit_date_hrts - data_selfreport.date) / np.timedelta64(1,'m')
 data_selfreport = data_selfreport.sort_values(['participant_id','date'])
-data_selfreport['hours_between'] = data_selfreport.groupby("participant_id").date.diff().shift(-1)/np.timedelta64(1,'m')
+data_selfreport['time_to_next_event'] = data_selfreport.groupby("participant_id").date.diff().shift(-1)/np.timedelta64(1,'m')
 
 #%%
-# For each participant, count number of timestamps they have
+# For NaN, time_to_next_event is the time until actual quit date.
+# These should be treated as censored times  
+data_selfreport["censored"] = data_selfreport["time_to_next_event"].isnull()
+
+for index in np.where(data_selfreport.censored==True):
+    print(data_selfreport['time_to_next_event'].iloc[index])
+    data_selfreport.
+
 data_selfreport["ones"]=1
 
 data_selfreport["order_in_sequence"] = (
