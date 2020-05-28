@@ -76,21 +76,21 @@ data_selfreport = data_dates.merge(data_selfreport,
 # Data preparation: data_selfreport data frame
 ###############################################################################
 # Drop the participants labelled 10X as they are pilot individuals
-data_selfreport = data_selfreport.dropna(how = 'any', subset=['smoked_unixts'])
-
-data_selfreport["begin_unixts"] = data_selfreport["timestamp"]/1000
+data_selfreport = data_selfreport.dropna(how = 'any', subset=['hour'])
 
 def calculate_delta(message):
     sr_accptresponse = ['Smoking Event(less than 5 minutes ago)', 
                         'Smoking Event(5 - 15 minutes ago)', 
-                        'Smoking Event(15 - 30 minutes ago)']
-    sr_dictionary = {'Smoking Event(less than 5 minutes ago)': 2.5, 
-                     'Smoking Event(5 - 15 minutes ago)': 10,
-                     'Smoking Event(15 - 30 minutes ago)': 17.5} 
+                        'Smoking Event(15 - 30 minutes ago)',
+                        'Smoking Event(more than 30 minutes ago)']
+    sr_dictionary = {'Smoking Event(less than 5 minutes ago)': 1, 
+                     'Smoking Event(5 - 15 minutes ago)': 2,
+                     'Smoking Event(15 - 30 minutes ago)': 3,
+                     'Smoking Event(more than 30 minutes ago)': 4} 
 
     if message in sr_accptresponse:
         # Convert time from minutes to seconds
-        use_delta = sr_dictionary[message]*60  
+        use_delta = sr_dictionary[message] 
     else:
         # If participant reported smoking more than 30 minutes ago,
         # then we consider time s/he smoked as missing
@@ -118,17 +118,13 @@ def round_day(raw_day):
 
 #%%
 data_selfreport['date'] = pd.to_datetime(data_selfreport.date)
+data_selfreport['start_date'] = pd.to_datetime(data_selfreport.start_date_hrts)
+data_selfreport['quit_date_hrts'] = pd.to_datetime(data_selfreport.quit_date_hrts)
 data_selfreport["delta"] = data_selfreport["message"].apply(lambda x: calculate_delta(x))
-data_selfreport["smoked_unixts"] = data_selfreport["begin_unixts"] - data_selfreport["delta"]
 
 # Create a new variable, study_day: number of days since participant entered
 # the study
-data_selfreport["study_day"] = (
-        data_selfreport
-        .loc[:, ["start_date_unixts","smoked_unixts"]]
-        .pipe(lambda x: (x["smoked_unixts"]-x["start_date_unixts"])/(60*60*24))
-        .apply(lambda x: round_day(x))
-)
+data_selfreport['study_day'] = (data_selfreport['date'] - data_selfreport['start_date']).dt.days
 
 # Create a new variable, day_since_quit: number of days before or after 
 # 12AM on Quit Date
