@@ -4,6 +4,7 @@ import arviz as az
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from scipy import stats
 import os
 import pickle
 
@@ -119,7 +120,7 @@ def round_day(raw_day):
 #%%
 data_selfreport['date'] = pd.to_datetime(data_selfreport.date)
 data_selfreport['start_date'] = pd.to_datetime(data_selfreport.start_date_hrts)
-data_selfreport['quit_date_hrts'] = pd.to_datetime(data_selfreport.quit_date_hrts)
+data_selfreport['quit_date'] = pd.to_datetime(data_selfreport.quit_date_hrts)
 data_selfreport["delta"] = data_selfreport["message"].apply(lambda x: calculate_delta(x))
 
 # Create a new variable, study_day: number of days since participant entered
@@ -128,17 +129,7 @@ data_selfreport['study_day'] = (data_selfreport['date'] - data_selfreport['start
 
 # Create a new variable, day_since_quit: number of days before or after 
 # 12AM on Quit Date
-data_selfreport["day_since_quit"] = (
-    data_selfreport
-        .loc[:, ["quit_date_unixts","smoked_unixts"]]
-        .pipe(lambda x: (x["smoked_unixts"]-x["quit_date_unixts"])/(60*60*24))
-        .apply(lambda x: round_day(x))
-)
-
-# Drop columns with missing values in the smoked_unixts variable
-data_selfreport = data_selfreport.dropna(how = 'any', subset=['smoked_unixts'])
-data_selfreport["study_day"] = data_selfreport["study_day"].apply(lambda x: np.int(x))
-data_selfreport["day_since_quit"] = data_selfreport["day_since_quit"].apply(lambda x: np.int(x))
+data_selfreport['day_since_quit'] = (data_selfreport['date'] - data_selfreport['quit_date']).dt.days
 
 # Create a new variable, is_post_quit: whether a given day falls before or on/after 12AM on Quit Date
 data_selfreport["is_post_quit"] = data_selfreport["day_since_quit"].apply(lambda x: 0 if x < 0 else 1)
@@ -152,11 +143,8 @@ data_selfreport["day_within_period"] = np.where(data_selfreport["is_post_quit"]=
                                                 data_selfreport["day_since_quit"])
 
 # Number of hours elapsed since the beginning of the study
-data_selfreport["smoked_unixts_scaled"] = (
-    data_selfreport
-        .loc[:, ["start_date_unixts","smoked_unixts"]]
-        .pipe(lambda x: (x["smoked_unixts"]-x["start_date_unixts"])/(60*60))
-)
+data_selfreport['hours_since_start'] = (data_selfreport['date'] - data_selfreport['start_date'])/np.timedelta64(1,'h')
+
 
 #%%
 # Get number of hours elapsed between two self-reported smoking events
@@ -180,11 +168,8 @@ for index in np.where(data_selfreport.censored==True):
 use_these_columns = ["participant_id",
                      "start_date_hrts", "quit_date_hrts",
                      "expected_end_date_hrts","actual_end_date_hrts", 
-                     "start_date_unixts", "quit_date_unixts",
-                     "expected_end_date_unixts","actual_end_date_unixts",
                      "is_post_quit", "study_day", "day_since_quit", "day_within_period",
-                     "begin_unixts", "message", "delta", "smoked_unixts",
-                     "smoked_unixts_scaled", "time_to_next_event","censored"]
+                     "message", "delta", "time_to_next_event","censored"]
 data_selfreport = data_selfreport.loc[:, use_these_columns]
 
 #%%
@@ -196,7 +181,8 @@ data_selfreport = data_selfreport.loc[:, use_these_columns]
 collect_data_analysis = {}
 collect_data_analysis['df_datapoints'] = (
     data_selfreport
-        .loc[:,["participant_id", "is_post_quit", "smoked_unixts_scaled", "time_to_next_event","censored", "day_within_period"]]
+        .loc[:,["participant_id", "is_post_quit", "time_to_next_event","censored", 
+                "day_within_period", "delta"]]
 )
 
 #%%
@@ -215,10 +201,29 @@ def exponential_log_complementary_cdf(x, lam):
     ''' log complementary CDF of exponential distribution '''
     return -lam*x
 
+def convert_windowtag(windowtag):
+    if windowtag == 1:
+        window_max = 5; window_min = 0
+    elif windowtag == 2:
+        window_max = 15; window_min = 5
+    elif windowtag == 3:
+        window_max = 30; window_min = 15
+    else:
+        window_max = np.inf; window_min = 30
+    return window_min, window_max
+
+def selfreport_mem(upper, lower, denom):
+    ''' Measurement model for self-report '''
+    return (upper-lower) / (denom)
+
 censored = use_this_data['censored'].values.astype(bool)
 time_to_next_event = use_this_data['time_to_next_event'].values.astype(float)
 day_within_period = use_this_data['day_within_period'].values.astype(float)
-hours_since_start_censored = use_this_data['smoked_unixts_scaled'].values.astype(float)
+windowtag = use_this_data['delta'].values.astype(float)
+temp = np.array(list(map(convert_windowtag,windowtag)))
+windowmin = temp[:,0]
+windowmax = temp[:,1]
+num_notcensored = time_to_next_event[~censored].size
 
 #%%
 with pm.Model() as model:
@@ -226,20 +231,29 @@ with pm.Model() as model:
     # Priors
     # -------------------------------------------------------------------------
     beta = pm.Normal('beta', mu=0, sd=10)
-    beta_day = pm.Normal('beta_day', mu=0, sd=10)
-    #alpha = pm.Normal('alpha', mu=0, sd=10)
-
+#    beta_day = pm.Normal('beta_day', mu=0, sd=10)
+    
+    
+    # -------------------------------------------------------------------------
+    # Measurement models
+    # -------------------------------------------------------------------------
+    true_gap = Y_latent - time_to_next_event[~censored]
+    mems = pm.Normal('upper', mu = true_gap, scale = mem_scale)
+    upper = mems.logcdf(windowmax[~censored])
+    lower= mems.logcdf(windowmin[~censored])
+    
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
-    loglamb_observed = beta + beta_day*day_within_period[~censored]
+    loglamb_observed = beta #+ beta_day*day_within_period[~censored]
     lamb_observed = np.exp(loglamb_observed)
-    Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=time_to_next_event[~censored])
+    Y_latent = pm.Exponential('Y_latent', lam = lamb_observed, shape = num_notcensored) 
+    
+    Y_hat_observed = pm.Potential('Y_hat_observed', selfreport_mem(eventtime = Y_latent, measurementtime=, window_max = windowmax[~censored], window_min = windowmin[~censored]))
 
-    loglamb_censored = beta + beta_day*day_within_period[censored] # Switched model to 1 parameter for both censored/uncensored (makes sense if final obs is "real")
-    # loglamb_censored = alpha # Model makes more sense if the final censored obs if due to dropout
-    lamb_censored = np.exp(loglamb_censored)
-    Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = time_to_next_event[censored], lam = lamb_censored))
+#    loglamb_censored = beta + beta_day*day_within_period[censored] # Switched model to 1 parameter for both censored/uncensored (makes sense if final obs is "real")
+#    lamb_censored = np.exp(loglamb_censored)
+#    Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = time_to_next_event[censored], lam = lamb_censored))
 
 
 #%%
@@ -278,7 +292,6 @@ def exponential_log_complementary_cdf(x, lam):
 
 censored = use_this_data['censored'].values.astype(bool)
 time_to_next_event = use_this_data['time_to_next_event'].values.astype(float)
-hours_since_start_censored = use_this_data['smoked_unixts_scaled'].values.astype(float)
 day_within_period = use_this_data['day_within_period'].values.astype(float)
 is_post_quit = use_this_data['is_post_quit'].values.astype(float)
 
@@ -309,7 +322,7 @@ with pm.Model() as model:
 #%%
 # Sample from posterior distribution
 with model:
-    posterior_samples = pm.sample(draws=3000, tune=2000, cores=1, target_accept=0.90)
+    posterior_samples = pm.sample(draws=3000, tune=2000, cores=1, target_accept=0.80)
 
 #%%
 # Calculate 95% credible interval
@@ -341,7 +354,6 @@ def exponential_log_complementary_cdf(x, lam):
 
 censored = use_this_data['censored'].values.astype(bool)
 time_to_next_event = use_this_data['time_to_next_event'].values.astype(float)
-hours_since_start_censored = use_this_data['smoked_unixts_scaled'].values.astype(float)
 day_within_period = use_this_data['day_within_period'].values.astype(float)
 is_post_quit = use_this_data['is_post_quit'].values.astype(float)
 
@@ -442,7 +454,7 @@ pm.forestplot(collect_results['2']['posterior_samples'], var_names=['gamma_postq
 #pm.forestplot(collect_results['2']['posterior_samples'], var_names=['alpha'], credible_interval=0.95)
 
 # %%
-filename = os.path.join(os.path.realpath(dir_picklejar), 'dict_pp_models_linear')
+filename = os.path.join(os.path.realpath(dir_picklejar), 'dict_pp_models_linear_datetimes')
 outfile = open(filename, 'wb')
 pickle.dump(collect_results, outfile)
 outfile.close()
