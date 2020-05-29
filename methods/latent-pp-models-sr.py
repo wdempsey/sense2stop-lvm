@@ -224,6 +224,7 @@ temp = np.array(list(map(convert_windowtag,windowtag)))
 windowmin = temp[:,0]
 windowmax = temp[:,1]
 num_notcensored = time_to_next_event[~censored].size
+mem_scale = np.repeat(5, num_notcensored)
 
 #%%
 with pm.Model() as model:
@@ -232,24 +233,19 @@ with pm.Model() as model:
     # -------------------------------------------------------------------------
     beta = pm.Normal('beta', mu=0, sd=10)
 #    beta_day = pm.Normal('beta_day', mu=0, sd=10)
-    
-    
-    # -------------------------------------------------------------------------
-    # Measurement models
-    # -------------------------------------------------------------------------
-    true_gap = Y_latent - time_to_next_event[~censored]
-    mems = pm.Normal('upper', mu = true_gap, scale = mem_scale)
-    upper = mems.logcdf(windowmax[~censored])
-    lower= mems.logcdf(windowmin[~censored])
-    
+           
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
     loglamb_observed = beta #+ beta_day*day_within_period[~censored]
     lamb_observed = np.exp(loglamb_observed)
     Y_latent = pm.Exponential('Y_latent', lam = lamb_observed, shape = num_notcensored) 
-    
-    Y_hat_observed = pm.Potential('Y_hat_observed', selfreport_mem(eventtime = Y_latent, measurementtime=, window_max = windowmax[~censored], window_min = windowmin[~censored]))
+    true_gap = Y_latent - time_to_next_event[~censored]
+    mems = pm.Normal('mems', mu = true_gap, sd = mem_scale, shape = num_notcensored)
+    upper = mems.logcdf(windowmax[~censored])
+    lower= mems.logcdf(windowmin[~censored])
+    denom = mems.logcdf(0)
+    Y_hat_observed = pm.Potential('Y_hat_observed', selfreport_mem(upper, lower, denom))
 
 #    loglamb_censored = beta + beta_day*day_within_period[censored] # Switched model to 1 parameter for both censored/uncensored (makes sense if final obs is "real")
 #    lamb_censored = np.exp(loglamb_censored)
