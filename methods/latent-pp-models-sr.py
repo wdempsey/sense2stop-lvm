@@ -7,6 +7,8 @@ from datetime import datetime
 from scipy import stats
 import os
 import pickle
+import theano.tensor as tt
+from scipy import special
 
 # List down file paths
 #dir_data = "../smoking-lvm-cleaned-data/final"
@@ -212,8 +214,17 @@ def convert_windowtag(windowtag):
         window_max = np.inf; window_min = 30
     return window_min, window_max
 
-def selfreport_mem(upper, lower, denom):
+def normal_cdf(x, mu=0, sd=1):
+    '''Use theano to compute cdf'''
+    z = (x-mu)/sd
+    return (tt.erf(z/np.sqrt(2))+1)/2 
+
+def selfreport_mem(truegap, window_min, window_max):
     ''' Measurement model for self-report '''
+    mem_scale = 5
+    upper = normal_cdf(window_max, mu = truegap, sd = mem_scale)
+    lower = normal_cdf(window_min, mu = truegap, sd = mem_scale)
+    denom = 1-normal_cdf(0, mu = truegap, sd = mem_scale)
     return (upper-lower) / (denom)
 
 censored = use_this_data['censored'].values.astype(bool)
@@ -223,8 +234,10 @@ windowtag = use_this_data['delta'].values.astype(float)
 temp = np.array(list(map(convert_windowtag,windowtag)))
 windowmin = temp[:,0]
 windowmax = temp[:,1]
+midpoint = (windowmin+windowmax)/2
+np.where(midpoint==np.inf)
+midpoint[np.where(midpoint==np.inf)] = 35.
 num_notcensored = time_to_next_event[~censored].size
-mem_scale = np.repeat(5, num_notcensored)
 
 #%%
 with pm.Model() as model:
@@ -239,13 +252,9 @@ with pm.Model() as model:
     # -------------------------------------------------------------------------
     loglamb_observed = beta #+ beta_day*day_within_period[~censored]
     lamb_observed = np.exp(loglamb_observed)
-    Y_latent = pm.Exponential('Y_latent', lam = lamb_observed, shape = num_notcensored) 
-    true_gap = Y_latent - time_to_next_event[~censored]
-    mems = pm.Normal('mems', mu = true_gap, sd = mem_scale, shape = num_notcensored)
-    upper = mems.logcdf(windowmax[~censored])
-    lower= mems.logcdf(windowmin[~censored])
-    denom = mems.logcdf(0)
-    Y_hat_observed = pm.Potential('Y_hat_observed', selfreport_mem(upper, lower, denom))
+    Y_latent = pm.Exponential('Y_latent', lam = lamb_observed, shape = num_notcensored, testval = time_to_next_event[~censored]-midpoint[~censored])
+    true_gap = pm.Deterministic('true_gap', time_to_next_event[~censored] - Y_latent)
+    Y_hat_observed = pm.Potential('Y_hat_observed', selfreport_mem(true_gap, windowmin[~censored], windowmax[~censored]))
 
 #    loglamb_censored = beta + beta_day*day_within_period[censored] # Switched model to 1 parameter for both censored/uncensored (makes sense if final obs is "real")
 #    lamb_censored = np.exp(loglamb_censored)
