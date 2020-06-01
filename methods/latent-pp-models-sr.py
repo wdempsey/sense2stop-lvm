@@ -215,7 +215,7 @@ def convert_windowtag(windowtag):
     elif windowtag == 3:
         window_max = 30; window_min = 15
     else:
-        window_max = 90; window_min = 30
+        window_max = 60; window_min = 30
     return window_min, window_max
 
 def normal_cdf(x, mu=0, sd=1):
@@ -226,7 +226,7 @@ def normal_cdf(x, mu=0, sd=1):
 def selfreport_mem(x, t, winmin, winmax):
     ''' Measurement model for self-report '''
     gap = t - x
-    mem_scale = 5
+    mem_scale = 10
     upper = normal_cdf(winmax, mu = gap, sd = mem_scale)
     lower = normal_cdf(winmin, mu = gap, sd = mem_scale)
     return tt.log(upper-lower)
@@ -234,12 +234,12 @@ def selfreport_mem(x, t, winmin, winmax):
 censored = use_this_data['censored'].values.astype(bool)
 time_to_next_event = use_this_data['time_to_next_event'].values.astype(float)
 day_within_period = use_this_data['day_within_period'].values.astype(float)
+is_post_quit = use_this_data['is_post_quit'].values.astype(float)
 windowtag = use_this_data['delta'].values.astype(float)
 temp = np.array(list(map(convert_windowtag,windowtag)))
 windowmin = temp[:,0]
 windowmax = temp[:,1]
 midpoint = (windowmin+windowmax)/2
-midpoint[np.where(midpoint==np.inf)] = 35.
 test_obs = time_to_next_event-midpoint
 test_obs[test_obs <= 0] = 1.
 negativetimes = time_to_next_event <= 1
@@ -250,6 +250,7 @@ time_to_next_event1 = time_to_next_event[~remove_obs]
 windowmin1=windowmin[~remove_obs]
 windowmax1=windowmax[~remove_obs]
 day_within_period1=day_within_period[~remove_obs]
+is_post_quit1 = is_post_quit[~remove_obs]
 
 #%%
 with pm.Model() as model:
@@ -277,7 +278,7 @@ with pm.Model() as model:
 # Sample from posterior distribution
 with model:
 #    posterior_samples = pm.sample(draws=3000, tune=2000, cores=1, target_accept=0.80)
-    posterior_samples = pm.sample(1000, tune=1000, init='adapt_diag', cores = 1)
+    posterior_samples = pm.sample(draws = 3000, tune=2000, init='adapt_diag', cores = 1)
     
 #%%
 # Calculate 95% credible interval
@@ -315,9 +316,9 @@ with pm.Model() as model:
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
-    loglamb_observed = beta_prequit*(1-is_post_quit[~censored]) + beta_prequit_day*day_within_period[~censored]*(1-is_post_quit[~censored]) + beta_postquit*is_post_quit[~censored] + beta_postquit_day*day_within_period[~censored]*is_post_quit[~censored]
+    loglamb_observed = beta_prequit*(1-is_post_quit1) + beta_prequit_day*day_within_period1*(1-is_post_quit1) + beta_postquit*is_post_quit1 + beta_postquit_day*day_within_period1*is_post_quit1
     lamb_observed = np.exp(loglamb_observed)
-    Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=time_to_next_event[~censored])
+    Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed=time_to_next_event1)
 
     loglamb_censored = beta_prequit*(1-is_post_quit[censored]) + beta_prequit_day*day_within_period[censored]*(1-is_post_quit[censored]) + beta_postquit*is_post_quit[censored] + beta_postquit_day*day_within_period[censored]*is_post_quit[censored] # Model if no dropout
 #    loglamb_censored = alpha # Model if final window is drop-out
@@ -328,7 +329,8 @@ with pm.Model() as model:
 #%%
 # Sample from posterior distribution
 with model:
-    posterior_samples = pm.sample(draws=3000, tune=2000, cores=1, target_accept=0.80)
+#    posterior_samples = pm.sample(draws=3000, tune=2000, cores=1, target_accept=0.80)
+    posterior_samples = pm.sample(draws = 3000, tune=2000, init='adapt_diag', cores = 1)
 
 #%%
 # Calculate 95% credible interval
@@ -336,7 +338,7 @@ model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
 model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
 
 # Produce trace plots
-pm.traceplot(posterior_samples)
+pm.traceplot(posterior_samples, var_names = ['beta_prequit', 'beta_prequit_day' , 'beta_postquit', 'beta_postquit_day'])
 
 # Collect results
 collect_results['1'] = {'model':model, 
