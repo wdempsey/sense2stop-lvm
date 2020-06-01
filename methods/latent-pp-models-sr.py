@@ -203,6 +203,10 @@ def exponential_log_complementary_cdf(x, lam):
     ''' log complementary CDF of exponential distribution '''
     return -lam*x
 
+def exponential_log_pdf(x, lam):
+    ''' log complementary CDF of exponential distribution '''
+    return np.log(lam)-lam*x
+
 def convert_windowtag(windowtag):
     if windowtag == 1:
         window_max = 5; window_min = 0
@@ -211,7 +215,7 @@ def convert_windowtag(windowtag):
     elif windowtag == 3:
         window_max = 30; window_min = 15
     else:
-        window_max = np.inf; window_min = 30
+        window_max = 90; window_min = 30
     return window_min, window_max
 
 def normal_cdf(x, mu=0, sd=1):
@@ -219,13 +223,13 @@ def normal_cdf(x, mu=0, sd=1):
     z = (x-mu)/sd
     return (tt.erf(z/np.sqrt(2))+1)/2 
 
-def selfreport_mem(truegap, window_min, window_max):
+def selfreport_mem(x, t, winmin, winmax):
     ''' Measurement model for self-report '''
+    gap = t - x
     mem_scale = 5
-    upper = normal_cdf(window_max, mu = truegap, sd = mem_scale)
-    lower = normal_cdf(window_min, mu = truegap, sd = mem_scale)
-    denom = 1-normal_cdf(0, mu = truegap, sd = mem_scale)
-    return (upper-lower) / (denom)
+    upper = normal_cdf(winmax, mu = gap, sd = mem_scale)
+    lower = normal_cdf(winmin, mu = gap, sd = mem_scale)
+    return tt.log(upper-lower)
 
 censored = use_this_data['censored'].values.astype(bool)
 time_to_next_event = use_this_data['time_to_next_event'].values.astype(float)
@@ -235,9 +239,17 @@ temp = np.array(list(map(convert_windowtag,windowtag)))
 windowmin = temp[:,0]
 windowmax = temp[:,1]
 midpoint = (windowmin+windowmax)/2
-np.where(midpoint==np.inf)
 midpoint[np.where(midpoint==np.inf)] = 35.
-num_notcensored = time_to_next_event[~censored].size
+test_obs = time_to_next_event-midpoint
+test_obs[test_obs <= 0] = 1.
+negativetimes = time_to_next_event <= 1
+remove_obs = censored | negativetimes 
+num_ok = time_to_next_event[~remove_obs].size
+test_obs1 = test_obs[~remove_obs]
+time_to_next_event1 = time_to_next_event[~remove_obs]
+windowmin1=windowmin[~remove_obs]
+windowmax1=windowmax[~remove_obs]
+day_within_period1=day_within_period[~remove_obs]
 
 #%%
 with pm.Model() as model:
@@ -245,34 +257,35 @@ with pm.Model() as model:
     # Priors
     # -------------------------------------------------------------------------
     beta = pm.Normal('beta', mu=0, sd=10)
-#    beta_day = pm.Normal('beta_day', mu=0, sd=10)
+    beta_day = pm.Normal('beta_day', mu=0, sd=10)
            
     # -------------------------------------------------------------------------
     # Likelihood
     # -------------------------------------------------------------------------
-    loglamb_observed = beta #+ beta_day*day_within_period[~censored]
+    loglamb_observed = beta + beta_day*day_within_period1
     lamb_observed = np.exp(loglamb_observed)
-    Y_latent = pm.Exponential('Y_latent', lam = lamb_observed, shape = num_notcensored, testval = time_to_next_event[~censored]-midpoint[~censored])
-    true_gap = pm.Deterministic('true_gap', time_to_next_event[~censored] - Y_latent)
-    Y_hat_observed = pm.Potential('Y_hat_observed', selfreport_mem(true_gap, windowmin[~censored], windowmax[~censored]))
-
-#    loglamb_censored = beta + beta_day*day_within_period[censored] # Switched model to 1 parameter for both censored/uncensored (makes sense if final obs is "real")
-#    lamb_censored = np.exp(loglamb_censored)
-#    Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = time_to_next_event[censored], lam = lamb_censored))
+#    Y_hat_observed = pm.Exponential('Y_hat_observed', lam = lamb_observed, observed = time_to_next_event[~censored])
+    Y_latent = pm.Exponential('Y_latent', lam = lamb_observed, shape=len(test_obs1), testval=test_obs1)
+    Y_observed = pm.Potential('Y_observed', selfreport_mem(Y_latent, time_to_next_event1, windowmin1, windowmax1))
+    
+    loglamb_censored = beta + beta_day*day_within_period[censored] # Switched model to 1 parameter for both censored/uncensored (makes sense if final obs is "real")
+    lamb_censored = np.exp(loglamb_censored)
+    Y_hat_censored = pm.Potential('Y_hat_censored', exponential_log_complementary_cdf(x = time_to_next_event[censored], lam = lamb_censored))
 
 
 #%%
 # Sample from posterior distribution
 with model:
-    posterior_samples = pm.sample(draws=3000, tune=2000, cores=1, target_accept=0.80)
-
+#    posterior_samples = pm.sample(draws=3000, tune=2000, cores=1, target_accept=0.80)
+    posterior_samples = pm.sample(1000, tune=1000, init='adapt_diag', cores = 1)
+    
 #%%
 # Calculate 95% credible interval
 model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
 model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
 
 # Produce trace plots
-pm.traceplot(posterior_samples)
+pm.traceplot(posterior_samples, var_names = ['beta', 'beta_day'])
 
 # Collect results
 collect_results['0'] = {'model':model, 
@@ -286,21 +299,9 @@ del model, posterior_samples, model_summary_logscale
 #%%
 
 ###############################################################################
-# Estimation using pymc3
+# Estimation using pymc3; pre-/post- quit split.
 ###############################################################################
 
-use_this_data = collect_data_analysis['df_datapoints']
-
-def exponential_log_complementary_cdf(x, lam):
-    ''' log complementary CDF of exponential distribution '''
-    return -lam*x
-
-censored = use_this_data['censored'].values.astype(bool)
-time_to_next_event = use_this_data['time_to_next_event'].values.astype(float)
-day_within_period = use_this_data['day_within_period'].values.astype(float)
-is_post_quit = use_this_data['is_post_quit'].values.astype(float)
-
-#%%
 with pm.Model() as model:
     # -------------------------------------------------------------------------
     # Priors
