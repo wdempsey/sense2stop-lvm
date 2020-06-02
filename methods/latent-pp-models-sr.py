@@ -286,7 +286,7 @@ model_summary_logscale = az.summary(posterior_samples, credible_interval=.95)
 model_summary_logscale = model_summary_logscale[['mean','hpd_2.5%','hpd_97.5%']]
 
 # Produce trace plots
-pm.traceplot(posterior_samples, var_names = ['beta', 'beta_day'])
+pm.traceplot(posterior_samples, var_names = ['beta', 'beta_day', 'Y_latent'])
 
 # Collect results
 collect_results['0'] = {'model':model, 
