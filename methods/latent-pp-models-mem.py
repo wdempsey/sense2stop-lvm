@@ -253,6 +253,13 @@ day_within_period1=day_within_period[~remove_obs]
 is_post_quit1 = is_post_quit[~remove_obs]
 
 #%%
+
+###############################################################################
+# Move to a user-day loop 
+# In each user-day set max number of events
+###############################################################################
+
+
 with pm.Model() as model:
     # -------------------------------------------------------------------------
     # Priors
