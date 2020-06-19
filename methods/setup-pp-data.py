@@ -7,6 +7,8 @@ import pickle
 
 # List down file paths
 #dir_data = "../smoking-lvm-cleaned-data/final"
+
+exec(open('../env_vars.py').read())
 dir_data = os.environ['dir_data']
 dir_picklejar = os.environ['dir_picklejar']
 
@@ -146,7 +148,7 @@ data_selfreport['hours_since_start_of_study'] = (data_selfreport['date'] - data_
 #%%
 # Get number of hours elapsed between two self-reported smoking events
 data_selfreport['actual_end_date_hrts'] = pd.to_datetime(data_selfreport['actual_end_date_hrts'])
-data_selfreport['time_to_quit'] = (data_selfreport.actual_end_date_hrts - data_selfreport.date) / np.timedelta64(1,'m') + 720 # Add 720 minutes to deal with quit date you can provide data still.
+data_selfreport['time_to_actual_end_date'] = (data_selfreport.actual_end_date_hrts - data_selfreport.date) / np.timedelta64(1,'m') + 720 # Add 720 minutes to deal with quit date you can provide data still.
 data_selfreport = data_selfreport.sort_values(['participant_id','date'])
 data_selfreport['time_to_next_event'] = data_selfreport.groupby("participant_id").date.diff().shift(-1)/np.timedelta64(1,'m')
 
@@ -156,7 +158,7 @@ data_selfreport['time_to_next_event'] = data_selfreport.groupby("participant_id"
 data_selfreport["censored"] = data_selfreport["time_to_next_event"].isnull()
 
 for index in np.where(data_selfreport.censored==True):
-    temp = data_selfreport['time_to_quit'].iloc[index]
+    temp = data_selfreport['time_to_actual_end_date'].iloc[index]
     data_selfreport['time_to_next_event'].iloc[index] = temp
 
 #%%
@@ -211,10 +213,14 @@ data_selfreport['hours_relative_quit'] = np.where(data_selfreport["is_post_quit"
                                                   data_selfreport["date"] - data_selfreport["quit_date_hrts"])
 # This variable captures the period around (just before or after) quit date
 data_selfreport['hours_relative_quit'] = data_selfreport['hours_relative_quit']/np.timedelta64(1,'h')
+
+data_selfreport['is_within24hours_quit'] = np.where(data_selfreport['hours_relative_quit']<=24,1,0)
 data_selfreport['is_within48hours_quit'] = np.where(data_selfreport['hours_relative_quit']<=48,1,0)
+data_selfreport['is_within72hours_quit'] = np.where(data_selfreport['hours_relative_quit']<=72,1,0)
 
 # This variable: within-day temporal dynamics ---------------------------------
 data_selfreport["hour_of_day"] = data_selfreport["hour"] + data_selfreport["minute"]/60
+data_selfreport["sleep"] = np.where((data_selfreport['hour_of_day']>=1).bool and (data_selfreport['hour_of_day']<=6).bool,1,0)
 
 #%%
 # Time variables: relative to beginning of pre- or post-quit periods ----------
@@ -247,8 +253,9 @@ use_these_columns = ["participant_id",
                      "order_within_day", "order_within_period",
                      "is_first_sr_within_day", "is_first_sr_within_period", 
                      "hours_since_previous_sr_within_day", "hours_since_previous_sr_within_period",
-                     "hours_since_start_of_period","hours_relative_quit", "is_within48hours_quit",
-                     "hour_of_day"]
+                     "hours_since_start_of_period",
+                     "is_within24hours_quit","is_within48hours_quit","is_within72hours_quit",
+                     "hour_of_day", "sleep"]
 data_selfreport = data_selfreport.loc[:, use_these_columns]
 
 data_selfreport.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_datapoints.csv'), index=False)
