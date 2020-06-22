@@ -15,6 +15,7 @@ dir_picklejar = os.environ['dir_picklejar']
 # Read in data
 data_dates = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'participant-dates.csv'))
 data_selfreport = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'self-report-smoking-final.csv'))
+data_hq_episodes = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'hq-episodes-final.csv'))
 
 #%%
 
@@ -144,13 +145,18 @@ data_selfreport["day_within_period"] = np.where(data_selfreport["is_post_quit"]=
 # Number of hours elapsed since the beginning of the study
 data_selfreport['hours_since_start_of_study'] = (data_selfreport['date'] - data_selfreport['start_date'])/np.timedelta64(1,'h')
 
-
 #%%
 # Get number of hours elapsed between two self-reported smoking events
-data_selfreport['actual_end_date_hrts'] = pd.to_datetime(data_selfreport['actual_end_date_hrts'])
-data_selfreport['time_to_actual_end_date'] = (data_selfreport.actual_end_date_hrts - data_selfreport.date) / np.timedelta64(1,'m') + 720 # Add 720 minutes to deal with quit date you can provide data still.
 data_selfreport = data_selfreport.sort_values(['participant_id','date'])
-data_selfreport['time_to_next_event'] = data_selfreport.groupby("participant_id").date.diff().shift(-1)/np.timedelta64(1,'m')
+data_selfreport['actual_end_date_hrts'] = pd.to_datetime(data_selfreport['actual_end_date_hrts'])
+
+# Time to next event is in minutes
+#data_selfreport['time_to_actual_end_date'] = (data_selfreport.actual_end_date_hrts - data_selfreport.date) / np.timedelta64(1,'m') + 720 # Add 720 minutes to deal with quit date you can provide data still.
+#data_selfreport['time_to_next_event'] = data_selfreport.groupby("participant_id").date.diff().shift(-1)/np.timedelta64(1,'m')
+
+# Time to next event is in hours
+data_selfreport['time_to_actual_end_date'] = (data_selfreport.actual_end_date_hrts - data_selfreport.date) / np.timedelta64(1,'h') + (720/60) # Add 720 minutes to deal with quit date you can provide data still.
+data_selfreport['time_to_next_event'] = data_selfreport.groupby("participant_id").date.diff().shift(-1)/np.timedelta64(1,'h')
 
 #%%
 # For NaN, time_to_next_event is the time until actual quit date.
@@ -179,7 +185,6 @@ data_selfreport["order_within_day"] = (
 )
 data_selfreport["is_first_sr_within_day"] = np.where(data_selfreport["order_within_day"]==1,1,0)
 
-# The number of hours elapsed since beginning of the pre- or post-quit period
 data_selfreport["hours_since_previous_sr_within_day"] = (
     data_selfreport
         .groupby(["participant_id","study_day"])["date"]
@@ -258,5 +263,106 @@ use_these_columns = ["participant_id",
                      "hour_of_day", "sleep"]
 data_selfreport = data_selfreport.loc[:, use_these_columns]
 
-data_selfreport.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_datapoints.csv'), index=False)
+#data_selfreport.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_datapoints.csv'), index=False)
+
+#%%
+data_day_begin_and_end = (
+    data_hq_episodes
+    .drop_duplicates(subset=['start_time','end_time'])
+    .loc[:,['id','date','study_day','prequit','start_time','end_time']]
+)
+
+#%%
+def CheckFormat(x):
+    try: 
+        out = datetime.strptime(x,'%Y-%m-%d %H:%M:%S%z') 
+    except:
+        out = datetime.strptime(x,'%Y-%m-%d %H:%M:%S.%f%z')
+    return out
+
+#%%
+all_check_result = np.repeat(1, len(data_selfreport.index))
+data_selfreport.index = np.array(range(0,len(data_selfreport.index)))
+
+#%%
+data_day_begin_and_end = data_day_begin_and_end[data_day_begin_and_end.start_time <= data_day_begin_and_end.end_time]
+
+#%%
+for i in range(0, len(data_selfreport.index)):
+    current_sr = data_selfreport.iloc[i]
+    current_participant = current_sr.participant_id
+    current_timestamp = np.datetime64(current_sr.date)
+    df_to_search_over = data_day_begin_and_end[data_day_begin_and_end.id==current_participant]
+
+    start_time = df_to_search_over.start_time.apply(lambda x: CheckFormat(x))
+    end_time = df_to_search_over.end_time.apply(lambda x: CheckFormat(x))
+
+    start_time = start_time.apply(lambda x: datetime.strftime(x, '%Y-%m-%d %H:%M:%S'))
+    start_time = start_time.apply(lambda x: np.datetime64(x)) 
+    end_time = end_time.apply(lambda x: datetime.strftime(x, '%Y-%m-%d %H:%M:%S'))
+    end_time = end_time.apply(lambda x: np.datetime64(x))
+    is_greater_than_start_time = start_time.apply(lambda x: current_timestamp - x)
+    is_greater_than_start_time = is_greater_than_start_time.apply(lambda x: x.days >=0)
+    is_less_than_end_time = end_time.apply(lambda x: current_timestamp - x)
+    is_less_than_end_time = is_less_than_end_time.apply(lambda x: x.days <0)
+    df_check = pd.DataFrame({'is_greater_than_start_time':is_greater_than_start_time, 'is_less_than_end_time':is_less_than_end_time})
+    df_check['is_within'] = (df_check['is_greater_than_start_time']*df_check['is_less_than_end_time'])
+    check_result = sum(df_check['is_within'])
+    all_check_result[i] = check_result
+
+#%%
+data_selfreport['is_within_working_day'] = all_check_result
+
+# %%
+(len(data_selfreport.index) - sum(all_check_result))/len(data_selfreport.index) 
+
+# %%
+data_study_day = data_day_begin_and_end
+
+data_study_day.start_time = (
+data_study_day.start_time
+    .apply(lambda x: CheckFormat(x))
+    .apply(lambda x: datetime.strftime(x, '%Y-%m-%d %H:%M:%S'))
+    .apply(lambda x: np.datetime64(x)) 
+)
+
+data_study_day.end_time = (
+data_study_day.end_time
+    .apply(lambda x: CheckFormat(x))
+    .apply(lambda x: datetime.strftime(x, '%Y-%m-%d %H:%M:%S'))
+    .apply(lambda x: np.datetime64(x)) 
+)
+
+# %%
+data_study_day["study_day_length"] = (data_study_day.end_time - data_study_day.start_time)/np.timedelta64(1,'h')
+data_study_day = data_study_day.loc[:, ['id','study_day','study_day_length']]
+data_study_day = data_study_day.rename(columns={'id':'participant_id'})
+
+# %%
+data_selfreport = data_selfreport.sort_values(['participant_id','date'])
+reshaped_data = data_selfreport.loc[:, ['participant_id','study_day','time_to_next_event']]
+
+#%%
+all_participants = data_study_day.participant_id.drop_duplicates()
+all_participants.index = np.array(range(0,len(all_participants.index)))
+all_dict = {}
+
+#%%
+for i in range(0, len(all_participants)):
+    current_dict = {}
+    current_participant = all_participants[i]
+    current_data_study_day = data_study_day[data_study_day.participant_id == current_participant]
+    current_reshaped_data = reshaped_data[reshaped_data.participant_id == current_participant]
+
+    # Within a participant, go through each day
+    for j in range(0, len(current_data_study_day.index)):
+        this_study_day = current_data_study_day.study_day.iloc[j]
+        study_day_time_to_event_data = current_reshaped_data[current_reshaped_data.study_day == this_study_day].time_to_next_event
+        new_dict = {this_study_day:{'participant_id':current_data_study_day.participant_id.iloc[j],'study_day':this_study_day, 'day_length': current_data_study_day.study_day_length.iloc[j], 'time_to_next_event':study_day_time_to_event_data}}
+        current_dict.update(new_dict)
+    
+    # Update participant
+    all_dict.update({current_participant:current_dict})
+
+#%%
 
