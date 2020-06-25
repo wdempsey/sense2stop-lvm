@@ -312,10 +312,8 @@ pm.traceplot(posterior_samples)
 # Remove variable from workspace
 del model, posterior_samples, model_summary_logscale
 
-
-# %%
-## Model 4
-
+# %% [markdown]
+# ## Model 4
 
 # %%
 feature1 = order_within_day

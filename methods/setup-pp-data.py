@@ -263,8 +263,6 @@ use_these_columns = ["participant_id",
                      "hour_of_day", "sleep"]
 data_selfreport = data_selfreport.loc[:, use_these_columns]
 
-#data_selfreport.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_datapoints.csv'), index=False)
-
 #%%
 data_day_begin_and_end = (
     data_hq_episodes
@@ -335,14 +333,26 @@ data_study_day.end_time
 
 # %%
 data_study_day["study_day_length"] = (data_study_day.end_time - data_study_day.start_time)/np.timedelta64(1,'h')
-data_study_day = data_study_day.loc[:, ['id','study_day','study_day_length']]
 data_study_day = data_study_day.rename(columns={'id':'participant_id'})
+data_study_day["study_day"] = data_study_day["study_day"] -1  # index by 0 to match zero indexing in data_selfreport 
 
 # %%
 data_selfreport = data_selfreport.sort_values(['participant_id','date'])
-reshaped_data = data_selfreport.loc[:, ['participant_id','study_day','time_to_next_event']]
+data_selfreport = (
+    data_study_day
+        .loc[:,['participant_id','study_day','start_time','end_time','study_day_length']]
+        .merge(data_selfreport, how='right', on=['participant_id','study_day'])
+)
+
+data_selfreport["hours_since_start_day"] = (data_selfreport["date"]-data_selfreport["start_time"])/np.timedelta64(1,'h')
+
+# Write to csv
+data_selfreport.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_datapoints.csv'), index=False)
+
 
 #%%
+reshaped_data = data_selfreport.loc[:, ['participant_id','study_day','date','start_time','end_time','hours_since_start_day']]
+
 all_participants = data_study_day.participant_id.drop_duplicates()
 all_participants.index = np.array(range(0,len(all_participants.index)))
 all_dict = {}
@@ -357,12 +367,14 @@ for i in range(0, len(all_participants)):
     # Within a participant, go through each day
     for j in range(0, len(current_data_study_day.index)):
         this_study_day = current_data_study_day.study_day.iloc[j]
-        study_day_time_to_event_data = current_reshaped_data[current_reshaped_data.study_day == this_study_day].time_to_next_event
-        new_dict = {this_study_day:{'participant_id':current_data_study_day.participant_id.iloc[j],'study_day':this_study_day, 'day_length': current_data_study_day.study_day_length.iloc[j], 'time_to_next_event':study_day_time_to_event_data}}
+        study_day_hours_since_start_day = current_reshaped_data[current_reshaped_data.study_day == this_study_day].hours_since_start_day
+        new_dict = {this_study_day:{'participant_id':current_data_study_day.participant_id.iloc[j],'study_day':this_study_day, 'day_length': current_data_study_day.study_day_length.iloc[j], 'hours_since_start_day':study_day_hours_since_start_day}}
         current_dict.update(new_dict)
     
     # Update participant
     all_dict.update({current_participant:current_dict})
 
 #%%
+data_selfreport[data_selfreport['is_within_working_day']==0].to_csv(os.path.join(os.path.realpath(dir_data), 'sr_outside_working_day.csv'), index=False)
+
 
