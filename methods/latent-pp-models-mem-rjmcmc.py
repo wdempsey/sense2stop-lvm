@@ -21,7 +21,7 @@ dir_picklejar = os.environ['dir_picklejar']
 ###############################################################################
 filename = os.path.join(os.path.realpath(dir_picklejar), 'save_all_dict')
 infile = open(filename,'rb')
-collect_results = pickle.load(infile)
+clean_data = pickle.load(infile)
 infile.close()
 
 #%%
@@ -29,8 +29,6 @@ infile.close()
 ###############################################################################
 # Estimation using pymc3
 ###############################################################################
-
-use_this_data = collect_data_analysis['df_datapoints']
 
 def exponential_log_complementary_cdf(x, lam):
     ''' log complementary CDF of exponential distribution '''
