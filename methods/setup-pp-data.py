@@ -377,4 +377,10 @@ for i in range(0, len(all_participants)):
 #%%
 data_selfreport[data_selfreport['is_within_working_day']==0].to_csv(os.path.join(os.path.realpath(dir_data), 'sr_outside_working_day.csv'), index=False)
 
+#%%
+filename = os.path.join(os.path.realpath(dir_picklejar), 'save_all_dict')
+outfile = open(filename, 'wb')
+pickle.dump(all_dict, outfile)
+outfile.close()
 
+# %%
