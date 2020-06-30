@@ -8,6 +8,7 @@ from scipy import stats
 import os
 import pickle
 from scipy import special
+import theano.tensor as tt
 
 ## List down file paths
 exec(open('../env_vars.py').read())
@@ -64,25 +65,38 @@ def exponential_log_pdf(x, lam):
     ''' log complementary CDF of exponential distribution '''
     return np.log(lam)-lam*x
 
-def selfreport_mem(observed, latent):
+
+def selfreport_mem(observed, latent, dimon):
+    '''
+    observed: Observed self report times
+    latent: Vector of latent smoking events (length is max) 
+    dimon: Integer saying how many of the latent entries are currently included
+    '''
     total = 1.0
-    for entry in observed:
-        if entry not in latent:
-            total = -1000000
-    for entry in latent:
-        if entry in observed:
-            total *= 0.9
-        else:
-            total *= 0.1
+    temp_latent = latent[range(dimon)]
+    if not np.all(np.isin(observed,temp_latent)):
+        total = -1000000
+    else: 
+        total = np.prod(np.isin(temp_latent,observed)*0.9 + (1-np.isin(temp_latent,observed))*0.1)
     return total
 
+max_events = 0.0 # Defining max number of events
+for participants in clean_data.keys():
+        for days in clean_data[participants].keys():
+            max_events = np.max([max_events,len(clean_data[participants][days]['hours_since_start_day'])])
+
+max_events = max_events + 10 # Just to be safe let's add a few more
+max_events = max_events.astype('int')
 #%%
 
 ###############################################################################
-# Estimation using pymc3
+'''
+Estimation using pymc3.
+Model is a static graph so we handle this by having a maximum number of 
+events within a day length max_events that tells us which events are "on" 
+'''
 ###############################################################################
 
-#%%
 with pm.Model() as model:
     # -------------------------------------------------------------------------
     # Priors
@@ -98,9 +112,13 @@ with pm.Model() as model:
         for days in clean_data[participants].keys():
             if len(clean_data[participants][days]['hours_since_start_day']) > 0:
                 pp_rate = lamb_observed*clean_data[participants][days]['day_length']
-                smoke_length = pm.Poisson("smoke_length", mu=pp_rate, testval = len(clean_data[participants][days]['hours_since_start_day'])) # Number of Events in Day
-                smoke_times = pm.Uniform("smoke_times", lower = 0.0, upper = clean_data[participants][days]['day_length'], shape = smoke_length.shape[0], testval = clean_data[participants][days]['hours_since_start_day']) # Location of Events in Day
-                sr_times = pm.Potential('sr_times', selfreport_mem(observed=clean_data[participants][days]['hours_since_start_day'], latent=smoke_times))
+                num_sr = len(clean_data[participants][days]['hours_since_start_day'])
+                sr = clean_data[participants][days]['hours_since_start_day']
+                day_length = clean_data[participants][days]['day_length']
+                init = np.append(sr, np.repeat(0,max_events-num_sr))
+                smoke_length = pm.Poisson("smoke_length", mu=pp_rate, testval = num_sr) # Number of Events in Day
+                smoke_times = pm.Uniform("smoke_times", lower = 0.0, upper = day_length, shape = max_events, testval = init) # Location of Events in Day
+                sr_times = pm.Potential('sr_times', selfreport_mem(observed=sr, latent=smoke_times, ))
 
 
 #%%
