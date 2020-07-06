@@ -8,10 +8,10 @@ Created on Wed Jul  1 10:04:54 2020
 #%%
 
 ## Import modules
-import pandas as pd
 import numpy as np
 import os
 import pickle
+import scipy.special as sc
 
 ## List down file paths
 exec(open('../env_vars.py').read())
@@ -89,14 +89,19 @@ class latent(object):
     def __init__(self, data=0, model=0, params=0):
         self.data = data
         self.model = model
-        self.params = params
+        self.params = params        
+    
+    def update_params(self, new_params):
+        self.params = new_params
+        return 0
     
     def compute_pp(self):
+        total = 0 
         for id in self.data.keys():
             for days in self.data[id].keys():
                 latent = self.data[id][days]
-                print(self.model(latent, self.params))
-        return 0
+                total += self.model(latent, self.params)
+        return total
     
     def adapMH_times(self, covariance_list):
         '''
@@ -124,21 +129,22 @@ def latent_poisson_process(latent_dict, params):
     latent: Vector of latent smoking events
     parameters: vector of parameters
     '''
-    latent = latent_dict['hours_since_start_day']
     daylength = latent_dict['day_length']
-    total = len(latent)* np.log(params) - params * daylength
+    total = latent_dict['hours_since_start_day'].size * np.log(params) - params * daylength - sc.gammaln(latent_dict['hours_since_start_day'].size+1)
     return total
 
-lat_pp = latent(data=latent_data, model=latent_poisson_process, params = 1.0)
+lat_pp = latent(data=clean_data, model=latent_poisson_process, params = 1.0)
 
 lat_pp.compute_pp()
+
+lat_pp.update_params(2.0)
         
 #%%
 '''
 Define the model as a latent object and a list of mem objects
 '''
 
-def model(object):
+class model(object):
     '''
     This class defines the latent process
     Attributes:
@@ -162,14 +168,31 @@ def model(object):
             are to be used.  Default is False.
         '''
         for id in self.data.keys():
-            for days in self.smoke[id].keys():
-                latent = self.data[id][days]
+            for days in self.data[id].keys():
+                smoke = self.data[id][days]
+                llik_current= latent_poisson_process(smoke, params = 1.0)
+                new_smoke = smoke.copy()
                 birthdeath = np.random.binomial(1,0.5)
                 if (birthdeath == 1):
-                    birth = np.random.uniform(low=0.0, high = latent['day_length'])
-                    new_latent = np.sort(np.append(latent['hours_since_start_day'], birth)) 
-                    trans_birth = p * latent['day_length']
-                    trans_death = (1-p) * latent['hours_since_start_day'].size
-                
-                
+                    birth = np.random.uniform(low=0.0, high = smoke['day_length'])    
+                    new_smoke['hours_since_start_day'] = np.sort(np.append(new_smoke['hours_since_start_day'], birth)) 
+                    logtrans_birth = np.log(p) + np.log(smoke['day_length'])
+                    logtrans_death = np.log(1-p) + np.log(smoke['hours_since_start_day'].size)
+                    llik_birth = latent_poisson_process(new_smoke, params = 1.0)
+                    log_acceptprob = (llik_birth-llik_current) + (logtrans_death-logtrans_birth)
+                    acceptprob = np.min(np.exp(log_accept),1)
+                    temp = np.random.binomial(1, p = acceptprob)
+                    if temp == 1:
+                        smoke['hours_since_start_day'] = new_smoke['hours_since_start_day']
+                else: 
+                    death = np.random.randint(smoke['hours_since_start_day'].size, size = 1)
+                    new_smoke['hours_since_start_day'] = np.sort(np.append(new_smoke['hours_since_start_day'], birth)) 
+                    logtrans_birth = np.log(p) + np.log(smoke['day_length'])
+                    logtrans_death = np.log(1-p) + np.log(smoke['hours_since_start_day'].size)
+                    llik_birth = latent_poisson_process(new_smoke, params = 1.0)
+                    log_acceptprob = (llik_birth-llik_current) + (logtrans_death-logtrans_birth)
+                    acceptprob = np.min(np.exp(log_accept),1)
+                    temp = np.random.binomial(1, p = acceptprob)
+                    if temp == 1:
+                        smoke['hours_since_start_day'] = new_smoke['hours_since_start_day']
         return 0
