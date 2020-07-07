@@ -351,7 +351,7 @@ data_selfreport.to_csv(os.path.join(os.path.realpath(dir_data), 'work_with_datap
 
 
 #%%
-reshaped_data = data_selfreport.loc[:, ['participant_id','study_day','date','start_time','end_time','hours_since_start_day']]
+reshaped_data = data_selfreport.loc[:, ['participant_id','study_day','date','start_time','end_time','hours_since_start_day','delta']]
 
 all_participants = data_study_day.participant_id.drop_duplicates()
 all_participants.index = np.array(range(0,len(all_participants.index)))
@@ -368,7 +368,8 @@ for i in range(0, len(all_participants)):
     for j in range(0, len(current_data_study_day.index)):
         this_study_day = current_data_study_day.study_day.iloc[j]
         study_day_hours_since_start_day = current_reshaped_data[current_reshaped_data.study_day == this_study_day].hours_since_start_day
-        new_dict = {this_study_day:{'participant_id':current_data_study_day.participant_id.iloc[j],'study_day':this_study_day, 'day_length': current_data_study_day.study_day_length.iloc[j], 'hours_since_start_day':study_day_hours_since_start_day}}
+        this_delta = current_reshaped_data[current_reshaped_data.study_day == this_study_day].delta
+        new_dict = {this_study_day:{'participant_id':current_data_study_day.participant_id.iloc[j],'study_day':this_study_day, 'day_length': current_data_study_day.study_day_length.iloc[j], 'hours_since_start_day':study_day_hours_since_start_day, 'delta':this_delta}}
         current_dict.update(new_dict)
     
     # Update participant
