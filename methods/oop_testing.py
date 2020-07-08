@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Jul  1 10:04:54 2020
-
-@author: Balthazar
+A RJMCMC code-base to fit recurrent-event models
+where events are measured with uncertainty.
+@author: Walter Dempsey and Jamie Yap
 """
 
 #%%
@@ -43,8 +43,12 @@ for key in clean_data.keys():
         day_temp = temp[days]
         if len(day_temp['hours_since_start_day']) > 0:
             ## Check if any times < or > 1hr 
-            day_temp['hours_since_start_day'] = day_temp['hours_since_start_day'].iloc[np.where(day_temp['hours_since_start_day'] > -1)]
-            day_temp['hours_since_start_day'] = day_temp['hours_since_start_day'].iloc[np.where(day_temp['day_length'] - day_temp['hours_since_start_day'] > -1)]
+            loc_temp = np.where(day_temp['hours_since_start_day'] > -1)
+            day_temp['hours_since_start_day'] = day_temp['hours_since_start_day'].iloc[loc_temp]
+            day_temp['delta'] = day_temp['delta'].iloc[loc_temp]
+            loc_temp = np.where(day_temp['day_length'] - day_temp['hours_since_start_day'] > -1)
+            day_temp['hours_since_start_day'] = day_temp['hours_since_start_day'].iloc[loc_temp]
+            day_temp['delta'] = day_temp['delta'].iloc[loc_temp]
             if day_temp['hours_since_start_day'].size > 0:
                 day_min = np.min(day_temp['hours_since_start_day'])
                 day_max = np.max(day_temp['hours_since_start_day'])
@@ -54,12 +58,26 @@ for key in clean_data.keys():
             day_min = np.min([day_min,0])
             day_max = np.max([day_max, day_temp['day_length']])
             day_temp['hours_since_start_day'] = day_temp['hours_since_start_day'] - day_min
-            day_temp['hours_since_start_day'] = np.unique(day_temp['hours_since_start_day'])
+            unique_temp = np.unique(day_temp['hours_since_start_day'], return_index=True)[1]
+            day_temp['hours_since_start_day'] = day_temp['hours_since_start_day'].iloc[unique_temp]
+            day_temp['delta'] = day_temp['delta'].iloc[unique_temp]
             day_temp['day_length'] = day_max - day_min
 
+#%% 
+'''
+Making latent initial estimate for now
+'''   
+import copy
 
+latent_data = copy.deepcopy(clean_data)
 
-#%%
+for key in latent_data.keys():
+    for days in latent_data[key].keys(): 
+        result = np.array([])
+        for delta in latent_data[key][days]['delta']:
+            result = np.append(result, np.mean(convert_windowtag(delta)))
+        temp = latent_data[key][days]['hours_since_start_day'] - result
+        latent_data[key][days]['hours_since_start_day'] = temp
 
 #%%
 
@@ -107,21 +125,59 @@ class measurement_model(object):
     Output: log-likelihood for fixed MEM parameters
 '''
 
-def selfreport_mem(observed_dict, latent_dict):
+def convert_windowtag(windowtag):
+    if windowtag == 1:
+        window_max = 5./60.; window_min = 0./60.
+    elif windowtag == 2:
+        window_max = 15./60.; window_min = 5./60.
+    elif windowtag == 3:
+        window_max = 30./60.; window_min = 15./60.
+    else:
+        window_max = 60./60.; window_min = 30./60.
+    return window_min, window_max
+
+def normal_cdf(x, mu=0, sd=1):
+    '''Use scipy.special to compute cdf'''
+    z = (x-mu)/sd
+    return (sc.erf(z/np.sqrt(2))+1)/2 
+
+def matching(observed_dict, latent_dict):
+    ''' 
+    Matches observed and latent times.
+    Need to fix to allow for not perfect matches
+    '''
+    latent = np.sort(np.array(latent_dict['hours_since_start_day']))
+    observed = np.sort(np.array(observed_dict['hours_since_start_day']))
+    match = np.array([])
+    for obs in observed:
+        temp = np.max(np.where(latent < obs))
+        match = np.append(match, latent[temp])
+        latent = np.delete(latent, temp, axis = 0 )
+    return match, latent
+
+def selfreport_mem(x, t, winmin, winmax):
+    ''' Measurement model for self-report '''
+    gap = t - x
+    mem_scale = 10
+    upper = normal_cdf(winmax, mu = gap, sd = mem_scale)
+    lower = normal_cdf(winmin, mu = gap, sd = mem_scale)
+    return np.log(upper-lower)
+
+def selfreport_mem_total(observed_dict, latent_dict):
     '''
     observed: Observed self report times
     latent: Vector of latent smoking events
     '''
-    observed = observed_dict['hours_since_start_day']
-    latent = latent_dict['hours_since_start_day']
+    latent_matched, latent_notmatched = matching(observed_dict, latent_dict)
     total = 1.0
-    if not np.all(np.isin(observed,latent)):
+    if latent_matched.size != observed_dict['hours_since_start_day'].size:
         total = -np.inf
     else: 
-        total = np.prod(np.isin(latent,observed)*0.9 + (1-np.isin(latent,observed))*0.1)
+        total = latent_matched.size*np.log(0.9)
+        
     return total
 
-sr_mem = measurement_model(data=clean_data, model=selfreport_mem, latent = clean_data)
+sr_mem = measurement_model(data=clean_data, model=selfreport_mem_total, latent = clean_data)
 sr_mem.compute_total_mem()
 
 #%%
@@ -228,7 +284,6 @@ class model(object):
                         print("Accepted the birth for participant %s on day %s" % (id, days))
                         smoke['hours_since_start_day'] = new_smoke['hours_since_start_day']
                 elif (smoke['hours_since_start_day'].size > 0 and smoke['day_length'] > 0.0): 
-                   # print("Proposing a death")
                     death = np.random.randint(smoke['hours_since_start_day'].size, size = 1)
                     new_smoke['hours_since_start_day'] = np.delete(np.array(smoke['hours_since_start_day']), death, axis = 0)
                     logtrans_birth = np.log(p) + np.log(smoke['day_length'])
