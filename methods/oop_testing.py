@@ -63,22 +63,6 @@ for key in clean_data.keys():
             day_temp['delta'] = day_temp['delta'].iloc[unique_temp]
             day_temp['day_length'] = day_max - day_min
 
-#%% 
-'''
-Making latent initial estimate for now
-'''   
-import copy
-
-latent_data = copy.deepcopy(clean_data)
-
-for key in latent_data.keys():
-    for days in latent_data[key].keys(): 
-        result = np.array([])
-        for delta in latent_data[key][days]['delta']:
-            result = np.append(result, np.mean(convert_windowtag(delta)))
-        temp = latent_data[key][days]['hours_since_start_day'] - result
-        latent_data[key][days]['hours_since_start_day'] = temp
-
 #%%
 
 class measurement_model(object):
@@ -99,7 +83,7 @@ class measurement_model(object):
             for days in self.data[id].keys():
                 observed = self.data[id][days]
                 latent = self.latent[id][days]
-                total += np.log(self.model(observed,latent))
+                total += self.model(observed,latent)
         return total
 
     def compute_mem_userday(self, id, days):
@@ -143,22 +127,28 @@ def normal_cdf(x, mu=0, sd=1):
 
 def matching(observed_dict, latent_dict):
     ''' 
-    Matches observed and latent times.
-    Need to fix to allow for not perfect matches
+    For each obs, looks backward to see if there is a matching
+    latent time (that is not taken by a prior obs).  
+    Reports back matched pairs and non-matched times.
     '''
     latent = np.sort(np.array(latent_dict['hours_since_start_day']))
-    observed = np.sort(np.array(observed_dict['hours_since_start_day']))
-    match = np.array([])
-    for obs in observed:
-        temp = np.max(np.where(latent < obs))
-        match = np.append(match, latent[temp])
-        latent = np.delete(latent, temp, axis = 0 )
-    return match, latent
+    obs_order = np.argsort(observed_dict['hours_since_start_day'])
+    observed = np.array(observed_dict['hours_since_start_day'])[obs_order]
+    delta = np.array(observed_dict['delta'])[obs_order]
+    match = np.empty(shape = (1,3))
+    for iter in range(len(observed)):
+        current_obs = observed[iter]
+        current_delta = delta[iter]
+        if len(np.where(latent < current_obs)) > 0:
+            temp = np.max(np.where(latent < current_obs))
+            match = np.concatenate((match, [[latent[temp], current_obs, current_delta]]), axis = 0)
+            latent = np.delete(latent, temp, axis = 0 )
+    return match[1:], latent
 
 def selfreport_mem(x, t, winmin, winmax):
     ''' Measurement model for self-report '''
     gap = t - x
-    mem_scale = 10
+    mem_scale = 5
     upper = normal_cdf(winmax, mu = gap, sd = mem_scale)
     lower = normal_cdf(winmin, mu = gap, sd = mem_scale)
     return np.log(upper-lower)
@@ -170,14 +160,37 @@ def selfreport_mem_total(observed_dict, latent_dict):
     '''
     latent_matched, latent_notmatched = matching(observed_dict, latent_dict)
     total = 1.0
-    if latent_matched.size != observed_dict['hours_since_start_day'].size:
+    if latent_matched.shape[0] != observed_dict['hours_since_start_day'].size:
         total = -np.inf
     else: 
-        total = latent_matched.size*np.log(0.9)
-        
+        total = latent_matched.size*np.log(0.9) + latent_notmatched.size*np.log(0.1)
+    for row in latent_matched:
+        windowmin, windowmax = convert_windowtag(row[2])
+        total += selfreport_mem(row[0], row[1], windowmin, windowmax)
     return total
 
-sr_mem = measurement_model(data=clean_data, model=selfreport_mem_total, latent = clean_data)
+
+#%% 
+'''
+Making latent initial estimate for now
+'''   
+import copy
+
+latent_data = copy.deepcopy(clean_data)
+
+for key in latent_data.keys():
+    for days in latent_data[key].keys(): 
+        result = np.array([])
+        for delta in latent_data[key][days]['delta']:
+            result = np.append(result, np.mean(convert_windowtag(delta)))
+        temp = latent_data[key][days]['hours_since_start_day'] - result
+        latent_data[key][days]['hours_since_start_day'] = temp
+
+#%% 
+'''
+Testing measurement model output
+'''
+sr_mem = measurement_model(data=clean_data, model=selfreport_mem_total, latent = latent_data)
 sr_mem.compute_total_mem()
 
 #%%
@@ -230,7 +243,7 @@ def latent_poisson_process(latent_dict, params):
     total = latent_dict['hours_since_start_day'].size * np.log(params) - params * daylength - sc.gammaln(latent_dict['hours_since_start_day'].size+1)
     return total
 
-lat_pp = latent(data=clean_data, model=latent_poisson_process, params = 1.0)
+lat_pp = latent(data=latent_data, model=latent_poisson_process, params = 1.0)
 
 lat_pp.compute_total_pp()
         
@@ -261,10 +274,11 @@ class model(object):
             smartdumb = Logical variable indicating if smart-dumb proposals 
             are to be used.  Default is False.
         '''
-        for id in self.data.keys():
-            for days in self.data[id].keys():
-                smoke = self.data[id][days]
-                sr = self.data[id][days]
+        for participant in self.data.keys():
+            for days in self.data[participant].keys():
+                print("On Participant %s and day %s" % (participant, days))
+                smoke = self.latent.data[participant][days]
+                sr = self.memmodel.data[participant][days]
                 llik_mem_current = self.memmodel.model(sr, smoke)
                 llik_current= self.latent.model(smoke, params = 1.0)
                 new_smoke = smoke.copy()
@@ -276,7 +290,7 @@ class model(object):
                     logtrans_birth = np.log(p) + np.log(smoke['day_length'])
                     logtrans_death = np.log(1-p) + np.log(smoke['hours_since_start_day'].size)
                     llik_birth = self.latent.model(new_smoke, params = 1.0)
-                    llik_mem_birth = selfreport_mem(sr, new_smoke)
+                    llik_mem_birth = self.memmodel.model(sr, new_smoke)
                     log_acceptprob = (llik_birth-llik_current) + (logtrans_death-logtrans_birth)  + (llik_mem_birth-llik_mem_current)
                     acceptprob = np.exp(log_acceptprob)
                     temp = np.random.binomial(1, p = np.min([acceptprob,1]))
