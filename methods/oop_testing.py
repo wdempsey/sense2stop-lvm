@@ -139,7 +139,7 @@ def matching(observed_dict, latent_dict):
     for iter in range(len(observed)):
         current_obs = observed[iter]
         current_delta = delta[iter]
-        if len(np.where(latent < current_obs)) > 0:
+        if np.where(latent < current_obs)[0].size > 0:
             temp = np.max(np.where(latent < current_obs))
             match = np.concatenate((match, [[latent[temp], current_obs, current_delta]]), axis = 0)
             latent = np.delete(latent, temp, axis = 0 )
@@ -276,28 +276,28 @@ class model(object):
         '''
         for participant in self.data.keys():
             for days in self.data[participant].keys():
-                print("On Participant %s and day %s" % (participant, days))
+#                if participant <= 222:
+#                    print("On Participant %s and day %s" % (participant, days))
                 smoke = self.latent.data[participant][days]
                 sr = self.memmodel.data[participant][days]
                 llik_mem_current = self.memmodel.model(sr, smoke)
                 llik_current= self.latent.model(smoke, params = 1.0)
-                new_smoke = smoke.copy()
+                new_smoke = copy.deepcopy(smoke)
                 birthdeath = np.random.binomial(1,0.5)
                 if (birthdeath == 1 and smoke['day_length'] > 0.0):
-                    #print("Proposing a birth")
                     birth = np.random.uniform(low=0.0, high = smoke['day_length'])    
                     new_smoke['hours_since_start_day'] = np.sort(np.append(new_smoke['hours_since_start_day'], birth)) 
                     logtrans_birth = np.log(p) + np.log(smoke['day_length'])
-                    logtrans_death = np.log(1-p) + np.log(smoke['hours_since_start_day'].size)
+                    if smoke['hours_since_start_day'].size == 0:
+                        logtrans_death = np.log(1-p)
+                    else: 
+                        logtrans_death = np.log(1-p) + np.log(smoke['hours_since_start_day'].size)
                     llik_birth = self.latent.model(new_smoke, params = 1.0)
                     llik_mem_birth = self.memmodel.model(sr, new_smoke)
                     log_acceptprob = (llik_birth-llik_current) + (logtrans_death-logtrans_birth)  + (llik_mem_birth-llik_mem_current)
                     acceptprob = np.exp(log_acceptprob)
                     temp = np.random.binomial(1, p = np.min([acceptprob,1]))
-                    if temp == 1:
-                        print("Accepted the birth for participant %s on day %s" % (id, days))
-                        smoke['hours_since_start_day'] = new_smoke['hours_since_start_day']
-                elif (smoke['hours_since_start_day'].size > 0 and smoke['day_length'] > 0.0): 
+                if (birthdeath == 0 and smoke['hours_since_start_day'].size > 0 and smoke['day_length'] > 0.0): 
                     death = np.random.randint(smoke['hours_since_start_day'].size, size = 1)
                     new_smoke['hours_since_start_day'] = np.delete(np.array(smoke['hours_since_start_day']), death, axis = 0)
                     logtrans_birth = np.log(p) + np.log(smoke['day_length'])
@@ -307,9 +307,12 @@ class model(object):
                     log_acceptprob = (llik_death-llik_current) + (logtrans_birth-logtrans_death) + (llik_mem_death-llik_mem_current)
                     acceptprob = np.exp(log_acceptprob)
                     temp = np.random.binomial(1, p = np.min([acceptprob,1]))
-                    if temp == 1:
-                        print("Accepted the death for participant %s on day %s" % (id, days))
-                        smoke['hours_since_start_day'] = new_smoke['hours_since_start_day']
+                if temp == 1:
+                    if birthdeath == 0:
+                        print("Accepted death for participant %s on day %s" % (participant, days))
+                    if birthdeath == 1:
+                        print("Accepted birth for participant %s on day %s" % (participant, days))
+                    smoke['hours_since_start_day'] = new_smoke['hours_since_start_day']
         return 0
     
     def adapMH_times(self, covariance_list):
