@@ -284,7 +284,7 @@ class model(object):
                 llik_current= self.latent.model(smoke, params = 1.0)
                 new_smoke = copy.deepcopy(smoke)
                 birthdeath = np.random.binomial(1,0.5)
-                if (birthdeath == 1 and smoke['day_length'] > 0.0):
+                if birthdeath == 1 and smoke['day_length'] > 0.0:
                     birth = np.random.uniform(low=0.0, high = smoke['day_length'])    
                     new_smoke['hours_since_start_day'] = np.sort(np.append(new_smoke['hours_since_start_day'], birth)) 
                     logtrans_birth = np.log(p) + np.log(smoke['day_length'])
@@ -297,7 +297,7 @@ class model(object):
                     log_acceptprob = (llik_birth-llik_current) + (logtrans_death-logtrans_birth)  + (llik_mem_birth-llik_mem_current)
                     acceptprob = np.exp(log_acceptprob)
                     temp = np.random.binomial(1, p = np.min([acceptprob,1]))
-                if (birthdeath == 0 and smoke['hours_since_start_day'].size > 0 and smoke['day_length'] > 0.0): 
+                elif (birthdeath == 0) and (smoke['hours_since_start_day'].size > 0) and (smoke['day_length'] > 0.0): 
                     death = np.random.randint(smoke['hours_since_start_day'].size, size = 1)
                     new_smoke['hours_since_start_day'] = np.delete(np.array(smoke['hours_since_start_day']), death, axis = 0)
                     logtrans_birth = np.log(p) + np.log(smoke['day_length'])
@@ -308,19 +308,38 @@ class model(object):
                     acceptprob = np.exp(log_acceptprob)
                     temp = np.random.binomial(1, p = np.min([acceptprob,1]))
                 if temp == 1:
-                    if birthdeath == 0:
+                    if birthdeath == 0 and smoke['hours_since_start_day'].size > 0:
                         print("Accepted death for participant %s on day %s" % (participant, days))
+                        smoke['hours_since_start_day'] = new_smoke['hours_since_start_day']
                     if birthdeath == 1:
                         print("Accepted birth for participant %s on day %s" % (participant, days))
-                    smoke['hours_since_start_day'] = new_smoke['hours_since_start_day']
+                        smoke['hours_since_start_day'] = new_smoke['hours_since_start_day']
+                    
         return 0
     
-    def adapMH_times(self, covariance_list):
+    def adapMH_times(self):
         '''
         Builds an adaptive MH for updating the latent
         smoking times (account for highly irregular 
         covariance)
         '''
+        for participant in self.data.keys():
+            for days in self.data[participant].keys():
+                smoke = self.latent.data[participant][days]
+                sr = self.memmodel.data[participant][days]
+                if smoke['hours_since_start_day'].size > 0:
+                    llik_mem_current = self.memmodel.model(sr, smoke)
+                    llik_current= self.latent.model(smoke, params = 1.0)
+                    new_smoke = copy.deepcopy(smoke)
+                    new_smoke['hours_since_start_day'] = new_smoke['hours_since_start_day'] + np.random.normal(scale = 2.5/60., size=smoke['hours_since_start_day'].size)
+                    llik_mem_jitter = self.memmodel.model(sr, new_smoke)
+                    llik_jitter = self.latent.model(new_smoke, params = 1.0)
+                    log_acceptprob = (llik_jitter-llik_current) + (llik_mem_jitter-llik_mem_current)
+                    acceptprob = np.exp(log_acceptprob)
+                    temp = np.random.binomial(1, p = np.min([acceptprob,1]))
+                    if temp == 1:
+                        print("Accepted jitter for participant %s on day %s" % (participant, days))
+                        smoke['hours_since_start_day'] = new_smoke['hours_since_start_day']                    
         return 0
 
 
@@ -328,3 +347,4 @@ class model(object):
 
 test_model = model(init = clean_data,  latent = lat_pp, model = sr_mem)
 test_model.birth_death()
+test_model.adapMH_times()
