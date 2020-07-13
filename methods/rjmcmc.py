@@ -161,6 +161,7 @@ def selfreport_mem_total(observed_dict, latent_dict):
     latent_matched, latent_notmatched = matching(observed_dict, latent_dict)
     total = 1.0
     if latent_matched.shape[0] != observed_dict['hours_since_start_day'].size:
+        ''' Assessing whether all self-reports have an associated latent smoking time '''
         total = -np.inf
     else: 
         total = latent_matched.size*np.log(0.9) + latent_notmatched.size*np.log(0.1)
@@ -227,9 +228,10 @@ class latent(object):
     Building a latent poisson process model for smoking times
     Input: Daily latent smoking times
     Output: log-likelihood for fixed parameters
+    Ex1: PP homogeneous
 '''
 
-def latent_poisson_process(latent_dict, params):
+def latent_poisson_process_ex1(latent_dict, params):
     '''
     latent: Vector of latent smoking events
     parameters: vector of parameters
@@ -238,9 +240,35 @@ def latent_poisson_process(latent_dict, params):
     total = latent_dict['hours_since_start_day'].size * np.log(params) - params * daylength - sc.gammaln(latent_dict['hours_since_start_day'].size+1)
     return total
 
-lat_pp = latent(data=latent_data, model=latent_poisson_process, params = 0.14)
+lat_pp_ex1 = latent(data=latent_data, model=latent_poisson_process_ex1, params = np.array([0.14]))
 
-lat_pp.compute_total_pp(None)
+lat_pp_ex1.compute_total_pp(None)
+
+#%%
+'''
+    Building a latent poisson process model for smoking times
+    Input: Daily latent smoking times
+    Output: log-likelihood for fixed parameters
+    Ex2: PP for pre- and post- quit day  (day 4 is post quit)
+'''
+
+def latent_poisson_process_ex2(latent_dict, params):
+    '''
+    latent: Vector of latent smoking events
+    parameters: vector of parameters
+    '''
+    if latent_dict['study_day'] < 4:
+        temp_param = params[0]
+    else:
+        temp_param = params[1]
+    daylength = latent_dict['day_length']
+    total = latent_dict['hours_since_start_day'].size * np.log(temp_param) - temp_param  * daylength - sc.gammaln(latent_dict['hours_since_start_day'].size+1)
+    return total
+
+lat_pp_ex2 = latent(data=latent_data, model=latent_poisson_process_ex2, params = np.array([0.14,0.14]))
+
+lat_pp_ex2.compute_total_pp(None)
+        
         
 #%%
 '''
@@ -257,8 +285,8 @@ class model(object):
     
     def __init__(self, init=0, latent=0, model=0):
         self.data = init # Initial smoking estimates
-        self.latent = latent
-        self.memmodel = model
+        self.latent = latent # Latent smoking process model
+        self.memmodel = model # Measurement-error model
     
     def birth_death(self, p = 0.5, smartdumb = False):
         '''
@@ -340,41 +368,68 @@ class model(object):
                         smoke['hours_since_start_day'] = new_smoke['hours_since_start_day']                    
         return total_accept_jitter/total_possible_jitter
 
-    def adapMH_params(self):
+    def adapMH_params(self, adaptive = False, iteration = 1, covariance = 0, barX = 0):
         '''
-        Builds an adaptive MH for updating model parameter
+        Builds an adaptive MH for updating model parameter.
+        If adaptive = True 
+        then use "An adaptive metropolis algorithm" Haario et al (2001)
+        to perform adaptive updates.
         '''
         llik_current = self.latent.compute_total_pp(None)
-        new_params = self.latent.params + np.random.normal(scale = 0.0025, size=1)
+        if adaptive is False:
+            new_params = self.latent.params + np.random.normal(scale = 0.0025, size=self.latent.params.size)
+        else:
+            if iteration <= 500:
+                new_params = self.latent.params + np.random.multivariate_normal(mean = barX, cov = covariance)
+            else:
+                new_params = self.latent.params + np.random.multivariate_normal(mean = barX, cov = covariance)
         llik_jitter = self.latent.compute_total_pp(new_params)
         log_acceptprob = (llik_jitter-llik_current)
         acceptprob = np.exp(log_acceptprob)
         temp = np.random.binomial(1, p = np.min([acceptprob,1]))
-        if temp == 1:
-            return new_params
+        if adaptive is True: # Update Covariance and barX
+            sd = 2.4**2 / self.latent.params.size
+            barX_new = 1/iteration * ((iteration-1) * barX + new_params)
+            intermediate_step = iteration * np.outer(barX,barX) - (iteration+1) * np.outer(barX_new,barX_new) + np.outer(new_params,new_params)
+            random_adjust = np.random.normal(scale = 0.0001, size = 1)
+            matrix_adjust = np.diag(np.repeat(random_adjust,new_params.size))
+            covariance_new = (iteration-1)/iteration * covariance + sd/iteration * ( intermediate_step + matrix_adjust)
+            if temp == 1:
+                return new_params
+            else:
+                return self.latent.params
         else:
-            return self.latent.params
-    
+            if temp == 1:
+                return new_params
+            else:
+                return self.latent.params
+        
     def update_params(self, new_params):
         self.params = new_params
         return 0
 
 
 #%%
-
-test_model = model(init = clean_data,  latent = lat_pp, model = sr_mem)
+lat_pp = lat_pp_ex1
+test_model = model(init = clean_data,  latent = lat_pp , model = sr_mem)
 #test_model.birth_death()
 #test_model.adapMH_times()
 num_iters = 2000
-temp = np.zeros(shape = (num_iters))
+temp = np.zeros(shape = (num_iters, lat_pp.params.size))
 for iter in range(num_iters):
     print(lat_pp.params)
     test_model = model(init = clean_data,  latent = lat_pp, model = sr_mem)
     new_params = test_model.adapMH_params()
-    temp[iter] = new_params
+    temp[iter,:] = new_params
     lat_pp.update_params(new_params)
     
 #%%
     
 import matplotlib.pyplot as plt
-plt.hist(temp, bins = 40)
+plt.hist(temp[:,0], bins = 40)
+#plt.hist(temp[:,1], bins = 40)
+
+#%%
+
+#test_model.birth_death()
+test_model.adapMH_times()
