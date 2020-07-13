@@ -212,21 +212,16 @@ class latent(object):
         self.params = new_params
         return 0
     
-    def compute_total_pp(self):
+    def compute_total_pp(self, params):
+        if params is None:
+            params = self.params
         total = 0 
         for id in self.data.keys():
             for days in self.data[id].keys():
                 latent = self.data[id][days]
-                total += self.model(latent, self.params)
+                total += self.model(latent, params)
         return total
-    
-    
-    def adapMH_times(self, covariance_list):
-        '''
-        Builds an adaptive MH for updating model parameter
-        '''
-        return 0
-    
+        
 #%%
 '''
     Building a latent poisson process model for smoking times
@@ -243,9 +238,9 @@ def latent_poisson_process(latent_dict, params):
     total = latent_dict['hours_since_start_day'].size * np.log(params) - params * daylength - sc.gammaln(latent_dict['hours_since_start_day'].size+1)
     return total
 
-lat_pp = latent(data=latent_data, model=latent_poisson_process, params = 1.0)
+lat_pp = latent(data=latent_data, model=latent_poisson_process, params = 0.14)
 
-lat_pp.compute_total_pp()
+lat_pp.compute_total_pp(None)
         
 #%%
 '''
@@ -323,8 +318,11 @@ class model(object):
         smoking times (account for highly irregular 
         covariance)
         '''
+        total_possible_jitter = 0.
+        total_accept_jitter = 0.
         for participant in self.data.keys():
             for days in self.data[participant].keys():
+                total_possible_jitter += 1.
                 smoke = self.latent.data[participant][days]
                 sr = self.memmodel.data[participant][days]
                 if smoke['hours_since_start_day'].size > 0:
@@ -338,13 +336,45 @@ class model(object):
                     acceptprob = np.exp(log_acceptprob)
                     temp = np.random.binomial(1, p = np.min([acceptprob,1]))
                     if temp == 1:
-                        print("Accepted jitter for participant %s on day %s" % (participant, days))
+                        total_accept_jitter += 1.
                         smoke['hours_since_start_day'] = new_smoke['hours_since_start_day']                    
+        return total_accept_jitter/total_possible_jitter
+
+    def adapMH_params(self):
+        '''
+        Builds an adaptive MH for updating model parameter
+        '''
+        llik_current = self.latent.compute_total_pp(None)
+        new_params = self.latent.params + np.random.normal(scale = 0.0025, size=1)
+        llik_jitter = self.latent.compute_total_pp(new_params)
+        log_acceptprob = (llik_jitter-llik_current)
+        acceptprob = np.exp(log_acceptprob)
+        temp = np.random.binomial(1, p = np.min([acceptprob,1]))
+        if temp == 1:
+            return new_params
+        else:
+            return self.latent.params
+    
+    def update_params(self, new_params):
+        self.params = new_params
         return 0
 
 
 #%%
 
 test_model = model(init = clean_data,  latent = lat_pp, model = sr_mem)
-test_model.birth_death()
-test_model.adapMH_times()
+#test_model.birth_death()
+#test_model.adapMH_times()
+num_iters = 2000
+temp = np.zeros(shape = (num_iters))
+for iter in range(num_iters):
+    print(lat_pp.params)
+    test_model = model(init = clean_data,  latent = lat_pp, model = sr_mem)
+    new_params = test_model.adapMH_params()
+    temp[iter] = new_params
+    lat_pp.update_params(new_params)
+    
+#%%
+    
+import matplotlib.pyplot as plt
+plt.hist(temp, bins = 40)
