@@ -376,7 +376,7 @@ class model(object):
         to perform adaptive updates.
         '''
         llik_current = self.latent.compute_total_pp(None)
-        covariance_init = np.array([[0.01,0.0],[0.0,0.01]])
+        covariance_init = np.array([[0.001,0.0],[0.0,0.001]])
         barX_init = np.array([0.,0.])
         if adaptive is False:
             new_params = np.exp(np.log(self.latent.params) + np.random.normal(scale = 0.01, size=self.latent.params.size))
@@ -385,11 +385,12 @@ class model(object):
                 new_params = np.exp(np.log(self.latent.params)+ np.random.multivariate_normal(mean = barX_init, cov = covariance_init))
             else:
                 new_params =  np.exp(np.log(self.latent.params) + np.random.multivariate_normal(mean = barX_init, cov = covariance))
-        print("Proposal is %s" % new_params)
         llik_jitter = self.latent.compute_total_pp(new_params)
         log_acceptprob = (llik_jitter-llik_current)
         acceptprob = np.exp(log_acceptprob)
         temp = np.random.binomial(1, p = np.min([acceptprob,1]))
+        if temp == 0:
+            new_params = self.latent.params
         if adaptive is True: # Update Covariance and barX
             sd = 2.4**2 / self.latent.params.size
             log_new_params = np.log(new_params)
@@ -398,15 +399,9 @@ class model(object):
             random_adjust = np.random.normal(scale = 0.000001, size = 1)
             matrix_adjust = np.diag(np.repeat(random_adjust,new_params.size))
             covariance_new = (iteration-1)/iteration * covariance + sd/iteration * ( intermediate_step + matrix_adjust)
-            if temp == 1:
-                return new_params, covariance_new, barX_new
-            else:
-                return self.latent.params, covariance_new, barX_new
+            return new_params, covariance_new, barX_new
         else:
-            if temp == 1:
-                return new_params
-            else:
-                return self.latent.params
+            return new_params
         
     def update_params(self, new_params):
         self.params = new_params
@@ -418,10 +413,10 @@ lat_pp = latent(data=latent_data, model=latent_poisson_process_ex2, params = np.
 test_model = model(init = clean_data,  latent = lat_pp , model = sr_mem)
 #test_model.birth_death()
 #test_model.adapMH_times()
-num_iters = 2000
+num_iters = 500
 cutpoint = 500
-covariance_init = np.array([[0.01,0.0],[0.0,0.01]])
-barX_init = np.array([0.,0.])
+cov_new = np.array([[0.001,0.0],[0.0,0.001]])
+barX_new = np.array(lat_pp.params)
 temp = np.zeros(shape = (num_iters, lat_pp.params.size))
 for iter in range(num_iters):
     print(lat_pp.params)
@@ -429,7 +424,7 @@ for iter in range(num_iters):
     new_params, cov_new, barX_new = test_model.adapMH_params(adaptive=True,covariance=cov_new, barX=barX_new, iteration=iter+1, cutpoint = cutpoint)
     temp[iter,:] = new_params
     lat_pp.update_params(new_params)
-    
+    print(cov_new)
     
 #%%
     
