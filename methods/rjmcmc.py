@@ -383,9 +383,15 @@ class model(object):
             new_params = np.exp(np.log(self.latent.params) + np.random.normal(scale = 0.01, size=self.latent.params.size))
         else:
             if iteration <= cutpoint:
-                new_params = np.exp(np.log(self.latent.params)+ np.random.multivariate_normal(mean = barX_init, cov = covariance_init))
+                if covariance_init.shape[0] > 1:
+                    new_params = np.exp(np.log(self.latent.params)+ np.random.multivariate_normal(mean = barX_init, cov = covariance_init))
+                else:
+                    new_params = np.exp(np.log(self.latent.params)+ np.random.normal(loc = barX_init, scale = np.sqrt(covariance_init)))
             else:
-                new_params =  np.exp(np.log(self.latent.params) + np.random.multivariate_normal(mean = barX_init, cov = covariance))
+                if covariance_init.shape[0] > 1:
+                    new_params =  np.exp(np.log(self.latent.params) + np.random.multivariate_normal(mean = barX_init, cov = covariance))
+                else:
+                    new_params =  np.exp(np.log(self.latent.params) + np.random.normal(loc = barX_init, scale = np.sqrt(covariance_init)))
         llik_jitter = self.latent.compute_total_pp(new_params)
         log_acceptprob = (llik_jitter-llik_current)
         acceptprob = np.exp(log_acceptprob)
@@ -393,9 +399,9 @@ class model(object):
         if temp == 0:
             new_params = self.latent.params
         if adaptive is True: # Update Covariance and barX
-            sd = 2.4**2 / self.latent.params.size
+            sd = 2.38**2 / self.latent.params.size
             log_new_params = np.log(new_params)
-            barX_new = 1/iteration * ((iteration-1) * barX + log_new_params)
+            barX_new = barX + 1/iteration * (log_new_params-barX)
             intermediate_step = iteration * np.outer(barX,barX) - (iteration+1) * np.outer(barX_new,barX_new) + np.outer(log_new_params,log_new_params)
             random_adjust = np.random.normal(scale = 0.000001, size = 1)
             matrix_adjust = np.diag(np.repeat(random_adjust,new_params.size))
@@ -416,9 +422,9 @@ test_model = model(init = clean_data,  latent = lat_pp , model = sr_mem)
 #test_model.adapMH_times()
 num_iters = 5000
 cutpoint = 500
-cov_init = np.array([[0.01,0.0],[0.0,0.001]])
+cov_init = np.array([[0.005,0.0],[0.0,0.005]])
 barX_init = np.array([0.,0.])
-cov_new = np.array([[0.01,0.0],[0.0,0.001]])
+cov_new = np.array([[0.001,0.0],[0.0,0.01]])
 barX_new = np.array(lat_pp.params)
 temp = np.zeros(shape = (num_iters, lat_pp.params.size))
 for iter in range(num_iters):
@@ -432,10 +438,18 @@ for iter in range(num_iters):
     print(cov_new)
     
 #%%
-    
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt    
 plt.hist(temp[500:,0], bins = 40)
+plt.show()
+plt.plot(np.arange(temp[500:,0].size),temp[500:,0])
+plt.show()
+
 plt.hist(temp[500:,1], bins = 40)
+plt.show()
+plt.plot(np.arange(temp[500:,0].size),temp[500:,1])
+plt.show()
+
+
 
 #%%
 
@@ -443,14 +457,33 @@ plt.hist(temp[500:,1], bins = 40)
 test_model.adapMH_times()
 
 #%%
-lat_pp = latent(data=latent_data, model=latent_poisson_process_ex2, params = np.array([0.14,0.14]))
+lat_pp = latent(data=latent_data, model=latent_poisson_process_ex1, params = np.array([0.14]))
 test_model = model(init = clean_data,  latent = lat_pp , model = sr_mem)
-num_iters = 2000
+num_iters = 5000
+cutpoint = 500
+cov_init = np.array([0.05])
+barX_init = np.array([0.])
+cov_new = np.array([0.05])
+barX_new = np.array(lat_pp.params)
 temp = np.zeros(shape = (num_iters, lat_pp.params.size))
 for iter in range(num_iters):
     print(lat_pp.params)
     test_model = model(init = clean_data,  latent = lat_pp, model = sr_mem)
-    new_params = test_model.adapMH_params()
+    new_params, cov_new, barX_new = test_model.adapMH_params(adaptive=True,covariance=cov_new, barX=barX_new, 
+                                                             covariance_init= cov_init, barX_init= barX_init,
+                                                             iteration=iter+1, cutpoint = cutpoint)
     temp[iter,:] = new_params
     lat_pp.update_params(new_params)
+    print(cov_new)
     
+#%%
+import matplotlib.pyplot as plt    
+plt.hist(temp[500:], bins = 40)
+plt.show()
+plt.plot(np.arange(temp[500:].size),temp[500:,0])
+plt.show()
+
+#%%
+
+Practice
+
