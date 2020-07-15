@@ -368,7 +368,10 @@ class model(object):
                         smoke['hours_since_start_day'] = new_smoke['hours_since_start_day']                    
         return total_accept_jitter/total_possible_jitter
 
-    def adapMH_params(self, adaptive = False, iteration = 1, covariance = 0, barX = 0, cutpoint = 500):
+    def adapMH_params(self, adaptive = False, iteration = 1, 
+                      covariance = 0, barX = 0, 
+                      covariance_init = 0, 
+                      barX_init = 0, cutpoint = 500):
         '''
         Builds an adaptive MH for updating model parameter.
         If adaptive = True 
@@ -376,8 +379,6 @@ class model(object):
         to perform adaptive updates.
         '''
         llik_current = self.latent.compute_total_pp(None)
-        covariance_init = np.array([[0.001,0.0],[0.0,0.001]])
-        barX_init = np.array([0.,0.])
         if adaptive is False:
             new_params = np.exp(np.log(self.latent.params) + np.random.normal(scale = 0.01, size=self.latent.params.size))
         else:
@@ -413,15 +414,19 @@ lat_pp = latent(data=latent_data, model=latent_poisson_process_ex2, params = np.
 test_model = model(init = clean_data,  latent = lat_pp , model = sr_mem)
 #test_model.birth_death()
 #test_model.adapMH_times()
-num_iters = 500
+num_iters = 5000
 cutpoint = 500
-cov_new = np.array([[0.001,0.0],[0.0,0.001]])
+cov_init = np.array([[0.01,0.0],[0.0,0.001]])
+barX_init = np.array([0.,0.])
+cov_new = np.array([[0.01,0.0],[0.0,0.001]])
 barX_new = np.array(lat_pp.params)
 temp = np.zeros(shape = (num_iters, lat_pp.params.size))
 for iter in range(num_iters):
     print(lat_pp.params)
     test_model = model(init = clean_data,  latent = lat_pp, model = sr_mem)
-    new_params, cov_new, barX_new = test_model.adapMH_params(adaptive=True,covariance=cov_new, barX=barX_new, iteration=iter+1, cutpoint = cutpoint)
+    new_params, cov_new, barX_new = test_model.adapMH_params(adaptive=True,covariance=cov_new, barX=barX_new, 
+                                                             covariance_init= cov_init, barX_init= barX_init,
+                                                             iteration=iter+1, cutpoint = cutpoint)
     temp[iter,:] = new_params
     lat_pp.update_params(new_params)
     print(cov_new)
@@ -429,8 +434,8 @@ for iter in range(num_iters):
 #%%
     
 import matplotlib.pyplot as plt
-plt.hist(temp[500:,0], bins = 20)
-plt.hist(temp[500:,1], bins = 20)
+plt.hist(temp[500:,0], bins = 40)
+plt.hist(temp[500:,1], bins = 40)
 
 #%%
 
