@@ -24,11 +24,13 @@
 \newcommand{\sam}[1]{{\color{blue}{#1}}}
 \newcommand{\walt}[1]{\textcolor{red}{[WD:\ #1]}}
 
-\setlength{\textwidth}{6.5in}
-\setlength{\textheight}{8.5in}
-\setlength{\topmargin}{-0.25in}
-\setlength{\evensidemargin}{0in}
-\setlength{\oddsidemargin}{0in}
+\usepackage[margin=1.5in]{geometry}
+
+% \setlength{\textwidth}{6.5in}
+% \setlength{\textheight}{8.5in}
+% \setlength{\topmargin}{-0.25in}
+% \setlength{\evensidemargin}{0in}
+% \setlength{\oddsidemargin}{0in}
 %\setlength{\evensidemargin}{.25in}
 %\setlength{\oddsidemargin}{.25in}
 
@@ -145,9 +147,9 @@
  inference for latent event process from multiple sources of
  information]{Hierarchical point process and multi-scale
    measurements: data integration for latent recurrent event
-   detection under uncertainty} 
+   detection under uncertainty}
 \author{Walter Dempsey}
-\address {Department of Statistics, 
+\address {Department of Statistics,
   Harvard University, One Oxford Street
    Cambridge, MA  02138, USA}
  \email{wdempsey@fas.harvard.edu}
@@ -170,19 +172,19 @@ and measures unrelated to the event.  We show how the model can handle
 time-varying covariates as well. The resulting methods are applied to
 a smoking cessation trial, \emph{Sense2Stop}, in which smoking events
 are unobserved, but measured indirectly via passive and active
-measurements.   
+measurements.
 \end{abstract}
 
 % \begin{abstract}
 % This note provides initial thoughts toward building
 % an algorithm that assesses lapse likelihood based on multi-scale
-% measurements in Sense2Stop.  
+% measurements in Sense2Stop.
 % \end{abstract}
 
-% \keywords{Hierarchical Bayesian model; 
-% event-history process; 
-% multi-time scale measures; Markov chain Monte Carlo; 
-% micro-randomized trials; 
+% \keywords{Hierarchical Bayesian model;
+% event-history process;
+% multi-time scale measures; Markov chain Monte Carlo;
+% micro-randomized trials;
 % mobile health; smoking cessation}
 
 \maketitle
@@ -201,7 +203,7 @@ detection algorithm. The algorithm is based on a hierarchical point
 process model~\cite{Blei, DempseyICML}.  Recently, there have been
 several applications of point process models in public health, such as
 earthquakes \cite{RevMCMCguys}, bovine tuberculosis
-\cite{DiggleStatSci}, lung cancer \cite{DiggleStatSci}, 
+\cite{DiggleStatSci}, lung cancer \cite{DiggleStatSci},
 gastrointenstinal disease \cite{DiggleStatSci}, and smoking cessation
 \cite{MLHealth paper}.
 In many of these settings, events are observed within some
@@ -210,12 +212,12 @@ Mancha Region of Spain between 1989 and 1998~\cite{DiggleStatSci}).
 Prior work on point process models for smoking cessation assume the
 user consistently self-reports when they smoke~\cite{MLHealth}.
 Moreover, the methods above assume no additional event process is
-measured. 
+measured.
 In our setting, we indirectly observe smoking episodes (latent) via
 HTMGs (observed) which may or may not be smoking puffs.
 Our smoking detection algorithm accounts for the complexity of mobile
-health data, while allowing for error propogation.  
- 
+health data, while allowing for error propogation.
+
 This paper uses Sense2Stop, a recent smoking cessation study, to
 demonstrate our methodology.  Posterior distributions for the latent
 smoking episode point process for each participant are computed, along
@@ -236,7 +238,7 @@ $(0.5, 5) > (0.25, 5)$ respectively).  On this space, we define the
 following metric:
 \begin{align*}
 \langle (t,d) &, (t^\prime, d^\prime ) \rangle = |d^\prime - d| +
-\indicator [ d = d^\prime ] | t^\prime  - t | \\ 
+\indicator [ d = d^\prime ] | t^\prime  - t | \\
 &+ \indicator[ d < d^\prime ] | (1-t) + t^\prime | + \indicator[ d >
   d^\prime ] | (1-t^\prime) + t |.
 \end{align*}
@@ -254,31 +256,31 @@ the study window.  Therefore,~$\pr (T_1 > 0 ) = 1$. We set $T_1 =
 lapses are possible within the study window. We index these~$T_{2} <
 T_{3} < \ldots$ and write~$\bfT = (T_1, T_2, T_3,\ldots)$ to denote
 this recurrent event process.  We let~$d_j$ denote the day of the
-$j$th event, and $t_j$ the corresponding time. 
+$j$th event, and $t_j$ the corresponding time.
 Finally, let~$Y(t,d)$ denote the corresponding event process:
 \[
-  Y(t,d) = \left \{ 
-    \begin{array}{cc} 
-      1 & \exists \, j \text{ s.t. } (t_j,d_j) = (t,d) \\ 
+  Y(t,d) = \left \{
+    \begin{array}{cc}
+      1 & \exists \, j \text{ s.t. } (t_j,d_j) = (t,d) \\
       0 & \text{o.w.} \end{array} \right .
 \]
 Lapse is measured via multi-scale measurements: (1) random
 self-report, (2) evening self-report, (3) event-contingent
-self-report, and (4) a sensor-based classification algorithm. 
+self-report, and (4) a sensor-based classification algorithm.
 We next discuss each of the measurements.
 
 \subsection{Random self-reports}
 \label{section:randomEMAs}
 
 Let~$\bfs = (s_{1}, \ldots, s_{k})$ denote the random set of times at
-which a self-report is requested.  
-At each time~$s_j$, the user may decide to not respond to a request. 
+which a self-report is requested.
+At each time~$s_j$, the user may decide to not respond to a request.
 % Let~$s_i \in H_{t_i}$ denote the most recent requested report time
-% before time $t_i$. 
+% before time $t_i$.
 Let~$M_{j}$ be an indicator that the user does not respond at
 time~$s_j$ for each~$j=1,\ldots,k$.
 Given~$M_{j} = 0$, the self-reported binary indicator of a puff is
-denoted~$E_{1,j}$.  Conditional on~$E_{1,j} = 1$, the user is prompted 
+denoted~$E_{1,j}$.  Conditional on~$E_{1,j} = 1$, the user is prompted
 to report approximate time since first puff. This measurement, denoted
 $E_{2, j}$, is ordinal with buckets~1--19, 20--39, 40--59, 60--79,
 80--100, and $>$100 minutes.  This fully specifies the components of
@@ -291,7 +293,7 @@ be expressed as a sequence of conditional probabilities
   \pr \left( t_i \given H_{i}, \bfT \right) \cdot \pr \left( M_{i}
     \given H_{i}, \bfT \right) \pr \left( E_{1,i} \given M_{i}, H_{i},
   \bfT \right) \pr \left(E_{2,t} \given E_{1,t}, M_{i}, H_{i}, \bfT \right).
-\end{equation} 
+\end{equation}
 Note, the third term is unobserved if~$M_{i} = 1$; similarly, the
 fourth term is unobserved if either $M_{i}=1$ or both~$M_{i}=1$
 and $E_{1,i} = 0$.  The conditional distributions are still
@@ -303,10 +305,10 @@ independent of~$\bfT$ given the observed history. Using notation from
 Dawid (1970), this can be expressed as~$t_i \indep \bfT \given
 H_{i}$.  In equation~\eqref{eq:jointdensity}, the first term can thus
 be re-expressed as~$\pr \left( t_i \given H_{t_i}, \bfT \right) = \pr
-\left( t_i \given H_{t_i} \right)$. 
+\left( t_i \given H_{t_i} \right)$.
 Next, we must discuss necessary assumptions regarding the missing-data
 mechanisms and~$M_{i}$; of paramount importance is whether~$M_{i}$
-satisfies a similar conditional independence as~$t_i$.  
+satisfies a similar conditional independence as~$t_i$.
 
 \begin{assumption}[Missing-data mechanisms] \normalfont
 A typical assumption for~$M_i$ is \emph{missing-at-random} (MAR). In
@@ -331,9 +333,9 @@ H_{t_i}$ Then it may be safe to assume MAR conditional on $A_{t_i} =
 
 Many other scenarios remain where MAR may be unreasonable.  Here, we
 suggest a missing data distribution for sensitivity analysis, which
-depends on an indicator~$\delta_{t_i}$ of whether there a lapse in the 
+depends on an indicator~$\delta_{t_i}$ of whether there a lapse in the
 region, i.e., there exists a $j \in \Nat$ such that $s_i < T_j <
-t_i$. Then 
+t_i$. Then
 \[
 \logit \left( \pr \left( M_{t_i} = 1 \given H_{t_i}, \bfT, A_{t_i} = 0
   \right) \right) = \alpha_0 + \alpha_1 \cdot \delta_{t_i}.
@@ -341,7 +343,7 @@ t_i$. Then
 In section~\ref{section:sensitivity}, we peform a sensitivity analysis
 as a function of $\alpha_0$ and $\alpha_1$; the parameter values
 $\alpha_0$ and $\alpha_1$ will be chosen to suitably reflect
-observable missing data patterns. 
+observable missing data patterns.
 \end{assumption}
 
 \subsubsection{Self-report measurement-model}
@@ -351,7 +353,7 @@ First, we expect the response to be approximately truthful and
 independent of the observed history given~$\bfT$ and $M_{i} = 0$
 (i.e., $E_{1,i} \indep H_{i} \given \bfT, M_{i} = 0$. Then
 \[
-\pr \left( E_{1,i} = 1 \given M_{i} = 0, t_i, \bfT \right) =  \left \{ 
+\pr \left( E_{1,i} = 1 \given M_{i} = 0, t_i, \bfT \right) =  \left \{
   \begin{array}{c c}
     \phi_1, & \text{ exists } j \in \Nat \text{ s.t. } T_j \in (s_i, t_i] \\
     1-\phi_0, & \text{ otherwise } \\
@@ -363,7 +365,7 @@ self-reports.  % We expect both~$\phi_1$ and $\phi_0$ close to one.
 % Suppose $\phi_1 = \phi_0 = 1$. Then $E_{1,t} = 1$ indicates a lapse
 % has occurred in the current window; this is a strong indicator of
 % the event~$\{ T < t_i \}$ and a strong (but weaker) indicator of the
-% event $\{ T \in (s_i, t_i ] \}$. 
+% event $\{ T \in (s_i, t_i ] \}$.
 % When~$M_{t_i} = 1$, we assume that the measurement would be
 % ``truthful''; that is,
 % \begin{equation}
@@ -376,29 +378,29 @@ self-reports.  % We expect both~$\phi_1$ and $\phi_0$ close to one.
 
 Given~$E_{1,t} = 1$, we next require a measurement-model
 for~$E_{2,t}$.  First, define~$\Delta_{i} = s_j - T_{i(j)}$ where $j$
-indexes the most recent lapse prior to time $t_i$. 
+indexes the most recent lapse prior to time $t_i$.
 Then let~$\tilde \Delta_{t_i}$ denote the user's ``guess'' at
-$\Delta_{t_i}$.  
+$\Delta_{t_i}$.
 We currently assume unbiasedness (i.e., $\E [ \tilde \Delta_{t_i}
 \given \Delta_{t_i}] = \Delta_{t_i}$). Additional distributional
 assumptions are required but omitted here.  Normality assumptions for the
 measurement-error model are an obvious choice; however, assuming the
 variance is not related to the time since first puff may be too strong
-of an assumption.  In that case, log-normal models may suffice. 
+of an assumption.  In that case, log-normal models may suffice.
 
 Note, the user does not report $\tilde \Delta_{t_i}$, but a
 \emph{coarsened} version.  We assume the observation $E_{2,t}$
-satisfies the \emph{coarsening-at-random} assumption.  
+satisfies the \emph{coarsening-at-random} assumption.
 
 \begin{assumption}[Coarsening-at-random] \normalfont
 Let~$G$ denote the coarsening operator that rounds $\tilde
-\Delta_{t_i}$ into the ordinal buckets.  
+\Delta_{t_i}$ into the ordinal buckets.
 Then, $E_{2,t_i}$ is a nonrandom function of $\tilde \Delta_{t_i}$
 and $G$ and can be written $E_{2,t_i} (\tilde \Delta_{t_i}, G)$.
 \emph{Coarsening-at-random} states that the conditional density of
 $E_{2,t}$ given $\tilde \Delta_{t_i} = \delta$ is constant across all
-$\delta$ within each bucket.  
-This is a reasonable assumption in our setting.  
+$\delta$ within each bucket.
+This is a reasonable assumption in our setting.
 \end{assumption}
 
 Given~$E_{1,t} = 0$ and $M_{t_i} = 0$ or $M_{t_i} = 1$, the
@@ -409,7 +411,51 @@ where no lapse occurred in the window.
 By doing this, we can ignore this measurement-error model in
 likelihood calculations when it is unobserved.
 
-\section{Empirical Priors} 
+\section{Empirical Priors}
+
+\section{Inferential method}
+
+\subsection{Adaptive MCMC}
+
+Target acceptance rate $\bar \tau$, and $\gamma_n$ and arbitrary sequence satisfying $\sum_n \gamma_n = \infty$ and $\sum_n \gamma_n^2 < \infty$.  Then, define the updates
+$$
+\begin{aligned}
+\sigma_{n+1} &= \sigma_n + \gamma_n \left( \alpha(X_{n+1}, Y_n) - \bar \tau \right) \\
+\bar \theta_n &= \bar \theta_{n-1} + \frac{1}{n} \left( X_n - \bar X_{n-1} \right) \\
+\Sigma_n^\theta &= \Sigma_{n-1}^{\theta}  + \frac{1}{n-1} \left( (\theta_n - \bar \theta_{n-1}) (\theta_n - \bar \theta_{n-1})^\top - \Sigma_{n-1}^\theta \right)
+\end{aligned}
+$$
+We derive the exact form in the appendix.  Comes from Haario and studied extensively in (cites).  Need to then say that we calculate the exact update based on the true covariance formula rather than a generic discount factor.  This appeared to improve MCMC speed in practice.
+
+\subsection{Adaptive MCMC for latent events}
+
+Due to
+
+This works well for fixed parameters.  However, for the latent times, we need an approach to updating a covariance indexed by time $\Sigma_{n} (\bf T)$.  One way to do this is adaptive slicing of the space.
+
+\subsection{Birth, death}
+
+Smart birth death, dumb death.  This was pointed
+
+\section{Sense2Stop: a case study}
+
+
+
+
+\appendix
+
+\section{Deriving update}
+
+Recall that MCMC generates a sequence of parameters for the latent process $\theta_1, \theta_2, \ldots, \theta_n, \ldots$ and define the mean
+$$
+\begin{aligned}
+\bar \theta_n &= \frac{1}{n} \sum_{i=1}^n \theta_i \\
+= \frac{n-1}{n} \bar \theta_{n-1} + \frac{1}{n} \theta_n \\
+= \bar \theta_{n-1} + \frac{1}{n} (\theta_n - \bar \theta_{n-1}) \\
+\end{aligned}
+$$
+
+
 
 \end{document}
 
@@ -434,7 +480,7 @@ likelihood calculations when it is unobserved.
 % \end{meas}
 
 % \begin{meas}[Random self-report] \normalfont
-% At three random times each day, the user is asked 
+% At three random times each day, the user is asked
 
 % \begin{itemize}
 % \item {\bf Question 1 (Binary)}: Did you puff since the last report?
@@ -443,7 +489,7 @@ likelihood calculations when it is unobserved.
 % \item {\bf Question 2 (Categorical)}: If yes, what is the time
 %   since the first puff:
 % \item {\bf Answer to Q2:} 1--19, 20--39, 40--59, 60--79, 80--100,
-%   $>$100 minutes 
+%   $>$100 minutes
 % \end{itemize}
 
 % \vspace{0.2cm}
@@ -452,9 +498,9 @@ likelihood calculations when it is unobserved.
 % affect, negative affect, whether they are somewhere they can see/smell
 % smoke, whether they have access to cigarettes currently, and whether
 % they are in a place where they can smoke.
-% While not measurements of the smoking event, these may be critical 
+% While not measurements of the smoking event, these may be critical
 % as \emph{risk of lapse may depend on these processes}.
-% For instance, urge to smoke is likely a significant predictor of 
+% For instance, urge to smoke is likely a significant predictor of
 % the current and immediate future risk of a smoking event.
 % \end{meas}
 
@@ -484,11 +530,11 @@ likelihood calculations when it is unobserved.
 % \begin{meas}[Puffmarker] \normalfont
 % The PuffMarker algorithm takes physiological data measured via
 % wearable sensors and attempt so detect smoking events.
-% Data is recorded as user-specific time-stamps at which the algorithm 
+% Data is recorded as user-specific time-stamps at which the algorithm
 % has ``detected a smoking event''.   \sam{I prefer the idea below to focus on raw puffmarker probability output for all episodes, both those classified as puffs and those that did not meet criterion to be classified as puffs}
 
 % {\bf It is critical we learn how the time-stamp is determined.}
-% \sam{this is less critical if the episodes are the most precisely determined data--I suspect this is the case here} 
+% \sam{this is less critical if the episodes are the most precisely determined data--I suspect this is the case here}
 % Based on the PuffMarker paper, the algorithm detects puffs.
 % Then ``isolated puffs'' are removed -- defined as no other puff within
 % two standard deviations of the mean inter-puff duration (i.e., 28
@@ -497,10 +543,10 @@ likelihood calculations when it is unobserved.
 % then defined as having greater than or equal to 4 puffs within a
 % cluster. \sam{My gut feeling tells me that   the biggest problem is we don't have clusters that are negatively classified; instead we have episodes that are negatively classified.   do you have access to all classified episodes or only to positively classified clusters?   This is one of the reasons why I like your idea to use the raw puffmarker puff probabilities or some other raw puffmarker output.}  This raises several questions:
 % \begin{itemize}
-% \item Do we record the exact puff time-stamps?  \sam{you mean beg/end of an episode that is classified as a puff?      } 
+% \item Do we record the exact puff time-stamps?  \sam{you mean beg/end of an episode that is classified as a puff?      }
 % \item How is the time-stamp for the smoking event calculated? Is it
 %   the mean of the puff time-stamps for that cluster, the maximum, the
-%   minimum?   \sam{ The clusters are clusters of  episodes.    What is the length distribution of the total cluster of episodes classified as puffs?  This would help as then you can consider different choices.  If the maximal length is short compared to all of the other data you have (like maximally 5 min.) then I don't think it really matters.  }  
+%   minimum?   \sam{ The clusters are clusters of  episodes.    What is the length distribution of the total cluster of episodes classified as puffs?  This would help as then you can consider different choices.  If the maximal length is short compared to all of the other data you have (like maximally 5 min.) then I don't think it really matters.  }
 % \item What is the expected false-positive/negative rates for
 %   puffMarker? The puffMarker paper states these for their study, but
 %   we are interested in these rates for the Sense2Stop and/or pilot
@@ -544,12 +590,12 @@ likelihood calculations when it is unobserved.
 % puff after the quit date. For simplicity, we refer to
 % this event as the user's first lapse time. The time origin is set to
 % the start of the quit period; therefore,~$\pr (T > 0 ) = 1$. We set $T
-% = \infty$ if the event does not occur (i.e., no first lapse).  
+% = \infty$ if the event does not occur (i.e., no first lapse).
 % Our primary interest is in time to first lapse; however, subsequent
 % lapses are possible within the study window. We index these~$T_{2} <
 % T_{3} < \ldots$ and write~$\bfT = (T, T_2, T_3,\ldots)$ to denote this
 % recurrent event process.  Consideration of subsequent lapses is
-% necessary due to how the users report prior lapses. 
+% necessary due to how the users report prior lapses.
 % For example, suppose an event-contingent self report is submitted at
 % time~$t$ that states a lapse has occurred less than $5$ minutes ago.
 % This is a strong indicator that a lapse has occurred in the last $5$
@@ -580,12 +626,12 @@ likelihood calculations when it is unobserved.
 % event-contingent self-reports.
 
 % At each random time~$t_i$, the user may decide to not
-% respond to a request. 
+% respond to a request.
 % Let~$s_i \in H_{t_i}$ denote the most recent \sam{requested} report time before time
-% $t_i$. 
+% $t_i$.
 % Let~$M_{t_i}$ be an indicator that the user does not respond.
 % Given~$M_{t_i} = 0$, the self-reported binary indicator of a puff is
-% denoted~$E_{1,t_i}$.  Conditional on~$E_{1,t_i} = 1$, the user is prompted 
+% denoted~$E_{1,t_i}$.  Conditional on~$E_{1,t_i} = 1$, the user is prompted
 % to report approximate time since first puff. This measurement, denoted
 % $E_{2, t_i}$, is ordinal with buckets~1--19, 20--39, 40--59, 60--79,
 % 80--100, and $>$100 minutes.  This fully specifies the components of
@@ -598,7 +644,7 @@ likelihood calculations when it is unobserved.
 %   \pr \left( t_i \given H_{t_i}, \bfT \right) \cdot \pr \left( M_{t_i}
 %     \given H_{t_i}, \bfT \right) \pr \left( E_{1,t} \given M_{t_i}, H_{t_i},
 %   \bfT \right) \pr \left(E_{2,t} \given E_{1,t}, M_{t_i}, H_{t_i}, \bfT \right).
-% \end{equation} 
+% \end{equation}
 % Note, the third term is unobserved if~$M_{t_i} = 1$; similarly, the
 % fourth term is unobserved if either $M_{t_i}=1$ or both~$M_{t_i}=1$
 % and $E_{1,t} = 0$.  The conditional distributions are still
@@ -615,7 +661,7 @@ likelihood calculations when it is unobserved.
 % case of the conditional independence defined above; namely,~$t_i
 % \indep \bfT$. In equation~\ref{eq:jointdensity}, the first term can thus
 % be re-expressed as~$\pr \left( t_i \given H_{t_i}, \bfT \right) = \pr
-% \left( t_i \given H_{t_i} \right)$. 
+% \left( t_i \given H_{t_i} \right)$.
 
 % Next, we must discuss necessary assumptions regarding the missing-data
 % mechanisms and~$M_{t_i}$; of paramount importance is whether~$M_{t_i}$
@@ -633,14 +679,14 @@ likelihood calculations when it is unobserved.
 % as if the missing-data mechanism is known.
 
 % MAR is a strong, perhaps unreasonable, assumption in our current
-% setting. 
+% setting.
 % First, the user may be embarassed having ``failed to quit'' in a
 % smoking cessation trial. In this case, the user is likely to not
 % respond to self-report in windows where lapses have occurred.
 % Second, the user may be more embarassed if a lapse occurs early in the
-% study rather than later in the study.  
+% study rather than later in the study.
 % Third, the user may be embarassed for initial lapses, but over time
-% be more comfortable reporting a lapse.  
+% be more comfortable reporting a lapse.
 % These all point to measurements being \emph{missing-not-at-random}.
 % However, once a lapse is reported, subsequent missingness may not
 % depend on the lapse process.  In this case, the missing data mechanism
@@ -660,7 +706,7 @@ likelihood calculations when it is unobserved.
 % First, we consider scenarios in which the MAR assumption may hold.
 % First, suppose $T_1 := T > t_i$; that is, the measurement is made
 % prior to first lapse. Then missing data is likely conditionally
-% independent of $\bfT$ given the observation history.  
+% independent of $\bfT$ given the observation history.
 % Next, suppose there exists $i^\prime < i$ such that $M_{t_{i^\prime}}
 % = 0$ and $E_{1,t_{i^\prime}} = 1$ (i.e., the user reported prior
 % lapse). Let such an event be denoted $A_{t_i} \subset H_{t_i}$
@@ -673,7 +719,7 @@ likelihood calculations when it is unobserved.
 % unreasonable.  Here, we suggest we start with an initial missing data
 % distribution that only depends on an indicator~$\delta_{j}$ of
 % whether there a lapse in the region, i.e., there exists a $i \in \Nat$ such
-% that $t_{j-1} < T_i < t_j$. Then 
+% that $t_{j-1} < T_i < t_j$. Then
 % \[
 % \logit \left( \pr \left( M_{j} = 1 \given H_{j}, \bfT, A_{j} = 0
 %   \right) \right) = \alpha_0 + \alpha_1 \cdot \delta_{j}.
@@ -690,8 +736,8 @@ likelihood calculations when it is unobserved.
 % independent of the observed history given~$\bfT$ and $M_{t_i} = 0$
 % (i.e., $E_{1,t_i} \indep H_{t_i} \given \bfT, M_{t_i} = 0$. Then
 % \[
-% \pr \left( E_{1,t} = 1 \given M_{t_i} 
-% = 0, \bfT \right) =  \left \{ 
+% \pr \left( E_{1,t} = 1 \given M_{t_i}
+% = 0, \bfT \right) =  \left \{
 %   \begin{array}{c c}
 %     \phi_1, & \text{ exists } j \in \Nat \text{ s.t. } T_j \in (s_i, t_i] \\
 %     1-\phi_0, & \text{ otherwise } \\
@@ -703,7 +749,7 @@ likelihood calculations when it is unobserved.
 % Suppose $\phi_1 = \phi_0 = 1$. Then $E_{1,t} = 1$ indicates a lapse
 % has occurred in the current window; this is a strong indicator of
 % the event~$\{ T < t_i \}$ and a strong (but weaker) indicator of the
-% event $\{ T \in (s_i, t_i ] \}$. 
+% event $\{ T \in (s_i, t_i ] \}$.
 % % When~$M_{t_i} = 1$, we assume that the measurement would be
 % % ``truthful''; that is,
 % % \begin{equation}
@@ -716,29 +762,29 @@ likelihood calculations when it is unobserved.
 
 % Given~$E_{1,t} = 1$, we next require a measurement-model
 % for~$E_{2,t}$.  First, define~$\Delta_{t_i} = t_i - T_j$ where $j$
-% indexes the most recent lapse prior to time $t_i$. 
+% indexes the most recent lapse prior to time $t_i$.
 % Then let~$\tilde \Delta_{t_i}$ denote the user's ``guess'' at
-% $\Delta_{t_i}$.  
+% $\Delta_{t_i}$.
 % We currently assume unbiasedness (i.e., $\E [ \tilde \Delta_{t_i}
 % \given \Delta_{t_i}] = \Delta_{t_i}$). Additional distributional
 % assumptions are required but omitted here.  Normality assumptions for the
 % measurement-error model are an obvious choice; however, assuming the
 % variance is not related to the time since first puff may be too strong
-% of an assumption.  In that case, log-normal models may suffice. 
+% of an assumption.  In that case, log-normal models may suffice.
 
 % Note, the user does not report $\tilde \Delta_{t_i}$, but a
 % \emph{coarsened} version.  We assume the observation $E_{2,t}$
-% satisfies the \emph{coarsening-at-random} assumption.  
+% satisfies the \emph{coarsening-at-random} assumption.
 
 % \begin{assumption}[Coarsening-at-random] \normalfont
 % Let~$G$ denote the coarsening operator that rounds $\tilde
-% \Delta_{t_i}$ into the ordinal buckets.  
+% \Delta_{t_i}$ into the ordinal buckets.
 % Then, $E_{2,t_i}$ is a nonrandom function of $\tilde \Delta_{t_i}$
 % and $G$ and can be written $E_{2,t_i} (\tilde \Delta_{t_i}, G)$.
 % \emph{Coarsening-at-random} states that the conditional density of
 % $E_{2,t}$ given $\tilde \Delta_{t_i} = \delta$ is constant across all
-% $\delta$ within each bucket.  
-% This is a reasonable assumption in our setting.  
+% $\delta$ within each bucket.
+% This is a reasonable assumption in our setting.
 % \end{assumption}
 
 % Given~$E_{1,t} = 0$ and $M_{t_i} = 0$ or $M_{t_i} = 1$, the
@@ -791,13 +837,13 @@ likelihood calculations when it is unobserved.
 % \subsection{Event-contingent self-report}
 
 % Suppose there is a lapse at time~$t$.  That is, there exists $j \in
-% \Nat$ such that $T_j = t$.  
+% \Nat$ such that $T_j = t$.
 % The user is asked to self report this event (i.e., event-contingent
 % self-report).
-% After time~$t$, the user waits~$V_j$ time units to report the event.  
+% After time~$t$, the user waits~$V_j$ time units to report the event.
 % Let~$V_j = \infty$ imply the user does not report the event.  We
 % suppose the distribution for $V_j$ is time-invariant and independent
-% of $\bfT$.  That is, $\pr ( V_j = \infty \given \bfT, H_{t}) = \pi$ 
+% of $\bfT$.  That is, $\pr ( V_j = \infty \given \bfT, H_{t}) = \pi$
 % and given $V_j < \infty$, we suppose the time-until-report comes from
 % a Weibull distribution with parameters~$\lambda, k$.  We expect $k <
 % 1$ as the hazard rate should decrease as we move away from the event
@@ -825,7 +871,7 @@ likelihood calculations when it is unobserved.
 % random time~$t$. Let $j_t = \arg \max_{j \in \Nat} \{ T_j < t \}$;
 % that is, $j_t$ indexes the event time associated with the
 % event-contingent self report. Then
-% \[ 
+% \[
 % \pr ( (t, E_t) \given H_{t}, \bfT) = \int_{v \in E_{t} }
 % \pr ( V_{j_t} = t - T_{j_t}, \tilde V_{j_t} = v ) dv
 % \]
@@ -840,7 +886,7 @@ likelihood calculations when it is unobserved.
 % Note, the event-contingent self-report may be censored by the random
 % self-report. That is, if~$V_t$ is large then the random self-report
 % may occur prior to the potential event-contingent self-report.
-% In this case, we require an assumption of independent censoring, which 
+% In this case, we require an assumption of independent censoring, which
 % is guaranteed by the fact that the random self-report is indeed
 % random.
 
@@ -849,7 +895,7 @@ likelihood calculations when it is unobserved.
 % Currently, puffmarker data for a given user is a sequence~$\bft =
 % (t_1, \ldots, t_n)$ where~$t_1 < t_2 <\ldots < t_n$ are times at which
 % the classification algorithm, using data collected via a sensor suite,
-% believes the user is lapsing. 
+% believes the user is lapsing.
 % Here, we assume the times~$\bft$ are meant to indicate the first puff
 % of each lapse. Therefore, in a perfect measurement world,~$\bfT =
 % \bft$.
@@ -872,8 +918,8 @@ likelihood calculations when it is unobserved.
 % strongly the algorithm believes a puff is occurring. We assume a
 % potential misalignment which can appear as additive noise.
 % \[
-%   \pr ( (t_i, p_i) \given H_{t_i}, \bfT) 
-%   = \left \{ 
+%   \pr ( (t_i, p_i) \given H_{t_i}, \bfT)
+%   = \left \{
 %     \begin{array}{c c}
 %       \phi_1 \cdot \psi (p_i), & \text{ exists } j \in \Nat \text{ s.t. } T_j \in (t_i
 %                 - \epsilon, t_i + \epsilon) \\
@@ -882,7 +928,7 @@ likelihood calculations when it is unobserved.
 %   \right.
 % \]
 % where~$\psi(\cdot)$ is a monotonic function of $p_i$ satisfying $\psi
-% (1) = 1$ and $\psi (0) = 0$.  
+% (1) = 1$ and $\psi (0) = 0$.
 % If lapse probability were not recorded, this would become the same
 % formula as the measurement-error model for~$E_{1,t_i}$ with
 % potentially different specificity and sensitivity.
