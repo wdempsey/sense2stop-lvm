@@ -332,10 +332,10 @@ class model(object):
                     temp = np.random.binomial(1, p = np.min([acceptprob,1]))
                 if temp == 1:
                     if birthdeath == 0 and smoke['hours_since_start_day'].size > 0:
-                        print("Accepted death for participant %s on day %s" % (participant, days))
+#                        print("Accepted death for participant %s on day %s" % (participant, days))
                         smoke['hours_since_start_day'] = new_smoke['hours_since_start_day']
                     if birthdeath == 1:
-                        print("Accepted birth for participant %s on day %s" % (participant, days))
+#                        print("Accepted birth for participant %s on day %s" % (participant, days))
                         smoke['hours_since_start_day'] = new_smoke['hours_since_start_day']
                     
         return 0
@@ -371,42 +371,48 @@ class model(object):
     def adapMH_params(self, adaptive = False, iteration = 1, 
                       covariance = 0, barX = 0, 
                       covariance_init = 0, 
-                      barX_init = 0, cutpoint = 500):
+                      barX_init = 0, cutpoint = 500,
+                      sigma = 0, bartau = 0.574):
         '''
         Builds an adaptive MH for updating model parameter.
         If adaptive = True 
         then use "An adaptive metropolis algorithm" Haario et al (2001)
         to perform adaptive updates.
+        bartau = optimal acceptance race (here, default is 0.574)
         '''
         llik_current = self.latent.compute_total_pp(None)
         if adaptive is False:
             new_params = np.exp(np.log(self.latent.params) + np.random.normal(scale = 0.01, size=self.latent.params.size))
         else:
+            sd = 2.38**2 / self.latent.params.size
             if iteration <= cutpoint:
                 if covariance_init.shape[0] > 1:
-                    new_params = np.exp(np.log(self.latent.params)+ np.random.multivariate_normal(mean = barX_init, cov = covariance_init))
+                    new_params = np.exp(np.log(self.latent.params)+ np.random.multivariate_normal(mean = barX_init, cov = sd * covariance_init))
                 else:
-                    new_params = np.exp(np.log(self.latent.params)+ np.random.normal(loc = barX_init, scale = np.sqrt(covariance_init)))
+                    new_params = np.exp(np.log(self.latent.params)+ np.random.normal(loc = barX_init, scale = np.sqrt(sd * covariance_init)))
             else:
                 if covariance_init.shape[0] > 1:
-                    new_params =  np.exp(np.log(self.latent.params) + np.random.multivariate_normal(mean = barX_init, cov = covariance))
+                    new_params =  np.exp(np.log(self.latent.params) + np.random.multivariate_normal(mean = barX_init, cov = (sigma**2) * covariance))
                 else:
-                    new_params =  np.exp(np.log(self.latent.params) + np.random.normal(loc = barX_init, scale = np.sqrt(covariance_init)))
+                    new_params =  np.exp(np.log(self.latent.params) + np.random.normal(loc = barX_init, scale = sigma*np.sqrt(covariance_init)))
         llik_jitter = self.latent.compute_total_pp(new_params)
         log_acceptprob = (llik_jitter-llik_current)
         acceptprob = np.exp(log_acceptprob)
-        temp = np.random.binomial(1, p = np.min([acceptprob,1]))
+        acceptprob = np.min([acceptprob,1])
+        temp = np.random.binomial(1, p = acceptprob)
         if temp == 0:
             new_params = self.latent.params
         if adaptive is True: # Update Covariance and barX
-            sd = 2.38**2 / self.latent.params.size
+            sigma_new = sigma + 1/iteration * (acceptprob - bartau)
             log_new_params = np.log(new_params)
-            barX_new = barX + 1/iteration * (log_new_params-barX)
-            intermediate_step = iteration * np.outer(barX,barX) - (iteration+1) * np.outer(barX_new,barX_new) + np.outer(log_new_params,log_new_params)
-            random_adjust = np.random.normal(scale = 0.000001, size = 1)
-            matrix_adjust = np.diag(np.repeat(random_adjust,new_params.size))
-            covariance_new = (iteration-1)/iteration * covariance + sd/iteration * ( intermediate_step + matrix_adjust)
-            return new_params, covariance_new, barX_new
+            delta = log_new_params-barX
+            barX_new = barX + 1/iteration * (delta)
+            intermediate_step = np.outer(delta, delta)
+            if iteration > 1:
+                covariance_new = covariance + 1/(iteration-1) * ( intermediate_step * iteration/(iteration-1) - covariance )
+            else: 
+                covariance_new = covariance
+            return new_params, covariance_new, barX_new, sigma_new
         else:
             return new_params
         
@@ -418,8 +424,6 @@ class model(object):
 #%%
 lat_pp = latent(data=latent_data, model=latent_poisson_process_ex2, params = np.array([0.14,0.14]))
 test_model = model(init = clean_data,  latent = lat_pp , model = sr_mem)
-#test_model.birth_death()
-#test_model.adapMH_times()
 num_iters = 5000
 cutpoint = 500
 cov_init = np.array([[0.005,0.0],[0.0,0.005]])
@@ -427,15 +431,18 @@ barX_init = np.array([0.,0.])
 cov_new = np.array([[0.001,0.0],[0.0,0.01]])
 barX_new = np.array(lat_pp.params)
 temp = np.zeros(shape = (num_iters, lat_pp.params.size))
+sigma_new = 2.38**2/lat_pp.params.size
 for iter in range(num_iters):
     print(lat_pp.params)
-    test_model = model(init = clean_data,  latent = lat_pp, model = sr_mem)
-    new_params, cov_new, barX_new = test_model.adapMH_params(adaptive=True,covariance=cov_new, barX=barX_new, 
-                                                             covariance_init= cov_init, barX_init= barX_init,
-                                                             iteration=iter+1, cutpoint = cutpoint)
+    new_params, cov_new, barX_new, sigma_new = test_model.adapMH_params(adaptive=True,covariance=cov_new, barX=barX_new, 
+                                                                        covariance_init= cov_init, barX_init= barX_init,
+                                                                        iteration=iter+1, cutpoint = cutpoint, sigma= sigma_new)
     temp[iter,:] = new_params
     lat_pp.update_params(new_params)
-    print(cov_new)
+    print(sigma_new)
+
+accepttest = np.unique(temp[cutpoint:]).size/temp[cutpoint:].size
+print("Acceptance probability is %s" % np.round(accepttest,3))
     
 #%%
 import matplotlib.pyplot as plt    
@@ -450,40 +457,71 @@ plt.plot(np.arange(temp[500:,0].size),temp[500:,1])
 plt.show()
 
 
-
-#%%
-
-#test_model.birth_death()
-test_model.adapMH_times()
-
 #%%
 lat_pp = latent(data=latent_data, model=latent_poisson_process_ex1, params = np.array([0.14]))
 test_model = model(init = clean_data,  latent = lat_pp , model = sr_mem)
 num_iters = 5000
-cutpoint = 500
-cov_init = np.array([0.05])
+cutpoint = 1000
+cov_init = np.array([0.005])
 barX_init = np.array([0.])
-cov_new = np.array([0.05])
+cov_new = np.array([0.005])
 barX_new = np.array(lat_pp.params)
 temp = np.zeros(shape = (num_iters, lat_pp.params.size))
+sigma_new = 3
 for iter in range(num_iters):
     print(lat_pp.params)
     test_model = model(init = clean_data,  latent = lat_pp, model = sr_mem)
-    new_params, cov_new, barX_new = test_model.adapMH_params(adaptive=True,covariance=cov_new, barX=barX_new, 
-                                                             covariance_init= cov_init, barX_init= barX_init,
-                                                             iteration=iter+1, cutpoint = cutpoint)
+    new_params, cov_new, barX_new, sigma_new = test_model.adapMH_params(adaptive=True,covariance=cov_new, barX=barX_new, 
+                                                                        covariance_init= cov_init, barX_init= barX_init,
+                                                                        iteration=iter+1, cutpoint = cutpoint, sigma= sigma_new)
     temp[iter,:] = new_params
     lat_pp.update_params(new_params)
-    print(cov_new)
+    print(sigma_new)
+
+accepttest = np.unique(temp[1000:]).size/temp[1000:].size
+print("Acceptance probability is %s" % np.round(accepttest,3))
     
 #%%
 import matplotlib.pyplot as plt    
-plt.hist(temp[500:], bins = 40)
+plt.hist(temp[500:], bins = 20)
 plt.show()
-plt.plot(np.arange(temp[500:].size),temp[500:,0])
+plt.plot(np.arange(temp[500:].size),temp[500:])
 plt.show()
 
 #%%
+'''
+The above examples show that are adaptive MCMC is working.  
+Now let's try and birth/death/jitter on top of the 
+algorithm.
+'''
 
-Practice
+lat_pp = latent(data=latent_data, model=latent_poisson_process_ex1, params = np.array([0.14]))
+test_model = model(init = clean_data,  latent = lat_pp , model = sr_mem)
+num_iters = 5000
+cutpoint = 500
+cov_init = np.array([0.001])
+barX_init = np.array([0.])
+cov_new = np.array([0.001])
+barX_new = np.array(lat_pp.params)
+sigma_new = 3
+temp = np.zeros(shape = (num_iters, lat_pp.params.size))
+for iter in range(num_iters):
+    print(lat_pp.params)
+    new_params, cov_new, barX_new, sigma_new  = test_model.adapMH_params(adaptive=True,covariance=cov_new, barX=barX_new, 
+                                                             covariance_init= cov_init, barX_init= barX_init,
+                                                             iteration=iter+1, cutpoint = cutpoint, sigma = sigma_new)
+    test_model.birth_death()
+    test_model.adapMH_times()
+    temp[iter,:] = new_params
+    lat_pp.update_params(new_params)
+    print(sigma_new)
 
+accepttest = np.unique(temp[1000:]).size/temp[1000:].size
+print("Acceptance probability is %s" % np.round(accepttest,3))
+
+#%%
+import matplotlib.pyplot as plt    
+plt.hist(temp[500:], bins = 20)
+plt.show()
+plt.plot(np.arange(temp[500:].size),temp[500:])
+plt.show()
