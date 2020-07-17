@@ -143,11 +143,7 @@
 \begin{document}
 
 
-\title[Hierarchical point processes and multi-scale measurements:
- inference for latent event process from multiple sources of
- information]{Hierarchical point process and multi-scale
-   measurements: data integration for latent recurrent event
-   detection under uncertainty}
+\title[Hierarchical point processes and multi-scale measurements]{Hierarchical point process and multi-scale measurements: data integration for latent recurrent event analysis under uncertainty}
 \author{Walter Dempsey}
 \address {Department of Statistics,
   Harvard University, One Oxford Street
@@ -157,22 +153,9 @@
 \date{\today}
 
 \begin{abstract}
-In mobile health, event processes of interest cannot be observed
-directly. Instead, an associated point process can be detected via
-sensors. Moreover, self-report at various time-scales are observed
-that indicate when the events were likely to have occurred.
-In this paper, we describe a Bayesian inferential algorithm for
-recurrent event detection that combines both self-report and
-sensor-based measurements.  The method allows for error propogation
-and accounts for the measurements occurring at multiple
-time-scales. We employ a hierarchical point process for the event
-process of interest, and a superposition of background noise point
-process to disentangle sensor-based measures associated with the event
-and measures unrelated to the event.  We show how the model can handle
-time-varying covariates as well. The resulting methods are applied to
-a smoking cessation trial, \emph{Sense2Stop}, in which smoking events
-are unobserved, but measured indirectly via passive and active
-measurements.
+In mobile health, recurrent event processes of interest cannot be observed
+directly. Instead, several types of self-report are collected that provide information measure the true smoking times at several time-scales are observed
+that indicate when the events were likely to have occurred. Moreover, participant worn sensors can be used to detect related point processes that can be used to detect the recurrent event process with noise. In this paper, we describe a Bayesian inferential algorithm for recurrent event analysis that combines both self-report and sensor-based measurements as noisy measures of a latent point process.  The method allows for error propogation and accounts for the measurements occurring at multiple time-scales. We employ a hierarchical point process for the event process of interest, and a superposition of background noise point process to disentangle sensor-based measures associated with the event and measures unrelated to the event.  We extend the model to allow for time-varying covariates as well. The resulting methods are applied to a smoking cessation trial, \emph{Sense2Stop}, in which smoking events are unobserved, but measured indirectly via passive and active measurements.
 \end{abstract}
 
 % \begin{abstract}
@@ -229,21 +212,16 @@ analyzed.
 
 \section{Notation and measurements}
 
-We assume the mHealth study is $D$ days and each day is of the same
-length. Therefore, we standardize time within each day to be in
-$[0,1]$. Let $(t,d) \in [0,1] \times \{ 1,\ldots, D \} := [0,1] \times
-[D]$ denote time~$t$ on day~$d$. The space is ordered based on day in
-study followed by time in day (i.e., $(0.5, 5) > (0.25,3)$ and
-$(0.5, 5) > (0.25, 5)$ respectively).  On this space, we define the
-following metric:
+We assume the study consists of $D$ days.  For simplicty, here we assume each study day is the same length. Therefore, we standardize time within each day to be in $[0,1]$. Let $(t,d) \in [0,1] \times \{ 1,\ldots, D \} := [0,1] \times
+[D]$ denote time~$t$ on day~$d$. Define the metric
 \begin{align*}
 \langle (t,d) &, (t^\prime, d^\prime ) \rangle = |d^\prime - d| +
 \indicator [ d = d^\prime ] | t^\prime  - t | \\
 &+ \indicator[ d < d^\prime ] | (1-t) + t^\prime | + \indicator[ d >
-  d^\prime ] | (1-t^\prime) + t |.
+  d^\prime ] | (1-t^\prime) + t |
 \end{align*}
-This is simply the difference in number of days plus the correctly
-adjusted difference in the within-day time units (depending on whether
+which is the difference in number of days plus the correctly
+adjusted difference in the within-day time units (i.e., depending on whether
 the days are the same or distinct).
 %for the difference in the time units within the day.
 For example,~$\langle (0.5, 5), (0.25, 3) \rangle = 2.75$, while
@@ -422,16 +400,22 @@ $$
 \begin{aligned}
 \sigma_{n+1} &= \sigma_n + \gamma_n \left( \alpha(X_{n+1}, Y_n) - \bar \tau \right) \\
 \bar \theta_n &= \bar \theta_{n-1} + \frac{1}{n} \left( X_n - \bar X_{n-1} \right) \\
-\Sigma_n^\theta &= \Sigma_{n-1}^{\theta}  + \frac{1}{n-1} \left( (\theta_n - \bar \theta_{n-1}) (\theta_n - \bar \theta_{n-1})^\top - \Sigma_{n-1}^\theta \right)
+\Sigma_n^\theta &= \Sigma_{n-1}^{\theta}  + \frac{1}{n-1} \left( (\theta_n - \bar \theta_{n-1}) (\theta_n - \bar \theta_{n-1})^\top \frac{n-1}{n} - \Sigma_{n-1}^\theta \right)
 \end{aligned}
 $$
-We derive the exact form in the appendix.  Comes from Haario and studied extensively in (cites).  Need to then say that we calculate the exact update based on the true covariance formula rather than a generic discount factor.  This appeared to improve MCMC speed in practice.
+We derive the exact form in the appendix.  Comes from Haario and studied extensively in (cites).  Need to then say that we calculate the exact update based on the true covariance formula rather than a generic discount factor.  AS the initial esitmate plays a decent role for several iterations it can have an impact and appeared to improve MCMC speed in practice.
 
 \subsection{Adaptive MCMC for latent events}
 
-Due to
+Fine grid on $[0,1]$.  Suppose the times were fixed in order, then you could do the previous approach to get at the estimates.  However, a new point will be birthed or deathed.  This will change the covariance now? So then we can segment the space adaptively and have a hierarchical update across births/deaths.  Let us be on the $k$th dimensional space with a fixed grid.
+$$
+\Sigma_{n_k,k} = \Sigma_{n_{k-1},k}  + \frac{1}{n_k-1} \left( (\bfT_{n_k} - \bar \bfT_{n-1}) (\bfT_{n_k} - \bar \bfT_{n_k-1})^\top \frac{n_k-1}{n_k} - \Sigma_{n_{k-1}} \right)
+$$
+where $n_k$ is the number of times we have been in this dimensional space.
+This works well for fixed dimension and fixed ordering.  However, for the latent times, we need an approach to updating a covariance indexed by time $\Sigma_{n} (\bf T)$.  One way to do this is adaptive slicing of the space and some smoothness across $k$.
 
-This works well for fixed parameters.  However, for the latent times, we need an approach to updating a covariance indexed by time $\Sigma_{n} (\bf T)$.  One way to do this is adaptive slicing of the space.
+If we want to smooth across $k$, then we need a way to do this; simplest would be a different discounted update based on a hierarchical model.
+
 
 \subsection{Birth, death}
 
@@ -439,6 +423,11 @@ Smart birth death, dumb death.  This was pointed
 
 \section{Sense2Stop: a case study}
 
+Daily engagement
+
+\subsection{Nightly counts}
+
+In this study, many individuals can report via self-report
 
 
 
@@ -450,10 +439,27 @@ Recall that MCMC generates a sequence of parameters for the latent process $\the
 $$
 \begin{aligned}
 \bar \theta_n &= \frac{1}{n} \sum_{i=1}^n \theta_i \\
-= \frac{n-1}{n} \bar \theta_{n-1} + \frac{1}{n} \theta_n \\
-= \bar \theta_{n-1} + \frac{1}{n} (\theta_n - \bar \theta_{n-1}) \\
+&= \frac{n-1}{n} \bar \theta_{n-1} + \frac{1}{n} \theta_n \\
+&= \bar \theta_{n-1} + \frac{1}{n} (\theta_n - \bar \theta_{n-1}) \\
 \end{aligned}
 $$
+The estimator of the covariance $\Sigma_n^\theta$ is given by
+$$
+\begin{aligned}
+&\frac{1}{n-1} \sum_{i=1}^n \left( \theta_i - \bar \theta_n \right) \left( \theta_i - \bar \theta_n \right)^\top \\
+=& \frac{1}{n-1} \left( \sum_{i=1}^n \theta_i \theta_i^\top - n \bar \theta_n \bar \theta_n^\top \right) \\
+=& \frac{1}{n-1} \left( \sum_{i=1}^{n-1} \theta_i \theta_i^\top + \theta_n \theta_n^\top - n \left( \bar \theta_{n-1} + \frac{1}{n} (\theta_n - \bar \theta_{n-1}) \right) \left( \bar \theta_{n-1} + \frac{1}{n} (\theta_n - \bar \theta_{n-1}) \right)^\top \right) \\
+=& \frac{1}{n-1} \bigg( (n-2) \Sigma_{n-1} + \theta_n \theta_n^\top - \bar \theta_{n-1} \bar \theta_{n-1}^\top - \bar \theta_{n-1}  (\theta_n - \bar \theta_{n-1} )^\top - (\theta_n - \bar \theta_{n-1} ) \bar \theta_{n-1}^\top \\
+&- \frac{1}{n} (\theta_n - \bar \theta_{n-1} ) (\theta_n - \bar \theta_{n-1} )^\top \bigg) \\
+=& \frac{1}{n-1} \left( (n-2) \Sigma_{n-1} + \frac{n-1}{n} (\theta_n - \bar \theta_{n-1} ) (\theta_n - \bar \theta_{n-1} )^\top \right) \\
+=& \Sigma_{n-1} + \frac{1}{n-1} \left(  \frac{n-1}{n} (\theta_n - \bar \theta_{n-1} ) (\theta_n - \bar \theta_{n-1} )^\top  - \Sigma_{n-1} \right) \\
+\end{aligned}
+$$
+If we replace $n-1$ in the denominator by $n$ we have
+$$
+\Sigma_n = \Sigma_{n-1} + \frac{1}{n} \left(  (\theta_n - \bar \theta_{n-1} ) (\theta_n - \bar \theta_{n-1} )^\top  - \Sigma_{n-1} \right)
+$$
+which is the commonly used approach.  The issue is that the initial estimates can be quite biased and so the more standard approach seemed to converge much quicker.  Show EXAMPLE!
 
 
 

@@ -315,7 +315,7 @@ class model(object):
                         logtrans_death = np.log(1-p)
                     else: 
                         logtrans_death = np.log(1-p) + np.log(smoke['hours_since_start_day'].size)
-                    llik_birth = self.latent.model(new_smoke, params = 1.0)
+                    llik_birth = self.latent.model(new_smoke, params = self.latent.params)
                     llik_mem_birth = self.memmodel.model(sr, new_smoke)
                     log_acceptprob = (llik_birth-llik_current) + (logtrans_death-logtrans_birth)  + (llik_mem_birth-llik_mem_current)
                     acceptprob = np.exp(log_acceptprob)
@@ -325,7 +325,7 @@ class model(object):
                     new_smoke['hours_since_start_day'] = np.delete(np.array(smoke['hours_since_start_day']), death, axis = 0)
                     logtrans_birth = np.log(p) + np.log(smoke['day_length'])
                     logtrans_death = np.log(1-p) + np.log(smoke['hours_since_start_day'].size)
-                    llik_death = self.latent.model(new_smoke, params = 1.0)
+                    llik_death = self.latent.model(new_smoke, self.latent.params)
                     llik_mem_death = self.memmodel.model(sr, new_smoke)
                     log_acceptprob = (llik_death-llik_current) + (logtrans_birth-logtrans_death) + (llik_mem_death-llik_mem_current)
                     acceptprob = np.exp(log_acceptprob)
@@ -342,9 +342,11 @@ class model(object):
     
     def adapMH_times(self):
         '''
-        Builds an adaptive MH for updating the latent
-        smoking times (account for highly irregular 
-        covariance)
+        Builds an adaptive MH for updating the latent smoking times 
+        Current: Simple Jitter by recognizing it's just self-report
+        Next: Adaptive (maybe langevin) MCMC with temporal variation; 
+        I want to keep the adaptive aspect at a minimum so I think splits idea 
+        Partition process is the easiest and fastest
         '''
         total_possible_jitter = 0.
         total_accept_jitter = 0.
@@ -445,15 +447,13 @@ accepttest = np.unique(temp[cutpoint:]).size/temp[cutpoint:].size
 print("Acceptance probability is %s" % np.round(accepttest,3))
     
 #%%
-import matplotlib.pyplot as plt    
-plt.hist(temp[500:,0], bins = 40)
-plt.show()
-plt.plot(np.arange(temp[500:,0].size),temp[500:,0])
-plt.show()
+import matplotlib.pyplot as plt  
+fig, axs = plt.subplots(2,2)
+axs[0,0].hist(temp[500:,0], bins = 40)
+axs[0,1].plot(np.arange(temp[500:,0].size),temp[500:,0])
 
-plt.hist(temp[500:,1], bins = 40)
-plt.show()
-plt.plot(np.arange(temp[500:,0].size),temp[500:,1])
+axs[1,0].hist(temp[500:,1], bins = 40)
+axs[1,1].plot(np.arange(temp[500:,0].size),temp[500:,1])
 plt.show()
 
 
@@ -525,3 +525,44 @@ plt.hist(temp[500:], bins = 20)
 plt.show()
 plt.plot(np.arange(temp[500:].size),temp[500:])
 plt.show()
+
+#%%
+#%%
+'''
+Birth/death/jitter on top of the algorithm with two parameters
+'''
+
+lat_pp = latent(data=latent_data, model=latent_poisson_process_ex2, params = np.array([0.14,0.14]))
+test_model = model(init = clean_data,  latent = lat_pp , model = sr_mem)
+num_iters = 5000
+cutpoint = 500
+cov_init = np.array([[0.005,0.0],[0.0,0.005]])
+barX_init = np.array([0.,0.])
+cov_new = np.array([[0.001,0.0],[0.0,0.01]])
+barX_new = np.array(lat_pp.params)
+temp = np.zeros(shape = (num_iters, lat_pp.params.size))
+sigma_new = 2.38**2/lat_pp.params.size
+for iter in range(num_iters):
+    print(lat_pp.params)
+    new_params, cov_new, barX_new, sigma_new = test_model.adapMH_params(adaptive=True,covariance=cov_new, barX=barX_new, 
+                                                                        covariance_init= cov_init, barX_init= barX_init,
+                                                                        iteration=iter+1, cutpoint = cutpoint, sigma= sigma_new)
+    test_model.birth_death()
+    test_model.adapMH_times()
+    temp[iter,:] = new_params
+    lat_pp.update_params(new_params)
+    print(sigma_new)
+
+accepttest = np.unique(temp[cutpoint:]).size/temp[cutpoint:].size
+print("Acceptance probability is %s" % np.round(accepttest,3))
+    
+#%%
+import matplotlib.pyplot as plt  
+fig, axs = plt.subplots(2,2)
+axs[0,0].hist(temp[500:,0], bins = 40)
+axs[0,1].plot(np.arange(temp[500:,0].size),temp[500:,0])
+
+axs[1,0].hist(temp[500:,1], bins = 40)
+axs[1,1].plot(np.arange(temp[500:,0].size),temp[500:,1])
+plt.show()
+
