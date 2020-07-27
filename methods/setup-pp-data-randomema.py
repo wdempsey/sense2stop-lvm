@@ -17,6 +17,7 @@ data_dates = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'participant-d
 data_hq_episodes = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'hq-episodes-final.csv'))
 data_random_ema = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'random-ema-final.csv'))
 
+#%%
 ###############################################################################
 # Create a data frame with records of start & end of day timestamps
 # for each participant-day
@@ -91,7 +92,7 @@ def recode_when_smoke(message):
     if message in accept_response:
         use_value = recode_dictionary[message] 
     else:
-        use_value = pd.NA  
+        use_value = np.nan
     return use_value
 
 data_random_ema['when_smoke'] = data_random_ema['when_smoke'].apply(lambda x: recode_when_smoke(x))
@@ -100,7 +101,7 @@ data_random_ema['when_smoke'] = data_random_ema['when_smoke'].apply(lambda x: re
 def calculate_delta(message):
     accept_response = [1,2,3,4,5,6]
     # delta is in hours
-    use_this_delta = {1: np.mean([1,19])/60, 2: np.mean([20,39])/60, 3: np.mean([40,59])/60, 4: np.mean([60,79])/60, 5: np.mean([80,100])/60, 6: pd.NA} 
+    use_this_delta = {1: np.mean([1,19])/60, 2: np.mean([20,39])/60, 3: np.mean([40,59])/60, 4: np.mean([60,79])/60, 5: np.mean([80,100])/60, 6: np.nan} 
 
     if pd.isna(message):
         use_value = message

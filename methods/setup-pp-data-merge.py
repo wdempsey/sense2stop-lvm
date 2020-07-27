@@ -95,9 +95,9 @@ for i in range(0, len(all_participant_id)):
       result['hours_since_start_day_shifted'] = np.where(pd.isna(result['hours_since_start_day_shifted']), 0, result['hours_since_start_day_shifted'])
       result['time_between'] = result['hours_since_start_day'] - result['hours_since_start_day_shifted']
       # Let's create a time variable that depends on the value of 'smoke' #######
-      result['puff_time'] = np.where(result['smoke']=='Yes', result['hours_since_start_day']-result['delta'], pd.NA)
+      result['puff_time'] = np.where(result['smoke']=='Yes', result['hours_since_start_day']-result['delta'], np.nan)
       # Rearrange columns #######################################################
-      result = result.loc[:, ['assessment_type', 'smoke','hours_since_start_day_shifted','hours_since_start_day','time_between','puff_time']]
+      #result = result.loc[:, ['assessment_type', 'smoke','hours_since_start_day_shifted','hours_since_start_day','time_between','puff_time']]
 
     # Combine information into a dictionary ###################################
     new_dict = {this_study_day: result}

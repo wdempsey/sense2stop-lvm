@@ -17,6 +17,12 @@ data_dates = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'participant-d
 data_hq_episodes = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'hq-episodes-final.csv'))
 data_selfreport = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'self-report-smoking-final.csv'))
 
+#%%
+# Drop duplicate records from data_selfreport
+data_selfreport = data_selfreport.drop_duplicates()
+
+#%%
+
 ###############################################################################
 # Create a data frame with records of start & end of day timestamps
 # for each participant-day
@@ -82,7 +88,7 @@ def recode_message(message):
     if message in accept_response:
         use_value = recode_dictionary[message] 
     else:
-        use_value = pd.NA  
+        use_value = np.nan
     return use_value
 
 data_selfreport['message'] = data_selfreport['message'].apply(lambda x: recode_message(x))
@@ -91,7 +97,7 @@ data_selfreport['message'] = data_selfreport['message'].apply(lambda x: recode_m
 def calculate_delta(message):
     accept_response = [1,2,3,4]
     # delta is in hours
-    use_this_delta = {1: np.mean([0,5])/60, 2: np.mean([5,15])/60, 3: np.mean([15,30])/60, 4: pd.NA} 
+    use_this_delta = {1: np.mean([0,5])/60, 2: np.mean([5,15])/60, 3: np.mean([15,30])/60, 4: np.nan} 
 
     if pd.isna(message):
         use_value = message
