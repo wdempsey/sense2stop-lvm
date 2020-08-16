@@ -6,6 +6,8 @@ import os
 import pickle
 import matplotlib.pyplot as plt
 import scipy.special as sc
+from scipy.stats import norm
+from scipy.stats import lognorm
 import copy
 
 exec(open('../env_vars.py').read())
@@ -79,7 +81,7 @@ for participant in dict_knitted_with_puffmarker.keys():
         new_dict = {'participant_id':participant, 
                     'study_day':days, 
                     'day_length':current_day_length, 
-                    'latent_event_order': (np.arange(len(all_puff_time)) + 1),
+                    'latent_event_order': (np.arange(len(all_puff_time))),  # begins with zero (not 1)
                     'hours_since_start_day': np.array(all_puff_time)}
         current_participant_dict.update({days: new_dict})
     # Add this participant's data to dictionary
@@ -226,7 +228,7 @@ for participant in clean_data.keys():
             # Remove Self-Reports for "more than 30 minutes ago"
             current_data = current_data[current_data['windowtag']!=4]
             # Create variable: order at which the participant initiated a particular Self-Report
-            current_data['assessment_order'] = np.arange(len(current_data.index))+1
+            current_data['assessment_order'] = np.arange(len(current_data.index))  # begins with zero (not 1)
             current_data = current_data.loc[:, ['assessment_order','assessment_begin', 'smoke', 'windowtag']]
             clean_data[participant][days] = current_data
         
@@ -305,16 +307,18 @@ def matching(observed_dict, latent_dict):
 
 # %%
 # Test out the function
-use_participant = None
-use_days = None
+execute_test = False
 
-tmp_clean_data = copy.deepcopy(clean_data[use_participant][use_days])  # keep clean_data[use_participant][use_days] untouched
-tmp_latent_data = copy.deepcopy(latent_data[use_participant][use_days])  # keep latent_data[use_participant][use_days] untouched
-tmp_clean_data, tmp_latent_data = matching(observed_dict = tmp_clean_data, latent_dict = tmp_latent_data)
-print(tmp_clean_data)  
-print(tmp_latent_data)
-print(clean_data[use_participant][use_days])  # Check that this object remains unmodified
-print(latent_data[use_participant][use_days])  # Check that this object remains unmodified
+if execute_test:
+    use_participant = None
+    use_days = None
+    tmp_clean_data = copy.deepcopy(clean_data[use_participant][use_days])  # keep clean_data[use_participant][use_days] untouched
+    tmp_latent_data = copy.deepcopy(latent_data[use_participant][use_days])  # keep latent_data[use_participant][use_days] untouched
+    tmp_clean_data, tmp_latent_data = matching(observed_dict = tmp_clean_data, latent_dict = tmp_latent_data)
+    print(tmp_clean_data)  
+    print(tmp_latent_data)
+    print(clean_data[use_participant][use_days])  # Check that this object remains unmodified
+    print(latent_data[use_participant][use_days])  # Check that this object remains unmodified
 
 # %%
 # Perform match for each PARTICIPANT-DAY
@@ -388,7 +392,7 @@ def generate_recall_times(arr_latent_times, arr_delay):
         # If delay is tiny, variance will be very small. If delay is huge, variance will be huge
         # Note that draw_time_i can be negative
         # This means that recall time is before start of participant-day (time zero)
-        draw_time_i = np.random.normal(loc = arr_latent_times[i], scale = np.sqrt(arr_delay[i]), size = 1)
+        draw_time_i = norm.rvs(loc = arr_latent_times[i], scale = arr_delay[i], size = 1)
         arr_recall_times.extend(draw_time_i) 
 
     arr_recall_times = np.array(arr_recall_times)
@@ -396,12 +400,98 @@ def generate_recall_times(arr_latent_times, arr_delay):
 
 # %%
 # Test out the function
-use_participant = None
-use_days = None
+execute_test = False
 
-tmp_clean_data = copy.deepcopy(clean_data[use_participant][use_days])  # keep clean_data[use_participant][use_days] untouched
-tmp_latent_data = copy.deepcopy(latent_data[use_participant][use_days])  # keep latent_data[use_participant][use_days] untouched
-generate_recall_times(arr_latent_times = tmp_latent_data['hours_since_start_day'][tmp_latent_data['matched']], arr_delay = tmp_clean_data['delay'])
+if execute_test:
+    use_participant = None
+    use_days = None
+    tmp_clean_data = copy.deepcopy(clean_data[use_participant][use_days])  # keep clean_data[use_participant][use_days] untouched
+    tmp_latent_data = copy.deepcopy(latent_data[use_participant][use_days])  # keep latent_data[use_participant][use_days] untouched
+    res = generate_recall_times(arr_latent_times = tmp_latent_data['hours_since_start_day'][tmp_latent_data['matched']], arr_delay = tmp_clean_data['delay'])
+    print(res)
+
+# %%
+def selfreport_mem(observed_dict, latent_dict):
+    """
+    Prob that participant reports smoked between use_value_min to use_value_max ago
+    equal to prob that participant recalled smoking between 
+    use_value_min to use_value_max ago given that the time the participant recalled
+    is after start of study (recall>0)
+    apply function only after generating recall times
+    """
+
+    prob_reported = []
+    if len(observed_dict['windowtag'])>0:
+        for idx_assessment in range(0, len(observed_dict['windowtag'])):
+            if observed_dict['recall'][idx_assessment] >=0:
+                # Grab true latent time matched to current reported time
+                idx_matched_latent_event = observed_dict['matched_latent_event'][idx_assessment]
+                idx_matched_latent_event = np.int64(idx_matched_latent_event)
+                curr_true_time = latent_dict['hours_since_start_day'][idx_matched_latent_event]
+                # Grab current reported time and convert val_min and val_max from minutes to hours
+                val_min, val_max = convert_windowtag_selfreport(windowtag = observed_dict['windowtag'][idx_assessment])
+                val_min = val_min/60
+                val_max = val_max/60
+                # Grab current delay
+                curr_delay = observed_dict['delay'][idx_assessment]
+                # Calculate probabilities
+                prob_upper_bound = norm.cdf(x = curr_true_time - val_min, loc = curr_true_time, scale = curr_delay)
+                prob_lower_bound = norm.cdf(x = curr_true_time - val_max, loc = curr_true_time, scale = curr_delay)
+                prob_positive_recall = 1-norm.cdf(x = 0, loc = curr_true_time, scale = curr_delay)
+                c = (prob_upper_bound - prob_lower_bound)/prob_positive_recall
+                c = [c]
+                prob_reported.extend(c)
+            else:
+                prob_reported.extend(0)
+
+    prob_reported = np.array(prob_reported)
+    return(prob_reported)
+
+
+# %%
+# Test out the function
+execute_test = False
+
+if execute_test:
+    use_participant = None
+    use_days = None
+    tmp_clean_data = copy.deepcopy(clean_data[use_participant][use_days])  # keep clean_data[use_participant][use_days] untouched
+    tmp_latent_data = copy.deepcopy(latent_data[use_participant][use_days])
+    if len(tmp_latent_data['matched']) > 0:
+        tmp_clean_data['recall'] = generate_recall_times(arr_latent_times = tmp_latent_data['hours_since_start_day'][tmp_latent_data['matched']], arr_delay = tmp_clean_data['delay'])
+        res = selfreport_mem(observed_dict = tmp_clean_data, latent_dict = tmp_latent_data)
+        print(res)
+
+# %%
+
+def selfreport_mem_total(observed_dict, latent_dict, params):
+    m = len(latent_dict['matched'])
+    total_matched = sum(latent_dict['matched'])
+    current_total_loglik = total_matched*np.log(params['p']) + (m - total_matched)*np.log(1-params['p'])
+
+    if np.sum(np.isnan(observed_dict['matched_latent_event']))==0:
+        observed_dict['recall'] = generate_recall_times(arr_latent_times = latent_dict['hours_since_start_day'][latent_dict['matched']], arr_delay = observed_dict['delay'])
+        probs_reported = selfreport_mem(observed_dict = observed_dict, latent_dict = latent_dict)
+        reported_total_loglik = np.sum(np.log(probs_reported))
+        current_total_loglik += reported_total_loglik
+    else:
+        current_total_loglik = -np.inf
+
+    return current_total_loglik
+
+# %%
+
+# Test out the function
+execute_test = False
+
+if execute_test:
+    use_participant = None
+    use_days = None
+    tmp_clean_data = copy.deepcopy(clean_data[use_participant][use_days])  # keep clean_data[use_participant][use_days] untouched
+    tmp_latent_data = copy.deepcopy(latent_data[use_participant][use_days])
+    res = selfreport_mem_total(observed_dict = tmp_clean_data, latent_dict = tmp_latent_data, params = {'p':0.9})
+    print(res)
+
 
 # %%
 
