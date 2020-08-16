@@ -67,6 +67,20 @@ data_selfreport = data_selfreport[data_selfreport['selfreport_time'] >= data_sel
 data_selfreport = data_selfreport[data_selfreport['selfreport_time'] <= data_selfreport['end_time']]
 data_selfreport['hours_since_start_day'] = (data_selfreport['selfreport_time'] - data_selfreport['start_time'])/np.timedelta64(1,'h')
 
+#%%
+# SANITY CHECK: are there Self-Reports with duplicate hours_since_start_day?
+# If there are duplicates, only retain the very first record
+for participant in (data_selfreport['participant_id'].unique()):
+    for days in range(1,15):
+        current_data_selfreport = data_selfreport[data_selfreport['participant_id']==participant]
+        current_data_selfreport = current_data_selfreport[current_data_selfreport['study_day']==days]
+        if len(current_data_selfreport.index>0):
+            which_duplicated = current_data_selfreport['hours_since_start_day'].duplicated()
+            if np.sum(which_duplicated)>0:
+                #print((participant, days, which_duplicated))
+                current_data_selfreport = current_data_selfreport[~which_duplicated]
+                data_selfreport[(data_selfreport['participant_id']==participant) & (data_selfreport['study_day']==days)] = current_data_selfreport
+
 # SANITY CHECK:
 #data_selfreport['message'].value_counts()
 #%%

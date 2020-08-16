@@ -24,6 +24,19 @@ infile.close()
 exec(open(os.path.join(os.path.realpath(dir_code_methods), 'setup-day-limits.py')).read())
 
 # %%
+# Sanity check: are there any duplicates in the hours_since_start_day column?
+for participant in dict_knitted_with_puffmarker.keys():
+    for days in dict_knitted_with_puffmarker[participant].keys():
+        current_data = dict_knitted_with_puffmarker[participant][days]
+        if len(current_data.index) > 0:
+            which_idx_dup = current_data['hours_since_start_day'].duplicated()
+            which_idx_dup = np.array(which_idx_dup)
+            if np.sum(which_idx_dup*1.)>0:
+                print((participant, days, np.cumsum(which_idx_dup)))  # prints those participant-days with duplicates
+                # found: 1 selfreport and 1 random ema with exactly the same hours_since_start_day
+                # the selfreport will eventually be dropped since when_smoke=4
+
+# %%
 # Create "mock" true latent times using dict_knitted_with_puffmarker
 # Then we will test this first assuming that observed times come from Self-Report and/or Random EMA only
 
@@ -37,6 +50,9 @@ for participant in dict_knitted_with_puffmarker.keys():
         if len(current_data.index)==0:
             next
         else:
+            # note that even if participant reported "Yes" smoked, 
+            # delta is set to missing if in Self Report participant reported to have smoked "more than 30 minutes ago"
+            # or in Random EMAs where participant reported to have smoked "more than 2 hours ago"
             current_data_yes = current_data[(current_data['smoke']=='Yes') & ~(np.isnan(current_data['delta']))]
             if len(current_data_yes)==0:
                 next
@@ -63,6 +79,7 @@ for participant in dict_knitted_with_puffmarker.keys():
         new_dict = {'participant_id':participant, 
                     'study_day':days, 
                     'day_length':current_day_length, 
+                    'latent_event_order': (np.arange(len(all_puff_time)) + 1),
                     'hours_since_start_day': np.array(all_puff_time)}
         current_participant_dict.update({days: new_dict})
     # Add this participant's data to dictionary
@@ -183,7 +200,150 @@ print(lat_pp_ex2.compute_total_pp(use_params = {'lambda_prequit': 0.05, 'lambda_
 print(lat_pp_ex2.params)  # params remain unchanged
 
 # %%
-# Define functions for creating "mock" observed data
+# Create "mock" observed data
+clean_data = copy.deepcopy(dict_knitted_with_puffmarker)  # Keep dict_knitted_with_puffmarker untouched
+
+for participant in clean_data.keys():
+    for days in clean_data[participant].keys():
+        current_data = clean_data[participant][days]
+        if len(current_data.index)>0:
+            current_data = current_data.loc[:, ['assessment_type', 'hours_since_start_day', 'hours_since_start_day_shifted','smoke','when_smoke']]
+            current_data = current_data.rename(columns = {'assessment_type':'assessment_type',
+                                                          'hours_since_start_day':'assessment_begin', 
+                                                          'hours_since_start_day_shifted':'assessment_begin_shifted',
+                                                          'smoke':'smoke',
+                                                          'when_smoke':'windowtag'})
+            clean_data[participant][days] = current_data
+
+
+# %%
+# Let's simply use Self-Reports for now as out "mock" observed data
+for participant in clean_data.keys():
+    for days in clean_data[participant].keys():
+        current_data = clean_data[participant][days]
+        if len(current_data.index)>0:
+            current_data = current_data[current_data['assessment_type']=="selfreport"]
+            # Remove Self-Reports for "more than 30 minutes ago"
+            current_data = current_data[current_data['windowtag']!=4]
+            # Create variable: order at which the participant initiated a particular Self-Report
+            current_data['assessment_order'] = np.arange(len(current_data.index))+1
+            current_data = current_data.loc[:, ['assessment_order','assessment_begin', 'smoke', 'windowtag']]
+            clean_data[participant][days] = current_data
+        
+# %%
+# Now, let's convert each PERSON-DAY of clean_data into a dictionary
+for participant in clean_data.keys():
+    for days in clean_data[participant].keys():
+        current_data = clean_data[participant][days]
+        if len(current_data.index)>0:
+            current_dict = {'participant_id':participant,
+                            'study_day': days,
+                            'assessment_order': np.array(current_data['assessment_order']),
+                            'assessment_begin': np.array(current_data['assessment_begin']),
+                            'smoke': np.array(current_data['smoke']),
+                            'windowtag': np.array(current_data['windowtag'])}
+            clean_data[participant][days] = current_dict
+        else:
+            current_dict = {'participant_id':participant,
+                            'study_day': days,
+                            'assessment_order': np.array([]),
+                            'assessment_begin': np.array([]),
+                            'smoke': np.array([]),
+                            'windowtag': np.array([])}
+            clean_data[participant][days] = current_dict
+
+# %%   
+
+# Now, set up matching function
+
+def matching(observed_dict, latent_dict):
+    ''' 
+    For each obs, looks backward to see if there is a matching
+    latent time (that is not taken by a prior obs).  
+    Reports back which latent events are matched to observed events and
+    calculates delay
+
+    Note: What if we have latent but do not have observed?
+    Need to take care of that case in the function
+
+    observed_dict: Observed dict for a given PERSON-DAY
+    latent_dict: Latent dict for a given PERSON-DAY
+    '''
+
+    if (len(observed_dict['windowtag'])>0) and (len(latent_dict['hours_since_start_day'])>0):
+        # This is the case when there are true latent events AND observed events
+        observed_dict['matched_latent_event'] = np.array(np.repeat(np.nan, len(observed_dict['windowtag'])))
+        observed_dict['delay'] = np.array(np.repeat(np.nan, len(observed_dict['windowtag'])))
+        latent_dict['matched'] = np.array(np.repeat(False, len(latent_dict['hours_since_start_day'])))
+
+        for idx_assessment in range(0, len(observed_dict['assessment_order'])):
+            # current observed Self-Report will be matched to the latent event occurring immediately prior to it
+            # if that latent event has not yet been matched to any observed event
+            this_scalar = observed_dict['assessment_begin'][idx_assessment]
+            which_idx = (latent_dict['hours_since_start_day'] <= this_scalar)
+            which_idx = np.where(which_idx)
+            which_idx = np.max(which_idx)
+            if latent_dict['matched'][which_idx] == False:
+                latent_dict['matched'][which_idx] =  True  # A match has been found!
+                observed_dict['matched_latent_event'][idx_assessment] = latent_dict['latent_event_order'][which_idx]
+                observed_dict['delay'][idx_assessment] = observed_dict['assessment_begin'][idx_assessment] - latent_dict['hours_since_start_day'][which_idx]
+    elif (len(observed_dict['windowtag'])==0) and (len(latent_dict['hours_since_start_day'])>0):
+        # This is the case when there are true latent events AND no observed events
+        observed_dict['matched_latent_event'] = np.array([])
+        observed_dict['delay'] = np.array([])
+        latent_dict['matched'] = np.array(np.repeat(False, len(latent_dict['hours_since_start_day'])))
+    elif (len(observed_dict['windowtag'])==0) and (len(latent_dict['hours_since_start_day'])==0):
+        # This is the case when there are no true latent events AND no observed events
+        observed_dict['matched_latent_event'] = np.array([])
+        observed_dict['delay'] = np.array([])
+        latent_dict['matched'] = np.array([])
+    else:
+        next
+    
+    return observed_dict, latent_dict
+
+
+# %%
+# Test out the function
+use_participant = None
+use_days = None
+
+tmp_clean_data = copy.deepcopy(clean_data[use_participant][use_days])  # keep clean_data[use_participant][use_days] untouched
+tmp_latent_data = copy.deepcopy(latent_data[use_participant][use_days])  # keep latent_data[use_participant][use_days] untouched
+tmp_clean_data, tmp_latent_data = matching(observed_dict = tmp_clean_data, latent_dict = tmp_latent_data)
+print(tmp_clean_data)  
+print(tmp_latent_data)
+print(clean_data[use_participant][use_days])  # Check that this object remains unmodified
+print(latent_data[use_participant][use_days])  # Check that this object remains unmodified
+
+# %%
+# Perform match for each PARTICIPANT-DAY
+for participant in clean_data.keys():
+    for days in clean_data[participant].keys():
+        clean_data[participant][days], latent_data[participant][days] = matching(observed_dict = clean_data[participant][days], latent_dict = latent_data[participant][days])
+
+# %%
+# Calculate initial estimate of delay
+tot_delay = 0
+cnt_delay = 0
+
+for participant in clean_data.keys():
+    for days in clean_data[participant].keys():
+        current_data = clean_data[participant][days]
+        if len(current_data['windowtag'])>0:
+            tmp_array_delay = np.array(current_data['delay'])
+            tmp_array_delay = tmp_array_delay[~np.isnan(tmp_array_delay)]  # nan's occur when an observed time is not matched with a latent time
+            tot_delay = tot_delay + np.sum(tmp_array_delay)
+            cnt_delay = cnt_delay + len(current_data['windowtag'])
+
+mean_delay_init = tot_delay/cnt_delay
+lambda_delay_init = 1/mean_delay_init
+
+print(mean_delay_init)
+print(lambda_delay_init)
+
+# %%
+# Define functions for handling windowtag by assessment type
 def convert_windowtag_selfreport(windowtag):
     accept_response = [1,2,3,4]
     # windowtag is in hours
@@ -221,23 +381,27 @@ def convert_windowtag_random_ema(windowtag):
     return use_value_min, use_value_max
 
 # %%
-# Create "mock" observed data
-clean_data = dict_knitted_with_puffmarker
+# Define functions for Self Report MEM
+def generate_recall_times(arr_latent_times, arr_delay):
+    arr_recall_times = []
+    for i in range(0, len(arr_latent_times)):
+        # If delay is tiny, variance will be very small. If delay is huge, variance will be huge
+        # Note that draw_time_i can be negative
+        # This means that recall time is before start of participant-day (time zero)
+        draw_time_i = np.random.normal(loc = arr_latent_times[i], scale = np.sqrt(arr_delay[i]), size = 1)
+        arr_recall_times.extend(draw_time_i) 
 
-for participant in clean_data.keys():
-    for days in clean_data[participant].keys():
-        current_data = clean_data[participant][days]
-        if len(current_data.index)>0:
-            current_data = current_data.loc[:, ['assessment_type', 'hours_since_start_day', 'hours_since_start_day_shifted','smoke','when_smoke']]
-            current_data = current_data.rename(columns = {'assessment_type':'assessment_type',
-                                                          'hours_since_start_day':'assessment_begin', 
-                                                          'hours_since_start_day_shifted':'assessment_begin_shifted',
-                                                          'smoke':'smoke',
-                                                          'when_smoke':'windowtag'})
-            clean_data[participant][days] = current_data
-
+    arr_recall_times = np.array(arr_recall_times)
+    return arr_recall_times
 
 # %%
+# Test out the function
+use_participant = None
+use_days = None
 
+tmp_clean_data = copy.deepcopy(clean_data[use_participant][use_days])  # keep clean_data[use_participant][use_days] untouched
+tmp_latent_data = copy.deepcopy(latent_data[use_participant][use_days])  # keep latent_data[use_participant][use_days] untouched
+generate_recall_times(arr_latent_times = tmp_latent_data['hours_since_start_day'][tmp_latent_data['matched']], arr_delay = tmp_clean_data['delay'])
 
+# %%
 
