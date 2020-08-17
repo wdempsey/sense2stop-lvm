@@ -152,7 +152,7 @@ if execute_test:
     # pre-quit
     print(latent_poisson_process_ex2(latent_dict = latent_data[use_this_id][use_this_days], params = {'lambda_prequit': 0.14, 'lambda_postquit': 0.75}))
     # post-quit
-    print(latent_poisson_process_ex2(latent_dict = latent_data[use_this_id][use_this_days], params = {'lambda': 0.14, 'lambda_postquit': 0.75}))
+    print(latent_poisson_process_ex2(latent_dict = latent_data[use_this_id][use_this_days], params = {'lambda_prequit': 0.14, 'lambda_postquit': 0.75}))
 
 # %%
 class latent(object):
@@ -199,27 +199,37 @@ class latent(object):
 
 # %%
 # Test out the class
-lat_pp_ex1 = latent(data=latent_data, model=latent_poisson_process_ex1, params = {'lambda': 0.14})
-print(lat_pp_ex1.model)
-print(lat_pp_ex1.params)
-print(lat_pp_ex1.compute_total_pp(use_params = None))
+execute_test = False
 
-lat_pp_ex1.update_params(new_params = {'lambda': 0.77})
-print(lat_pp_ex1.model)
-print(lat_pp_ex1.params)
-print(lat_pp_ex1.compute_total_pp(use_params = None))
+if execute_test:
+    tmp_latent_data = copy.deepcopy(latent_data)
+
+    lat_pp_ex1 = latent(data=tmp_latent_data, model=latent_poisson_process_ex1, params = {'lambda': 0.14})
+    print(lat_pp_ex1.model)
+    print(lat_pp_ex1.params)
+    print(lat_pp_ex1.compute_total_pp(use_params = None))
+
+    lat_pp_ex1.update_params(new_params = {'lambda': 0.77})
+    print(lat_pp_ex1.model)
+    print(lat_pp_ex1.params)
+    print(lat_pp_ex1.compute_total_pp(use_params = None))
 
 # %%
 # Another test on the class
-lat_pp_ex2 = latent(data=latent_data, model=latent_poisson_process_ex2, params = {'lambda_prequit': 0.14, 'lambda_postquit': 0.75})
-print(lat_pp_ex2.model)
-print(lat_pp_ex2.params)
-print(lat_pp_ex2.compute_total_pp(use_params = None))
+execute_test = False
 
-lat_pp_ex2.update_params(new_params = {'lambda_prequit': 0.05, 'lambda_postquit': 0.25})
-print(lat_pp_ex2.model)
-print(lat_pp_ex2.params)
-print(lat_pp_ex2.compute_total_pp(use_params = None))
+if execute_test:
+    tmp_latent_data = copy.deepcopy(latent_data)
+
+    lat_pp_ex2 = latent(data=tmp_latent_data, model=latent_poisson_process_ex2, params = {'lambda_prequit': 0.14, 'lambda_postquit': 0.75})
+    print(lat_pp_ex2.model)
+    print(lat_pp_ex2.params)
+    print(lat_pp_ex2.compute_total_pp(use_params = None))
+
+    lat_pp_ex2.update_params(new_params = {'lambda_prequit': 0.05, 'lambda_postquit': 0.25})
+    print(lat_pp_ex2.model)
+    print(lat_pp_ex2.params)
+    print(lat_pp_ex2.compute_total_pp(use_params = None))
 
 # %%
 # Create "mock" observed data
@@ -405,32 +415,6 @@ def convert_windowtag_random_ema(windowtag):
     return use_value_min, use_value_max
 
 # %%
-# Define functions for Self Report MEM
-def generate_recall_times(arr_latent_times, arr_delay):
-    arr_recall_times = []
-    for i in range(0, len(arr_latent_times)):
-        # If delay is tiny, variance will be very small. If delay is huge, variance will be huge
-        # Note that draw_time_i can be negative
-        # This means that recall time is before start of participant-day (time zero)
-        draw_time_i = norm.rvs(loc = arr_latent_times[i], scale = arr_delay[i], size = 1)
-        arr_recall_times.extend(draw_time_i) 
-
-    arr_recall_times = np.array(arr_recall_times)
-    return arr_recall_times
-
-# %%
-# Test out the function
-execute_test = False
-
-if execute_test:
-    use_participant = None
-    use_days = None
-    tmp_clean_data = copy.deepcopy(clean_data[use_participant][use_days])  # keep clean_data[use_participant][use_days] untouched
-    tmp_latent_data = copy.deepcopy(latent_data[use_participant][use_days])  # keep latent_data[use_participant][use_days] untouched
-    res = generate_recall_times(arr_latent_times = tmp_latent_data['hours_since_start_day'][tmp_latent_data['matched']], arr_delay = tmp_clean_data['delay'])
-    print(res)
-
-# %%
 def selfreport_mem(observed_dict, latent_dict):
     """
     Prob that participant reports smoked between use_value_min to use_value_max ago
@@ -443,28 +427,22 @@ def selfreport_mem(observed_dict, latent_dict):
     prob_reported = []
     if len(observed_dict['windowtag'])>0:
         for idx_assessment in range(0, len(observed_dict['windowtag'])):
-            if observed_dict['recall'][idx_assessment] >=0:
-                # Grab true latent time matched to current reported time
-                idx_matched_latent_event = observed_dict['matched_latent_event'][idx_assessment]
-                idx_matched_latent_event = np.int64(idx_matched_latent_event)
-                curr_true_time = latent_dict['hours_since_start_day'][idx_matched_latent_event]
-                # Grab current reported time and convert val_min and val_max from minutes to hours
-                val_min, val_max = convert_windowtag_selfreport(windowtag = observed_dict['windowtag'][idx_assessment])
-                val_min = val_min/60
-                val_max = val_max/60
-                # Grab current delay
-                curr_delay = observed_dict['delay'][idx_assessment]
-                # Calculate probabilities
-                prob_upper_bound = norm.cdf(x = curr_true_time - val_min, loc = curr_true_time, scale = curr_delay)
-                prob_lower_bound = norm.cdf(x = curr_true_time - val_max, loc = curr_true_time, scale = curr_delay)
-                prob_positive_recall = 1-norm.cdf(x = 0, loc = curr_true_time, scale = curr_delay)
-                c = (prob_upper_bound - prob_lower_bound)/prob_positive_recall
-                prob_reported.extend([c])
-            else:
-                # This is the case when recall time is negative
-                # That is participant recalled event to have happened before start of day (time zero)
-                # Note that log(0) = -infty. Hence, this case needs to be carefully handled in calculations that follow
-                prob_reported.extend([0])
+            # Grab true latent time matched to current reported time
+            idx_matched_latent_event = observed_dict['matched_latent_event'][idx_assessment]
+            idx_matched_latent_event = np.int64(idx_matched_latent_event)
+            curr_true_time = latent_dict['hours_since_start_day'][idx_matched_latent_event]
+            # Grab current reported time and convert val_min and val_max from minutes to hours
+            val_min, val_max = convert_windowtag_selfreport(windowtag = observed_dict['windowtag'][idx_assessment])
+            val_min = val_min/60
+            val_max = val_max/60
+            # Grab current delay
+            curr_delay = observed_dict['delay'][idx_assessment]
+            # Calculate probabilities
+            prob_upper_bound = norm.cdf(x = curr_true_time - val_min, loc = curr_true_time, scale = curr_delay)
+            prob_lower_bound = norm.cdf(x = curr_true_time - val_max, loc = curr_true_time, scale = curr_delay)
+            prob_positive_recall = 1-norm.cdf(x = 0, loc = curr_true_time, scale = curr_delay)
+            c = (prob_upper_bound - prob_lower_bound)/prob_positive_recall
+            prob_reported.extend([c])
 
     prob_reported = np.array(prob_reported)
     return(prob_reported)
@@ -480,7 +458,6 @@ if execute_test:
     tmp_clean_data = copy.deepcopy(clean_data[use_participant][use_days])  # keep clean_data[use_participant][use_days] untouched
     tmp_latent_data = copy.deepcopy(latent_data[use_participant][use_days])
     if len(tmp_latent_data['matched']) > 0:
-        tmp_clean_data['recall'] = generate_recall_times(arr_latent_times = tmp_latent_data['hours_since_start_day'][tmp_latent_data['matched']], arr_delay = tmp_clean_data['delay'])
         res = selfreport_mem(observed_dict = tmp_clean_data, latent_dict = tmp_latent_data)
         print(res)
 
@@ -501,10 +478,8 @@ def selfreport_mem_total(observed_dict, latent_dict, params):
         # The first condition says that there is NO observed event that is not matched to a latent event
         # since an unmatched observed event is indicated by a missing value in observed_dict['matched_latent_event']
         if np.sum(np.isnan(observed_dict['matched_latent_event']))==0:
-            observed_dict['recall'] = generate_recall_times(arr_latent_times = latent_dict['hours_since_start_day'][latent_dict['matched']], arr_delay = observed_dict['delay'])
             probs_reported = selfreport_mem(observed_dict = observed_dict, latent_dict = latent_dict)
-            positive_probs_reported = probs_reported[probs_reported>0]
-            reported_total_loglik = np.sum(np.log(positive_probs_reported))
+            reported_total_loglik = np.sum(np.log(probs_reported))
             current_total_loglik += reported_total_loglik
         # This next condition says that there is at least one observed event that is NOT matched to a latent event
         else:
@@ -527,23 +502,26 @@ if execute_test:
 
 # %%
 # Another test of the function
-tmp_clean_data = copy.deepcopy(clean_data)  # keep clean_data untouched
-tmp_latent_data = copy.deepcopy(latent_data)  # keep latent_data untouched
+execute_test = False
 
-# Sanity check: are there observed events which are NOT matched to latent events?
-all_matched = True
+if execute_test:
+    tmp_clean_data = copy.deepcopy(clean_data)  # keep clean_data untouched
+    tmp_latent_data = copy.deepcopy(latent_data)  # keep latent_data untouched
 
-for use_this_id in tmp_clean_data.keys():
-    for use_this_days in tmp_clean_data[use_this_id].keys():
-        observed = tmp_clean_data[use_this_id][use_this_days]
-        latent = tmp_latent_data[use_this_id][use_this_days]
-        res = selfreport_mem_total(observed_dict = observed, latent_dict = latent, params = {'p':0.9})
-        if res== -np.inf:
-            all_matched = False
-            print(("NOT all matched", use_this_id, use_this_days, res))
+    # Sanity check: are there observed events which are NOT matched to latent events?
+    all_matched = True
 
-if all_matched:
-    print("all observed events are matched to latent events")
+    for use_this_id in tmp_clean_data.keys():
+        for use_this_days in tmp_clean_data[use_this_id].keys():
+            observed = tmp_clean_data[use_this_id][use_this_days]
+            latent = tmp_latent_data[use_this_id][use_this_days]
+            res = selfreport_mem_total(observed_dict = observed, latent_dict = latent, params = {'p':0.9})
+            if res== -np.inf:
+                all_matched = False
+                print(("NOT all matched", use_this_id, use_this_days, res))
+
+    if all_matched:
+        print("all observed events are matched to latent events")
 
 # %%
 
@@ -588,13 +566,129 @@ class measurement_model(object):
 
 # %% 
 # Test out the class
-tmp_clean_data = copy.deepcopy(clean_data)  # keep clean_data untouched
-tmp_latent_data = copy.deepcopy(latent_data)  # keep latent_data untouched
-sr_mem = measurement_model(data=tmp_clean_data, model=selfreport_mem_total, latent = tmp_latent_data, model_params={'p':0.9})
-print(sr_mem.model_params)
-print(sr_mem.compute_total_mem())
-sr_mem.update_params(new_params = {'p':0.4})
-print(sr_mem.model_params)
-print(sr_mem.compute_total_mem())
+
+execute_test = False
+
+if execute_test:
+    tmp_clean_data = copy.deepcopy(clean_data)  # keep clean_data untouched
+    tmp_latent_data = copy.deepcopy(latent_data)  # keep latent_data untouched
+    sr_mem = measurement_model(data=tmp_clean_data, model=selfreport_mem_total, latent = tmp_latent_data, model_params={'p':0.9})
+    print(sr_mem.model_params)
+    print(sr_mem.compute_total_mem())
+    sr_mem.update_params(new_params = {'p':0.4})
+    print(sr_mem.model_params)
+    print(sr_mem.compute_total_mem())
+
 
 # %%
+
+class model(object):
+    '''
+    Define the model as a latent object and a list of mem objects
+    '''
+    
+    def __init__(self, init=0, latent=0, model=0):
+        self.data = init # Initial smoking estimates
+        self.latent = latent # Latent smoking process model
+        self.memmodel = model # Measurement-error model
+    
+    def update_params(self, new_params):
+        self.params = new_params
+    
+    def adapMH_params(self, 
+                      adaptive = False, 
+                      iteration = 1, 
+                      covariance = 0, 
+                      barX = 0, 
+                      covariance_init = 0, 
+                      barX_init = 0, 
+                      cutpoint = 500,
+                      sigma = 0, 
+                      bartau = 0.574):
+        '''
+        Builds an adaptive MH for updating model parameter.
+        If adaptive = True 
+        then use "An adaptive metropolis algorithm" Haario et al (2001)
+        to perform adaptive updates.
+        bartau = optimal acceptance rate (here, default is 0.574)
+        '''
+
+        latent_params = np.array(list(self.latent.params.values()))
+
+        llik_current = self.latent.compute_total_pp(None)
+        if adaptive is False:
+            new_params = np.exp(np.log(latent_params) + np.random.normal(scale = 0.01, size = latent_params.size))
+        else:
+            sd = 2.38**2 / latent_params.size
+            if iteration <= cutpoint:
+                if covariance_init.shape[0] > 1:
+                    new_params = np.exp(np.log(latent_params)+ np.random.multivariate_normal(mean = barX_init, cov = sd * covariance_init))
+                else:
+                    new_params = np.exp(np.log(latent_params)+ np.random.normal(loc = barX_init, scale = np.sqrt(sd * covariance_init)))
+            else:
+                if covariance_init.shape[0] > 1:
+                    new_params =  np.exp(np.log(latent_params) + np.random.multivariate_normal(mean = barX_init, cov = (sigma**2) * covariance))
+                else:
+                    new_params =  np.exp(np.log(latent_params) + np.random.normal(loc = barX_init, scale = sigma*np.sqrt(covariance_init)))
+
+        # Have to reshape new_params from an array into a dictionary
+        idx_keys_count = 0
+        for idx_keys in self.latent.params.keys():
+            self.latent.params[idx_keys] = new_params[idx_keys_count]
+            idx_keys_count += 1
+
+        llik_jitter = self.latent.compute_total_pp(use_params = self.latent.params)
+        log_acceptprob = (llik_jitter-llik_current)
+        acceptprob = np.exp(log_acceptprob)
+        acceptprob = np.min([acceptprob,1])
+        temp = np.random.binomial(1, p = acceptprob)
+
+        if temp == 0:
+            new_params = self.latent.params
+
+        if adaptive is True: # Update Covariance and barX
+            sigma_new = sigma + 1/iteration * (acceptprob - bartau)
+            log_new_params = np.log(new_params)
+            delta = log_new_params-barX
+            barX_new = barX + 1/iteration * (delta)
+            intermediate_step = np.outer(delta, delta)
+            if iteration > 1:
+                covariance_new = covariance + 1/(iteration-1) * ( intermediate_step * iteration/(iteration-1) - covariance )
+            else: 
+                covariance_new = covariance
+            return new_params, covariance_new, barX_new, sigma_new
+        else:
+            return new_params
+        
+
+
+
+# %%%
+# Test out class
+
+tmp_latent_data = copy.deepcopy(latent_data)
+tmp_clean_data = copy.deepcopy(clean_data)
+
+lat_pp = latent(data=tmp_latent_data, model=latent_poisson_process_ex2, params = {'lambda_prequit': 0.14, 'lambda_postquit': 0.75})
+sr_mem = measurement_model(data=tmp_clean_data, model=selfreport_mem_total, latent = tmp_latent_data, model_params={'p':0.9})
+test_model = model(init = clean_data,  latent = lat_pp , model = sr_mem)
+
+num_iters = 10
+cutpoint = 500
+cov_init = np.array([[0.005,0.0],[0.0,0.005]])
+barX_init = np.array([0.,0.])
+cov_new = np.array([[0.001,0.0],[0.0,0.01]])
+barX_new = np.array(list(lat_pp.params.values()))
+temp = np.zeros(shape = (num_iters, len(lat_pp.params.keys())))
+sigma_new = 2.38**2/len(lat_pp.params.keys())
+
+test_model.adapMH_params(adaptive=True,
+                         covariance=cov_new, 
+                         barX=barX_new,
+                         covariance_init= cov_init, 
+                         barX_init= barX_init,
+                         iteration=1, 
+                         cutpoint = cutpoint, 
+                         sigma= sigma_new)
+
+
