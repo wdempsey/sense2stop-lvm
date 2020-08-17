@@ -467,10 +467,9 @@ barX_init = np.array([0.])
 cov_new = np.array([0.005])
 barX_new = np.array(lat_pp.params)
 temp = np.zeros(shape = (num_iters, lat_pp.params.size))
-sigma_new = 3
+sigma_new = 4
 for iter in range(num_iters):
     print(lat_pp.params)
-    test_model = model(init = clean_data,  latent = lat_pp, model = sr_mem)
     new_params, cov_new, barX_new, sigma_new = test_model.adapMH_params(adaptive=True,covariance=cov_new, barX=barX_new, 
                                                                         covariance_init= cov_init, barX_init= barX_init,
                                                                         iteration=iter+1, cutpoint = cutpoint, sigma= sigma_new)
@@ -478,7 +477,7 @@ for iter in range(num_iters):
     lat_pp.update_params(new_params)
     print(sigma_new)
 
-accepttest = np.unique(temp[1000:]).size/temp[1000:].size
+accepttest = np.unique(temp[cutpoint:]).size/temp[cutpoint:].size
 print("Acceptance probability is %s" % np.round(accepttest,3))
     
 #%%

@@ -73,11 +73,11 @@ def selfreport_mem(observed, latent, dimon):
     dimon: Integer saying how many of the latent entries are currently included
     '''
     total = 1.0
-    temp_latent = latent[range(dimon)]
-    if not np.all(np.isin(observed,temp_latent)):
+    temp_latent = latent[tt.arange(dimon)]
+    if not tt.all(tt.eq(observed,temp_latent)):
         total = -1000000
     else: 
-        total = np.prod(np.isin(temp_latent,observed)*0.9 + (1-np.isin(temp_latent,observed))*0.1)
+        total = tt.prod(tt.eq(temp_latent,observed)*0.9 + (1-tt.eq(temp_latent,observed))*0.1)
     return total
 
 max_events = 0.0 # Defining max number of events
@@ -102,7 +102,7 @@ with pm.Model() as model:
     # Priors
     # -------------------------------------------------------------------------
     beta = pm.Normal('beta', mu=0, sd=10)
-    loglamb_observed = beta
+    loglamb_observed = beta 
     lamb_observed = np.exp(loglamb_observed)
     
     # -------------------------------------------------------------------------
@@ -116,16 +116,16 @@ with pm.Model() as model:
                 sr = clean_data[participants][days]['hours_since_start_day']
                 day_length = clean_data[participants][days]['day_length']
                 init = np.append(sr, np.repeat(0,max_events-num_sr))
-                smoke_length = pm.Poisson("smoke_length", mu=pp_rate, testval = num_sr) # Number of Events in Day
-                smoke_times = pm.Uniform("smoke_times", lower = 0.0, upper = day_length, shape = max_events, testval = init) # Location of Events in Day
-                sr_times = pm.Potential('sr_times', selfreport_mem(observed=sr, latent=smoke_times, ))
+                smoke_length = pm.Poisson('num_smokes_%d_%d'%(participants, days), mu=pp_rate, testval = num_sr) # Number of Events in Day
+                smoke_times = pm.Uniform('smoke_times_%d_%d'%(participants, days), lower = 0.0, upper = day_length, shape = max_events, testval = init) # Location of Events in Day
+                sr_times = pm.Potential('sr_times_%d_%d'%(participants, days), selfreport_mem(observed=sr, latent=smoke_times, dimon = smoke_length))
 
 
 #%%
 # Sample from posterior distribution
 with model:
 #    posterior_samples = pm.sample(draws=5000, tune=5000, cores=1, target_accept=0.80)
-    posterior_samples = pm.sample(draws = 3000, tune=2000, init='adapt_diag', cores = 1)    
+    posterior_samples = pm.sample(draws = 2000, tune=2000, init='adapt_diag', cores = 1)    
 
 #%%
 # Calculate 95% credible interval
