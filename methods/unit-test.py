@@ -104,11 +104,18 @@ def latent_poisson_process_ex1(latent_dict, params):
     total = m*np.log(params['lambda']) - params['lambda']*np.sum(latent_dict['hours_since_start_day'])
     return total
 
-# Test out the function latent_poisson_process_ex1
-# pre-quit
-print(latent_poisson_process_ex1(latent_dict = latent_data[224][2], params = {'lambda': 0.14}))
-# post-quit
-print(latent_poisson_process_ex1(latent_dict = latent_data[224][5], params = {'lambda': 0.14}))
+# %%
+# Test out the function
+execute_test = False
+
+if execute_test:
+    use_this_id = None
+    use_this_days = None
+    # Test out the function latent_poisson_process_ex1
+    # pre-quit
+    print(latent_poisson_process_ex1(latent_dict = latent_data[use_this_id][use_this_days], params = {'lambda': 0.14}))
+    # post-quit
+    print(latent_poisson_process_ex1(latent_dict = latent_data[use_this_id][use_this_days], params = {'lambda': 0.14}))
 
 
 # %%
@@ -134,11 +141,18 @@ def latent_poisson_process_ex2(latent_dict, params):
 
     return total
 
-# Test out the function latent_poisson_process_ex2
-# pre-quit
-print(latent_poisson_process_ex2(latent_dict = latent_data[224][2], params = {'lambda_prequit': 0.14, 'lambda_postquit': 0.75}))
-# post-quit
-print(latent_poisson_process_ex2(latent_dict = latent_data[224][5], params = {'lambda': 0.14, 'lambda_postquit': 0.75}))
+# %%
+# Test out the function
+execute_test = False
+
+if execute_test:
+    use_this_id = None
+    use_this_days = None
+    # Test out the function latent_poisson_process_ex2
+    # pre-quit
+    print(latent_poisson_process_ex2(latent_dict = latent_data[use_this_id][use_this_days], params = {'lambda_prequit': 0.14, 'lambda_postquit': 0.75}))
+    # post-quit
+    print(latent_poisson_process_ex2(latent_dict = latent_data[use_this_id][use_this_days], params = {'lambda': 0.14, 'lambda_postquit': 0.75}))
 
 # %%
 class latent(object):
@@ -189,8 +203,11 @@ lat_pp_ex1 = latent(data=latent_data, model=latent_poisson_process_ex1, params =
 print(lat_pp_ex1.model)
 print(lat_pp_ex1.params)
 print(lat_pp_ex1.compute_total_pp(use_params = None))
-print(lat_pp_ex1.compute_total_pp(use_params = {'lambda': 0.77}))
-print(lat_pp_ex1.params)  # params remain unchanged
+
+lat_pp_ex1.update_params(new_params = {'lambda': 0.77})
+print(lat_pp_ex1.model)
+print(lat_pp_ex1.params)
+print(lat_pp_ex1.compute_total_pp(use_params = None))
 
 # %%
 # Another test on the class
@@ -198,8 +215,11 @@ lat_pp_ex2 = latent(data=latent_data, model=latent_poisson_process_ex2, params =
 print(lat_pp_ex2.model)
 print(lat_pp_ex2.params)
 print(lat_pp_ex2.compute_total_pp(use_params = None))
-print(lat_pp_ex2.compute_total_pp(use_params = {'lambda_prequit': 0.05, 'lambda_postquit': 0.25}))
-print(lat_pp_ex2.params)  # params remain unchanged
+
+lat_pp_ex2.update_params(new_params = {'lambda_prequit': 0.05, 'lambda_postquit': 0.25})
+print(lat_pp_ex2.model)
+print(lat_pp_ex2.params)
+print(lat_pp_ex2.compute_total_pp(use_params = None))
 
 # %%
 # Create "mock" observed data
@@ -282,7 +302,7 @@ def matching(observed_dict, latent_dict):
             # current observed Self-Report will be matched to the latent event occurring immediately prior to it
             # if that latent event has not yet been matched to any observed event
             this_scalar = observed_dict['assessment_begin'][idx_assessment]
-            which_idx = (latent_dict['hours_since_start_day'] <= this_scalar)
+            which_idx = (latent_dict['hours_since_start_day'] < this_scalar)  # check: this line will work if there are no latent_dict['hours_since_start_day'] or observed_dict['assessment_begin'] that are EXACTLY zero
             which_idx = np.where(which_idx)
             which_idx = np.max(which_idx)
             if latent_dict['matched'][which_idx] == False:
@@ -439,10 +459,12 @@ def selfreport_mem(observed_dict, latent_dict):
                 prob_lower_bound = norm.cdf(x = curr_true_time - val_max, loc = curr_true_time, scale = curr_delay)
                 prob_positive_recall = 1-norm.cdf(x = 0, loc = curr_true_time, scale = curr_delay)
                 c = (prob_upper_bound - prob_lower_bound)/prob_positive_recall
-                c = [c]
-                prob_reported.extend(c)
+                prob_reported.extend([c])
             else:
-                prob_reported.extend(0)
+                # This is the case when recall time is negative
+                # That is participant recalled event to have happened before start of day (time zero)
+                # Note that log(0) = -infty. Hence, this case needs to be carefully handled in calculations that follow
+                prob_reported.extend([0])
 
     prob_reported = np.array(prob_reported)
     return(prob_reported)
@@ -465,17 +487,28 @@ if execute_test:
 # %%
 
 def selfreport_mem_total(observed_dict, latent_dict, params):
-    m = len(latent_dict['matched'])
-    total_matched = sum(latent_dict['matched'])
-    current_total_loglik = total_matched*np.log(params['p']) + (m - total_matched)*np.log(1-params['p'])
+    """
+    Calculates total LOG-likelihood for a given PARTICIPANT-DAY
+    """
+    current_total_loglik = 0
 
-    if np.sum(np.isnan(observed_dict['matched_latent_event']))==0:
-        observed_dict['recall'] = generate_recall_times(arr_latent_times = latent_dict['hours_since_start_day'][latent_dict['matched']], arr_delay = observed_dict['delay'])
-        probs_reported = selfreport_mem(observed_dict = observed_dict, latent_dict = latent_dict)
-        reported_total_loglik = np.sum(np.log(probs_reported))
-        current_total_loglik += reported_total_loglik
-    else:
-        current_total_loglik = -np.inf
+    # Only proceed if there is any data in observed_dict
+    if len(observed_dict['windowtag'])>0:
+        m = len(latent_dict['matched'])
+        total_matched = sum(latent_dict['matched'])
+        current_total_loglik = total_matched*np.log(params['p']) + (m - total_matched)*np.log(1-params['p'])
+
+        # The first condition says that there is NO observed event that is not matched to a latent event
+        # since an unmatched observed event is indicated by a missing value in observed_dict['matched_latent_event']
+        if np.sum(np.isnan(observed_dict['matched_latent_event']))==0:
+            observed_dict['recall'] = generate_recall_times(arr_latent_times = latent_dict['hours_since_start_day'][latent_dict['matched']], arr_delay = observed_dict['delay'])
+            probs_reported = selfreport_mem(observed_dict = observed_dict, latent_dict = latent_dict)
+            positive_probs_reported = probs_reported[probs_reported>0]
+            reported_total_loglik = np.sum(np.log(positive_probs_reported))
+            current_total_loglik += reported_total_loglik
+        # This next condition says that there is at least one observed event that is NOT matched to a latent event
+        else:
+            current_total_loglik = -np.inf
 
     return current_total_loglik
 
@@ -492,6 +525,76 @@ if execute_test:
     res = selfreport_mem_total(observed_dict = tmp_clean_data, latent_dict = tmp_latent_data, params = {'p':0.9})
     print(res)
 
+# %%
+# Another test of the function
+tmp_clean_data = copy.deepcopy(clean_data)  # keep clean_data untouched
+tmp_latent_data = copy.deepcopy(latent_data)  # keep latent_data untouched
+
+# Sanity check: are there observed events which are NOT matched to latent events?
+all_matched = True
+
+for use_this_id in tmp_clean_data.keys():
+    for use_this_days in tmp_clean_data[use_this_id].keys():
+        observed = tmp_clean_data[use_this_id][use_this_days]
+        latent = tmp_latent_data[use_this_id][use_this_days]
+        res = selfreport_mem_total(observed_dict = observed, latent_dict = latent, params = {'p':0.9})
+        if res== -np.inf:
+            all_matched = False
+            print(("NOT all matched", use_this_id, use_this_days, res))
+
+if all_matched:
+    print("all observed events are matched to latent events")
 
 # %%
 
+class measurement_model(object):
+    '''
+    This class constructs a measurement error subcomponent
+    Attributes: 
+        Data: Must provide the observed data
+        Model: Computes prob of measurements given latent variables
+    '''
+    def __init__(self, data=0, model=0, latent = 0, model_params=0):
+        # Attributes of an object of class measurement_model
+        self.data = data
+        self.latent = latent
+        self.model = model
+        self.model_params = model_params
+    
+    def update_params(self, new_params):
+        self.model_params = new_params
+
+    def compute_mem_userday(self, id, days):
+        # Note that selfreport_mem will already give the log-likelihood oer USER-DAY
+        # Hence, there is NO NEED to take the logarithm within this function
+        total = 0 
+        observed = self.data[id][days]
+        latent = self.latent[id][days]
+        # Note that the argument params is set up so that all PARTICIPANT-DAYs utilize the same set of params
+        # This could optionally be changed in the future to have each PARTICIPANT-DAY have a different set of params
+        total += self.model(observed_dict = observed, latent_dict = latent, params = self.model_params)
+        return total
+    
+    def compute_total_mem(self):
+        total = 0 
+        for use_this_id in self.data.keys():
+            for use_this_days in self.data[use_this_id].keys():
+                observed = self.data[use_this_id][use_this_days]
+                latent = self.latent[use_this_id][use_this_days]
+                res = self.model(observed_dict = observed, latent_dict = latent, params = self.model_params)
+                total += res
+        return total
+
+
+# %% 
+# Test out the class
+tmp_clean_data = copy.deepcopy(clean_data)  # keep clean_data untouched
+tmp_latent_data = copy.deepcopy(latent_data)  # keep latent_data untouched
+sr_mem = measurement_model(data=tmp_clean_data, model=selfreport_mem_total, latent = tmp_latent_data, model_params={'p':0.9})
+print(sr_mem.model_params)
+print(sr_mem.compute_total_mem())
+sr_mem.update_params(new_params = {'p':0.4})
+print(sr_mem.model_params)
+print(sr_mem.compute_total_mem())
+
+# %%
