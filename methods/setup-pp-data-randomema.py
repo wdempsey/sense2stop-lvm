@@ -67,6 +67,24 @@ data_random_ema = pd.merge(left = data_random_ema, right = data_day_limits, how 
 data_random_ema = data_random_ema[data_random_ema['random_ema_time'] >= data_random_ema['start_time']]
 data_random_ema = data_random_ema[data_random_ema['random_ema_time'] <= data_random_ema['end_time']]
 data_random_ema['hours_since_start_day'] = (data_random_ema['random_ema_time'] - data_random_ema['start_time'])/np.timedelta64(1,'h')
+
+#%%
+# SANITY CHECK: are there Random EMA with duplicate hours_since_start_day?
+# If there are duplicates, only retain the very first record
+for participant in (data_random_ema['participant_id'].unique()):
+    for days in range(1,15):
+        current_data_random_ema = data_random_ema[data_random_ema['participant_id']==participant]
+        current_data_random_ema = current_data_random_ema[current_data_random_ema['study_day']==days]
+        if len(current_data_random_ema.index>0):
+            which_duplicated = current_data_random_ema['hours_since_start_day'].duplicated()
+            if np.sum(which_duplicated)>0:
+                print((participant, days, which_duplicated))  # no duplicates detected
+                #current_data_random_ema = current_data_random_ema[~which_duplicated]
+                #data_random_ema[(data_random_ema['participant_id']==participant) & (data_random_ema['study_day']==days)] = current_data_random_ema
+
+#%%
+
+# Retain selected columns
 data_random_ema = data_random_ema.loc[:, ['participant_id','date','random_ema_time','hours_since_start_day','smoke','when_smoke']]
 
 # Exclude rows with missing values in the variable smoke
@@ -78,6 +96,9 @@ data_random_ema = data_random_ema[~((data_random_ema['smoke']=='Yes') & (data_ra
 
 # SANITY CHECK:
 #data_random_ema.loc[:, ['participant_id','smoke','when_smoke']].groupby(['smoke','when_smoke']).count()
+
+
+
 
 #%%
 

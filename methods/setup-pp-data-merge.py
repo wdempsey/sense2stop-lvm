@@ -187,7 +187,13 @@ for i in range(0, len(all_participant_id)):
     dat = dict_knitted[current_participant][this_study_day]
 
     if len(dat.index)>0:
-      dat['puff_time'] = np.where((dat['flag']==1) & (dat['hours_since_start_day_shifted']==0), 0 , dat['puff_time'])
+      tmp_length = dat['hours_since_start_day'] - dat['hours_since_start_day_shifted']
+      tmp_const = np.random.uniform(0,tmp_length,1)[0]
+      # When the very first smoking event occurs before start of day
+      # set value of puff_time to be some value between hours_since_start_day_shifted and hours_since_start_day
+      dat['puff_time'] = np.where((dat['flag']==1) & (dat['hours_since_start_day_shifted']==0), tmp_const , dat['puff_time'])  
+      # When the participant reported a smoking event in the current EMA to occur BEFORE
+      # the previous EMA, then set puff_time to be the midpoint between the previous and current EMA
       dat['puff_time'] = np.where((dat['flag']==1) & (dat['hours_since_start_day_shifted']>0), 0.5*(dat['hours_since_start_day_shifted'] + dat['hours_since_start_day']) , dat['puff_time'])
       # Update dictionary
       dict_knitted[current_participant][this_study_day] = dat

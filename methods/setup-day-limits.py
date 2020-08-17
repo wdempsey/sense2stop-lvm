@@ -52,6 +52,7 @@ data_day_limits['start_time'] = (
     .apply(lambda x: datetime.strftime(x, '%Y-%m-%d %H:%M:%S'))
     .apply(lambda x: pd.to_datetime(x, format = "%Y-%m-%d %H:%M:%S", utc=True))
     .apply(lambda x: np.datetime64(x))
+    .apply(lambda x: x - np.timedelta64(10,'m'))  # adjust start of day to be 10 minutes earlier
 )
 
 data_day_limits['end_time'] = (
@@ -77,3 +78,5 @@ data_day_limits['day_length'] = (data_day_limits['end_time'] - data_day_limits['
 data_day_limits = data_day_limits.rename(columns = {"id":"participant_id"})
 data_day_limits = data_day_limits.loc[:, ['participant_id', 'date', 'study_day','day_length','start_time','end_time']]
 
+
+# %%
