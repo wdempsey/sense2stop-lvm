@@ -458,39 +458,65 @@ class model(object):
         bartau = optimal acceptance rate (here, default is 0.574)
         '''
 
+        # self.latent.params is a dictionary
+        # latent_params contains the same values as self.latent.params
+        # except that it is a numpy array
         latent_params = np.array(list(self.latent.params.values()))
 
+        # Calculate loglikelihood given current value of latent_params
+        # We indicate that the current value of latent_params is used
+        # by setting the argument of self.latent.compute_total_pp to None
         llik_current = self.latent.compute_total_pp(None)
+
+        # if no adaptive learning, simply perturb current value of
+        # latent_params by MVN(0_{size}, 0.01*1_{size x size})
         if adaptive is False:
             new_params = np.exp(np.log(latent_params) + np.random.normal(scale = 0.01, size = latent_params.size))
+        # Next, if adaptive learning is used ...
         else:
-            sd = 2.38**2 / latent_params.size
+            sd = 2.38**2 / latent_params.size  # specific choice of value for sd
+            # Note: covariance_init.shape will be of the form (num_rows, num_cols)
+            # where num_rows = num_cols = total number of parameters
+            # in self.latent.params.values(), i.e., parameters we wish to estimate
             if iteration <= cutpoint:
                 if covariance_init.shape[0] > 1:
                     new_params = np.exp(np.log(latent_params)+ np.random.multivariate_normal(mean = barX_init, cov = sd * covariance_init))
                 else:
+                    # in this case, there is only 1 parameter in self.latent.params.values()
                     new_params = np.exp(np.log(latent_params)+ np.random.normal(loc = barX_init, scale = np.sqrt(sd * covariance_init)))
             else:
                 if covariance_init.shape[0] > 1:
                     new_params =  np.exp(np.log(latent_params) + np.random.multivariate_normal(mean = barX_init, cov = (sigma**2) * covariance))
                 else:
-                    new_params =  np.exp(np.log(latent_params) + np.random.normal(loc = barX_init, scale = sigma*np.sqrt(covariance_init)))
+                    # in this case, there is only 1 parameter in self.latent.params.values()
+                    new_params =  np.exp(np.log(latent_params) + np.random.normal(loc = barX_init, scale = sigma*np.sqrt(covariance)))
 
-        # Have to reshape new_params from an array into a dictionary
+        # Before proceeding ...
+        # self.latent.params has to be updated with new values
+        # the new values come from new_params
+        # new_params are perturbed values of self.latent_params
         idx_keys_count = 0
         for idx_keys in self.latent.params.keys():
             self.latent.params[idx_keys] = new_params[idx_keys_count]
             idx_keys_count += 1
 
+        # At this point, self.latent_params has already been udpated
+        # We now calculate the lok-likelihood using the 'jittered' values
         llik_jitter = self.latent.compute_total_pp(use_params = self.latent.params)
         log_acceptprob = (llik_jitter-llik_current)
         acceptprob = np.exp(log_acceptprob)
         acceptprob = np.min([acceptprob,1])
-        temp = np.random.binomial(1, p = acceptprob)
+        # temp is equal to 1 with probabi,ity acceptprob
+        # temp is equal to 0 with probability 1-acceptprob
+        temp = np.random.binomial(1, p = acceptprob)  
 
+        # Decision: reject proposal
+        # This function does not return anything
         if temp == 0:
             new_params = self.latent.params
+            return None
 
+        # Decision: accept proposal (temp==1)
         if adaptive is True: # Update Covariance and barX
             sigma_new = sigma + 1/iteration * (acceptprob - bartau)
             log_new_params = np.log(new_params)
@@ -503,6 +529,7 @@ class model(object):
                 covariance_new = covariance
             return new_params, covariance_new, barX_new, sigma_new
         else:
+            # adaptive is False
             return new_params
         
 
@@ -515,7 +542,7 @@ tmp_latent_data = copy.deepcopy(latent_data)
 tmp_clean_data = copy.deepcopy(clean_data)
 
 lat_pp = latent(data=tmp_latent_data, model=latent_poisson_process_ex2, params = {'lambda_prequit': 0.14, 'lambda_postquit': 0.75})
-sr_mem = measurement_model(data=tmp_clean_data, model=selfreport_mem_total, latent = tmp_latent_data, model_params={'p':0.9})
+sr_mem = measurement_model(data=tmp_clean_data, model=selfreport_mem_total, latent = tmp_latent_data, model_params={'p':0.3})
 test_model = model(init = clean_data,  latent = lat_pp , model = sr_mem)
 
 num_iters = 100
@@ -539,3 +566,5 @@ test_model.adapMH_params(adaptive=True,
 
 
 
+
+# %%
