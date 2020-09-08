@@ -9,6 +9,7 @@ import scipy.special as sc
 from scipy.stats import norm
 from scipy.stats import lognorm
 import copy
+import matplotlib.pyplot as plt  
 
 exec(open('../env_vars.py').read())
 dir_data = os.environ['dir_data']
@@ -143,6 +144,8 @@ class latent(object):
     # Compute contribution to log-likelihood for a given PARTICIPANT-DAY
     # and then sum across all PARTICIPANT-DAYs
     def compute_total_pp(self, use_params):
+        # e.g., use_params={'lambda':0.99}
+        
         if use_params is None:
             use_params = self.params
         
@@ -291,8 +294,8 @@ print(lambda_delay_init)
 def convert_windowtag_selfreport(windowtag):
     accept_response = [1,2,3,4]
     # windowtag is in hours
-    use_this_window_min = {1: 0/60, 2: 5/60, 3: 15/60, 4: np.nan} 
-    use_this_window_max = {1: 5/60, 2: 15/60, 3: 30/60, 4: np.nan} 
+    use_this_window_min = {1: 0/60, 2: 5/60, 3: 15/60, 4: np.nan} # may change 4:np.nan later on
+    use_this_window_max = {1: 5/60, 2: 15/60, 3: 30/60, 4: np.nan} # may change 4:np.nan later on
 
     if pd.isna(windowtag):
         use_value_min = np.nan
@@ -309,8 +312,8 @@ def convert_windowtag_selfreport(windowtag):
 def convert_windowtag_random_ema(windowtag):
     accept_response = [1,2,3,4,5,6]
     # windowtag is in hours
-    use_this_window_min = {1: 1/60, 2: 20/60, 3: 40/60, 4: 60/60, 5: 80/60, 6: np.nan} 
-    use_this_window_max = {1: 19/60, 2: 39/60, 3: 59/60, 4: 79/60, 5: 100/60, 6: np.nan} 
+    use_this_window_min = {1: 1/60, 2: 20/60, 3: 40/60, 4: 60/60, 5: 80/60, 6: np.nan} # may change 6:np.nan later on
+    use_this_window_max = {1: 19/60, 2: 39/60, 3: 59/60, 4: 79/60, 5: 100/60, 6: np.nan} # may change 6:np.nan later on
 
     if pd.isna(windowtag):
         use_value_min = np.nan
@@ -449,7 +452,9 @@ class model(object):
                       barX_init = 0, 
                       cutpoint = 500,
                       sigma = 0, 
-                      bartau = 0.574):
+                      bartau = 0.574,
+                      current_sum_X = 0,
+                      current_count_accept = 0):
         '''
         Builds an adaptive MH for updating model parameter.
         If adaptive = True 
@@ -463,15 +468,12 @@ class model(object):
         # except that it is a numpy array
         latent_params = np.array(list(self.latent.params.values()))
 
-        # Calculate loglikelihood given current value of latent_params
-        # We indicate that the current value of latent_params is used
-        # by setting the argument of self.latent.compute_total_pp to None
-        llik_current = self.latent.compute_total_pp(None)
-
         # if no adaptive learning, simply perturb current value of
         # latent_params by MVN(0_{size}, 0.01*1_{size x size})
         if adaptive is False:
-            new_params = np.exp(np.log(latent_params) + np.random.normal(scale = 0.01, size = latent_params.size))
+            #new_params = np.exp(np.log(latent_params) + np.random.normal(scale = 0.01, size = latent_params.size))
+            logX_current = np.random.normal(scale = 0.01, size = latent_params.size)
+            new_params = np.exp(logX_current)   # new_params is on the exp scale!
         # Next, if adaptive learning is used ...
         else:
             sd = 2.38**2 / latent_params.size  # specific choice of value for sd
@@ -480,16 +482,29 @@ class model(object):
             # in self.latent.params.values(), i.e., parameters we wish to estimate
             if iteration <= cutpoint:
                 if covariance_init.shape[0] > 1:
-                    new_params = np.exp(np.log(latent_params)+ np.random.multivariate_normal(mean = barX_init, cov = sd * covariance_init))
+                    #new_params = np.exp(np.log(latent_params)+ np.random.multivariate_normal(mean = barX_init, cov = sd * covariance_init))
+                    logX_current = np.random.multivariate_normal(mean = barX_init, cov = sd * covariance_init)  # make a draw from the proposal distribution
+                    new_params = np.exp(logX_current)  # new_params is on the exp scale!
                 else:
                     # in this case, there is only 1 parameter in self.latent.params.values()
-                    new_params = np.exp(np.log(latent_params)+ np.random.normal(loc = barX_init, scale = np.sqrt(sd * covariance_init)))
+                    #new_params = np.exp(np.log(latent_params)+ np.random.normal(loc = barX_init, scale = np.sqrt(sd * covariance_init)))
+                    logX_current = np.random.normal(loc = barX_init, scale = np.sqrt(sd * covariance_init))  # make a draw from the proposal distribution
+                    new_params = np.exp(logX_current)  # new_params is on the exp scale!
             else:
                 if covariance_init.shape[0] > 1:
-                    new_params =  np.exp(np.log(latent_params) + np.random.multivariate_normal(mean = barX_init, cov = (sigma**2) * covariance))
+                    #new_params =  np.exp(np.log(self.latent.params) + np.random.multivariate_normal(mean = barX_init, cov = (sigma**2) * covariance))
+                    logX_current = np.random.multivariate_normal(mean = barX, cov = (sigma**2) * covariance)
+                    new_params = np.exp(logX_current)  # new_params is on the exp scale!
                 else:
                     # in this case, there is only 1 parameter in self.latent.params.values()
-                    new_params =  np.exp(np.log(latent_params) + np.random.normal(loc = barX_init, scale = sigma*np.sqrt(covariance)))
+                    #new_params =  np.exp(np.log(self.latent.params) + np.random.normal(loc = barX_init, scale = sigma*np.sqrt(covariance_init)))
+                    logX_current = np.random.normal(loc = barX, scale = sigma*np.sqrt(covariance))
+                    new_params = np.exp(logX_current)  # new_params is on the exp scale!
+
+        # Calculate loglikelihood given current value of latent_params
+        # We indicate that the current value of latent_params is used
+        # by setting the argument of self.latent.compute_total_pp to None
+        llik_current = self.latent.compute_total_pp(None)
 
         # Before proceeding ...
         # self.latent.params has to be updated with new values
@@ -501,70 +516,148 @@ class model(object):
             idx_keys_count += 1
 
         # At this point, self.latent_params has already been udpated
-        # We now calculate the lok-likelihood using the 'jittered' values
+        # We now calculate the log-likelihood using the 'jittered' values
         llik_jitter = self.latent.compute_total_pp(use_params = self.latent.params)
         log_acceptprob = (llik_jitter-llik_current)
         acceptprob = np.exp(log_acceptprob)
         acceptprob = np.min([acceptprob,1])
-        # temp is equal to 1 with probabi,ity acceptprob
+        # temp is equal to 1 with probability acceptprob
         # temp is equal to 0 with probability 1-acceptprob
-        temp = np.random.binomial(1, p = acceptprob)  
-
-        # Decision: reject proposal
-        # This function does not return anything
-        if temp == 0:
-            new_params = self.latent.params
-            return None
-
-        # Decision: accept proposal (temp==1)
-        if adaptive is True: # Update Covariance and barX
-            sigma_new = sigma + 1/iteration * (acceptprob - bartau)
-            log_new_params = np.log(new_params)
-            delta = log_new_params-barX
-            barX_new = barX + 1/iteration * (delta)
-            intermediate_step = np.outer(delta, delta)
-            if iteration > 1:
-                covariance_new = covariance + 1/(iteration-1) * ( intermediate_step * iteration/(iteration-1) - covariance )
-            else: 
-                covariance_new = covariance
-            return new_params, covariance_new, barX_new, sigma_new
-        else:
-            # adaptive is False
-            return new_params
-        
+        #temp = np.random.binomial(1, p = acceptprob)  
 
 
+        # since llik_current or llik_jitter might be inf
+        # we use a try statement
+        try:
+            temp = np.random.binomial(1, p = acceptprob)  
+
+            # Decision: reject proposal ###########################################
+            # This function does not return anything
+            if temp == 0:
+                rejected = 1-temp
+                out_dict = {'rejected':rejected}
+                return out_dict
+
+            # Decision: accept proposal ########################################### 
+            # In this case, temp==1
+            if temp==1:
+                if adaptive is True: # Update Covariance and barX
+                    # note that the update proposed by Haario et al is on the LOG scale
+                    log_new_params = np.log(new_params)
+                    current_sum_X = current_sum_X + log_new_params
+                    current_average_X = current_sum_X/(current_count_accept+1)
+                    delta = log_new_params - current_average_X
+                    barX_new = barX + 1/(current_count_accept+1) * (delta)
+                    
+                    intermediate_step = np.outer(delta, delta)
+                    #sigma_new = sigma + 1/iteration * (acceptprob - bartau)
+                    #sigma_new = sigma + 1/(current_count_accept+1) * (acceptprob - bartau)
+                    #sigma_new=2.38**2/idx_keys_count
+                    sigma_new=1
+
+                    if iteration > 1:
+                        #covariance_new = covariance + 1/(iteration-1) * ( intermediate_step * iteration/(iteration-1) - covariance )
+                        covariance_new = covariance + 1/(current_count_accept+1) * ( intermediate_step - covariance )
+                    else: 
+                        covariance_new = covariance
+                    
+                    rejected = 1-temp
+                    current_count_accept =  current_count_accept + temp
+                    out_dict = {'rejected':rejected,
+                                'new_params':new_params,
+                                'covariance_new':covariance_new,
+                                'barX_new':barX_new,
+                                'sigma_new':sigma_new,
+                                'current_sum_X':current_sum_X,
+                                'current_count_accept': current_count_accept}   
+                    return out_dict
+                else:
+                    # adaptive is False
+                    rejected = 1-temp
+                    current_count_accept =  current_count_accept + temp
+                    out_dict = {'rejected':rejected, 'new_params':new_params, 'current_count_accept': current_count_accept}  # store indicator for whether the parameter was rejected and new_params (on the EXP scale)
+                    return out_dict
+
+        except:
+            # display llik when temp is nan
+            out_dict = {'rejected':-1, 'acceptprob':acceptprob, 'llik_jitter':llik_jitter, 'llik_current':llik_current, 'latent_params':self.latent.params}
+            return out_dict
 
 # %%%
 # Test out class
-
 tmp_latent_data = copy.deepcopy(latent_data)
 tmp_clean_data = copy.deepcopy(clean_data)
 
-lat_pp = latent(data=tmp_latent_data, model=latent_poisson_process_ex2, params = {'lambda_prequit': 0.14, 'lambda_postquit': 0.75})
-sr_mem = measurement_model(data=tmp_clean_data, model=selfreport_mem_total, latent = tmp_latent_data, model_params={'p':0.3})
+lat_pp = latent(data=tmp_latent_data, model=latent_poisson_process_ex2, params = {'lambda_prequit': 0.30, 'lambda_postquit': 0.50})
+sr_mem = measurement_model(data=tmp_clean_data, model=selfreport_mem_total, latent = tmp_latent_data, model_params={'p':0.8})
 test_model = model(init = clean_data,  latent = lat_pp , model = sr_mem)
 
-num_iters = 100
-cutpoint = 500
-cov_init = np.array([[0.005,0.0],[0.0,0.005]])
-barX_init = np.array([0.,0.])
-cov_new = np.array([[0.001,0.0],[0.0,0.01]])
-barX_new = np.array(list(lat_pp.params.values()))
-temp = np.zeros(shape = (num_iters, len(lat_pp.params.keys())))
-sigma_new = 2.38**2/len(lat_pp.params.keys())
+# %%
+num_iters = 5000
+use_cutpoint = 500
 
-test_model.adapMH_params(adaptive=True,
-                         covariance=cov_new, 
-                         barX=barX_new,
-                         covariance_init= cov_init, 
-                         barX_init= barX_init,
-                         iteration=1, 
-                         cutpoint = cutpoint, 
-                         sigma= sigma_new)
+cov_init = np.array([[0.05,0.0],[0.0,0.05]])
+barX_init = np.array([0.10,0.30])
+cov_new = np.array([[0.01,0.0],[0.0,0.01]])
+barX_new = np.log(np.array(list(lat_pp.params.values())))
+sigma_new = 1 #2.38**2/len(lat_pp.params.keys())
+current_sum_X = 0
+current_count_accept = 0
+
+# %%
+dict_accept = {}
+count_accept = 0
+
+for iter in range(1,num_iters):
+    current_out_dict = test_model.adapMH_params(adaptive = True,
+                                                covariance = cov_new, 
+                                                barX = barX_new,
+                                                covariance_init = cov_init, 
+                                                barX_init = barX_init,
+                                                iteration = iter, 
+                                                cutpoint = use_cutpoint, 
+                                                sigma = sigma_new,
+                                                current_sum_X = current_sum_X,
+                                                current_count_accept = current_count_accept)
+    
+    if current_out_dict['rejected'] == 0:  # if not rejected
+        barX_new = current_out_dict['barX_new']
+        sigma_new = current_out_dict['sigma_new']
+        cov_new = current_out_dict['covariance_new']
+        current_count_accept = current_out_dict['current_count_accept']
+        current_sum_X = current_out_dict['current_sum_X']
+        lat_pp.update_params(new_params = {'lambda_prequit':current_out_dict['new_params'][0], 'lambda_postquit':current_out_dict['new_params'][1]})
+
+        if iter > use_cutpoint:
+            # display values after cutpoint
+            print(current_out_dict['new_params'])
+            dict_accept.update({count_accept:current_out_dict})
+            count_accept = count_accept+1
+    elif current_out_dict['rejected'] == -1:
+        next
+    else:
+        next
+
+print(count_accept/(num_iters - use_cutpoint))
 
 
+# %%
+temp = np.zeros(shape = (count_accept, len(lat_pp.params.keys())))
 
+for iter in range(0,count_accept):
+    temp[iter,:] = dict_accept[iter]['new_params']
+
+# %%
+plt.plot(np.arange(count_accept), temp[:,0])
+
+# %%
+plt.hist(temp[:,0], bins=40)
+
+# %%
+plt.plot(np.arange(count_accept), temp[:,1])
+
+# %%
+plt.hist(temp[:,1], bins=40)
 
 
 # %%
