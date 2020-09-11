@@ -362,32 +362,35 @@ class model(object):
         to perform adaptive updates.
         bartau = optimal acceptance rate (here, default is 0.574)
         '''
-        epsilon = 0
+        epsilon = 0.10
         # self.latent.params is a dictionary
         # latent_params contains the same values as self.latent.params
         # except that it is a numpy array
         latent_params = np.array(list(self.latent.params.values()))
+        num_latent_params = len(latent_params)
 
         # if no adaptive learning, simply perturb current value of
         # latent_params by MVN(0_{size}, 0.01*1_{size x size})
         if adaptive is False:
             # new_params is on the exp scale!
-            new_params = np.exp(np.log(latent_params) + np.random.normal(loc = 0, scale = .000002, size = latent_params.size))  
+            new_params = np.exp(np.log(latent_params) + np.random.normal(loc = 0, scale = .000001, size = num_latent_params))  
         # Next, if adaptive learning is used ...
         else:
             sd = 2.38**2 / latent_params.size
             if iteration <= cutpoint:
                 if covariance_init.shape[0] > 1:
-                    new_params = np.exp(np.log(latent_params) + np.random.multivariate_normal(mean = barX_init, cov = (sd**2) * covariance_init))
+                    #new_params = np.exp(np.log(latent_params) + np.random.multivariate_normal(mean = np.repeat(0,num_latent_params), cov = (sd**2) * covariance_init))
+                    new_params = np.exp(np.random.multivariate_normal(mean = np.log(latent_params), cov = (sd**2) * covariance_init + (sd**2) * epsilon * np.eye(num_latent_params)) )
                 else:
-                    new_params = np.exp(np.log(latent_params) + np.random.normal(loc = barX_init, scale = sd * np.sqrt(covariance_init)))
+                    #new_params = np.exp(np.log(latent_params) + np.random.normal(loc = np.repeat(0,num_latent_params), scale = sd * np.sqrt(covariance_init)))
+                    new_params = np.exp(np.random.normal(loc = np.log(latent_params), scale = sd * np.sqrt(covariance_init) + sd * epsilon * np.eye(num_latent_params)) )
             else:
                 if covariance.shape[0] > 1:
-                    new_params = np.exp(np.log(latent_params) + np.random.multivariate_normal(mean = barX, cov = (sigma**2) * covariance))
-                    #new_params = np.exp(np.random.multivariate_normal(mean = barX, cov = (sigma**2) * covariance))
+                    #new_params = np.exp(np.log(latent_params) + np.random.multivariate_normal(mean = np.repeat(0,num_latent_params), cov = (sigma**2) * covariance + (sigma**2) * epsilon * np.eye(num_latent_params)))
+                    new_params = np.exp(np.random.multivariate_normal(mean = np.log(latent_params), cov = (sigma**2) * covariance + (sigma**2) * epsilon * np.eye(num_latent_params)) )
                 else:
-                    new_params = np.exp(np.log(latent_params) + np.random.normal(loc = barX, scale = sigma * np.sqrt(covariance)))
-                    #new_params = np.exp(np.random.normal(loc = barX, scale = sigma * np.sqrt(covariance)))
+                    #new_params = np.exp(np.log(latent_params) + np.random.normal(loc = np.repeat(0,num_latent_params), scale = sigma * np.sqrt(covariance) + sigma * epsilon * np.eye(num_latent_params)))
+                    new_params = np.exp(np.random.normal(loc = np.log(latent_params), scale = sigma * np.sqrt(covariance) + sigma * epsilon * np.eye(num_latent_params)) )
 
         # Calculate loglikelihood given current value of latent_params
         # We indicate that the current value of latent_params is used
@@ -431,23 +434,20 @@ class model(object):
                 else:
                     log_new_params = np.log(latent_params)
 
-                if iteration <= cutpoint:
-                    sigma_new = sd
-                    barX_new = barX_init
-                    covariance_new = covariance_init
-                else:
-                    tot = iteration - cutpoint
-                    sigma_new = sigma + 1/tot * (acceptprob - bartau) 
-                    delta = log_new_params-barX
-                    barX_new = barX + 1/tot * (delta)
-                    intermediate_step = np.outer(delta, delta)
-                    if tot==1:
-                        covariance_new = covariance
-                    else:
-                        covariance_new = covariance + 1/(tot-1) * ( intermediate_step * tot/(tot-1) - covariance ) + epsilon*np.eye(idx_keys_count)
+
+                sigma_new = sigma + 1/iteration * (acceptprob - bartau) 
+                delta = log_new_params-barX
+                barX_new = barX + 1/iteration * (delta)
+                intermediate_step = np.outer(delta, delta)
                 
+
+                if iteration==1:
+                    covariance_new = covariance
+                else:
+                    covariance_new = covariance + 1/(iteration-1) * ( intermediate_step * iteration/(iteration-1) - covariance ) 
+                    #covariance_new = covariance + 1/(iteration-1) * ( intermediate_step - covariance ) 
+
                 if rejected==0:
-                    # new_dict_latent_params is new_params but in dictionary form
                     out_dict = {'rejected':rejected, 'new_params':new_dict_latent_params,
                                 'barX_new':barX_new, 'covariance_new':covariance_new, 
                                 'sigma_new':sigma_new, 'log_new_params':log_new_params,
