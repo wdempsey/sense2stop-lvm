@@ -22,12 +22,14 @@ exec(open(os.path.join(os.path.realpath(dir_code_methods), 'unit-test-00.py')).r
 # Test out class
 tmp_latent_data = copy.deepcopy(latent_data)
 tmp_clean_data = copy.deepcopy(clean_data)
-lat_pp = latent(data=tmp_latent_data, model=latent_poisson_process_ex2, params = {'lambda_prequit': 0.20, 'lambda_postquit': 0.10})
+#lat_pp = latent(data=tmp_latent_data, model=latent_poisson_process_ex2, params = {'lambda_prequit': 0.20, 'lambda_postquit': 0.10})
+#lat_pp = latent(data=tmp_latent_data, model=latent_poisson_process_ex2, params = {'lambda_prequit': 1, 'lambda_postquit': 1})
+lat_pp = latent(data=tmp_latent_data, model=latent_poisson_process_ex2, params = {'lambda_prequit': .3, 'lambda_postquit': 1.7})
 sr_mem = measurement_model(data=tmp_clean_data, model=selfreport_mem_total, latent = tmp_latent_data, model_params={'p':0.9})
 test_model = model(init = clean_data,  latent = lat_pp , model = sr_mem)
 
-num_iters = 15000
-use_cutpoint = 5000
+num_iters = 5000
+use_cutpoint = 1000
 
 # %%
 ###############################################################################

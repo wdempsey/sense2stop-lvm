@@ -27,53 +27,8 @@ infile.close()
 exec(open(os.path.join(os.path.realpath(dir_code_methods), 'setup-day-limits.py')).read())
 
 # %%
-# Create "mock" true latent times using dict_knitted_with_puffmarker
-# Then we will test this first assuming that observed times come from Self-Report and/or Random EMA only
-
-latent_data = {}
-
-for participant in dict_knitted_with_puffmarker.keys():
-    current_participant_dict = {}
-    for days in dict_knitted_with_puffmarker[participant].keys():
-        current_data = dict_knitted_with_puffmarker[participant][days]
-        all_puff_time = []
-        if len(current_data.index)==0:
-            next
-        else:
-            # note that even if participant reported "Yes" smoked, 
-            # delta is set to missing if in Self Report participant reported to have smoked "more than 30 minutes ago"
-            # or in Random EMAs where participant reported to have smoked "more than 2 hours ago"
-            current_data_yes = current_data[(current_data['smoke']=='Yes') & ~(np.isnan(current_data['delta']))]
-            if len(current_data_yes)==0:
-                next
-            else:
-                for this_row in range(0, len(current_data_yes.index)):
-                    if current_data_yes['adjusted'].iloc[this_row]==1:
-                        tmp = current_data_yes['puff_time_adjusted'].iloc[this_row]
-                        # tmp is an array with 1 element, and this element is a dictionary
-                        # hence, we need the next steps
-                        tmp = tmp[0]
-                        tmp_to_array = []
-                        for pm_key in tmp.keys():
-                            tmp_to_array.append(tmp[pm_key])
-                        # we're out of the loop
-                        all_puff_time.extend(tmp_to_array)
-                    elif current_data_yes['adjusted'].iloc[this_row]==0:
-                        all_puff_time.append(current_data_yes['puff_time_adjusted'].iloc[this_row])
-                    else:
-                        next
-
-        # The output of the next line should be one number only, but it will be an array object
-        # Hence, the .iloc[0] converts the array object into a float
-        current_day_length = data_day_limits[(data_day_limits['participant_id']==participant) & (data_day_limits['study_day']==days)]['day_length'].iloc[0]
-        new_dict = {'participant_id':participant, 
-                    'study_day':days, 
-                    'day_length':current_day_length, 
-                    'latent_event_order': (np.arange(len(all_puff_time))),  # begins with zero (not 1)
-                    'hours_since_start_day': np.array(all_puff_time)}
-        current_participant_dict.update({days: new_dict})
-    # Add this participant's data to dictionary
-    latent_data.update({participant:current_participant_dict})
+# Create mock latent and observed data
+exec(open(os.path.join(os.path.realpath(dir_code_methods), 'create-input-data-02.py')).read())
 
 # %%
 '''
@@ -159,59 +114,6 @@ class latent(object):
                 total += self.model(latent_dict = current_latent_data, params = use_params)
         # We are done
         return total
-
-# %%
-# Create "mock" observed data
-clean_data = copy.deepcopy(dict_knitted_with_puffmarker)  # Keep dict_knitted_with_puffmarker untouched
-
-for participant in clean_data.keys():
-    for days in clean_data[participant].keys():
-        current_data = clean_data[participant][days]
-        if len(current_data.index)>0:
-            current_data = current_data.loc[:, ['assessment_type', 'hours_since_start_day', 'hours_since_start_day_shifted','smoke','when_smoke']]
-            current_data = current_data.rename(columns = {'assessment_type':'assessment_type',
-                                                          'hours_since_start_day':'assessment_begin', 
-                                                          'hours_since_start_day_shifted':'assessment_begin_shifted',
-                                                          'smoke':'smoke',
-                                                          'when_smoke':'windowtag'})
-            clean_data[participant][days] = current_data
-
-
-# %%
-# Let's simply use Self-Reports for now as out "mock" observed data
-for participant in clean_data.keys():
-    for days in clean_data[participant].keys():
-        current_data = clean_data[participant][days]
-        if len(current_data.index)>0:
-            current_data = current_data[current_data['assessment_type']=="selfreport"]
-            # Remove Self-Reports for "more than 30 minutes ago"
-            current_data = current_data[current_data['windowtag']!=4]
-            # Create variable: order at which the participant initiated a particular Self-Report
-            current_data['assessment_order'] = np.arange(len(current_data.index))  # begins with zero (not 1)
-            current_data = current_data.loc[:, ['assessment_order','assessment_begin', 'smoke', 'windowtag']]
-            clean_data[participant][days] = current_data
-        
-# %%
-# Now, let's convert each PERSON-DAY of clean_data into a dictionary
-for participant in clean_data.keys():
-    for days in clean_data[participant].keys():
-        current_data = clean_data[participant][days]
-        if len(current_data.index)>0:
-            current_dict = {'participant_id':participant,
-                            'study_day': days,
-                            'assessment_order': np.array(current_data['assessment_order']),
-                            'assessment_begin': np.array(current_data['assessment_begin']),
-                            'smoke': np.array(current_data['smoke']),
-                            'windowtag': np.array(current_data['windowtag'])}
-            clean_data[participant][days] = current_dict
-        else:
-            current_dict = {'participant_id':participant,
-                            'study_day': days,
-                            'assessment_order': np.array([]),
-                            'assessment_begin': np.array([]),
-                            'smoke': np.array([]),
-                            'windowtag': np.array([])}
-            clean_data[participant][days] = current_dict
 
 # %%   
 
@@ -460,7 +362,7 @@ class model(object):
         to perform adaptive updates.
         bartau = optimal acceptance rate (here, default is 0.574)
         '''
-        epsilon = 0.00001
+        epsilon = 0
         # self.latent.params is a dictionary
         # latent_params contains the same values as self.latent.params
         # except that it is a numpy array
@@ -470,7 +372,7 @@ class model(object):
         # latent_params by MVN(0_{size}, 0.01*1_{size x size})
         if adaptive is False:
             # new_params is on the exp scale!
-            new_params = np.exp(np.log(latent_params) + np.random.normal(loc = 0, scale = 0.05, size = latent_params.size))  
+            new_params = np.exp(np.log(latent_params) + np.random.normal(loc = 0, scale = .000002, size = latent_params.size))  
         # Next, if adaptive learning is used ...
         else:
             sd = 2.38**2 / latent_params.size
@@ -482,8 +384,10 @@ class model(object):
             else:
                 if covariance.shape[0] > 1:
                     new_params = np.exp(np.log(latent_params) + np.random.multivariate_normal(mean = barX, cov = (sigma**2) * covariance))
+                    #new_params = np.exp(np.random.multivariate_normal(mean = barX, cov = (sigma**2) * covariance))
                 else:
                     new_params = np.exp(np.log(latent_params) + np.random.normal(loc = barX, scale = sigma * np.sqrt(covariance)))
+                    #new_params = np.exp(np.random.normal(loc = barX, scale = sigma * np.sqrt(covariance)))
 
         # Calculate loglikelihood given current value of latent_params
         # We indicate that the current value of latent_params is used
@@ -503,41 +407,62 @@ class model(object):
         acceptprob = np.exp(log_acceptprob)
         acceptprob = np.min([acceptprob,1])
 
-        try:  
-            temp = np.random.binomial(1, p = acceptprob)
-            # Decision: reject proposal ###########################################
-            # This function does not return anything
-            if temp == 0:
+        if adaptive is False: 
+            try:  
+                temp = np.random.binomial(1, p = acceptprob)
                 rejected = 1-temp
-                out_dict = {'rejected':rejected, 'new_params':self.latent.params}
-            # Decision: accept proposal ########################################### 
-            # In this case, temp==1
-            else: 
-                if adaptive is False:
-                    rejected = 1-temp
+                if temp == 0:
                     # new_dict_latent_params is new_params but in dictionary form
-                    out_dict = {'rejected':rejected, 'new_params':new_dict_latent_params}
+                    out_dict = {'rejected':rejected,
+                                'new_params': self.latent.params}
                 else:
-                    rejected = 1-temp
-                    sigma_new = sigma + 1/iteration * (acceptprob - bartau) 
+                    out_dict = {'rejected':rejected, 
+                                'new_params':new_dict_latent_params}
+            except:
+                # display llik when temp is nan
+                out_dict = {'rejected':-1, 'acceptprob':acceptprob, 'llik_jitter':llik_jitter, 'llik_current':llik_current}
+        else:
+            try:  
+                temp = np.random.binomial(1, p = acceptprob)
+                rejected = 1-temp
+                
+                if temp==1:
                     log_new_params = np.log(new_params)
-                    delta = log_new_params-barX
-                    barX_new = barX + 1/iteration * (delta)
-                    intermediate_step = np.outer(delta, delta)
-                    if iteration > 1:
-                        covariance_new = covariance + 1/(iteration-1) * ( intermediate_step * iteration/(iteration-1) - covariance ) + epsilon*np.eye(idx_keys_count)
-                    else: 
-                        covariance_new = covariance
+                else:
+                    log_new_params = np.log(latent_params)
 
+                if iteration <= cutpoint:
+                    sigma_new = sd
+                    barX_new = barX_init
+                    covariance_new = covariance_init
+                else:
+                    tot = iteration - cutpoint
+                    sigma_new = sigma + 1/tot * (acceptprob - bartau) 
+                    delta = log_new_params-barX
+                    barX_new = barX + 1/tot * (delta)
+                    intermediate_step = np.outer(delta, delta)
+                    if tot==1:
+                        covariance_new = covariance
+                    else:
+                        covariance_new = covariance + 1/(tot-1) * ( intermediate_step * tot/(tot-1) - covariance ) + epsilon*np.eye(idx_keys_count)
+                
+                if rejected==0:
                     # new_dict_latent_params is new_params but in dictionary form
                     out_dict = {'rejected':rejected, 'new_params':new_dict_latent_params,
                                 'barX_new':barX_new, 'covariance_new':covariance_new, 
-                                'sigma_new':sigma_new}
-        
-        except:
-            # display llik when temp is nan
-            out_dict = {'rejected':-1, 'acceptprob':acceptprob, 'llik_jitter':llik_jitter, 'llik_current':llik_current}
-        
+                                'sigma_new':sigma_new, 'log_new_params':log_new_params,
+                                'acceptprob':acceptprob}
+                else:
+                    out_dict = {'rejected':rejected, 'new_params':self.latent.params,
+                                'barX_new':barX_new, 'covariance_new':covariance_new, 
+                                'sigma_new':sigma_new, 'log_new_params':log_new_params,
+                                'acceptprob':acceptprob}                    
+            except:
+                # display llik when temp is nan
+                out_dict = {'rejected':-1, 'acceptprob':acceptprob, 'llik_jitter':llik_jitter, 'llik_current':llik_current}
+
         return out_dict
+
+
 
 
