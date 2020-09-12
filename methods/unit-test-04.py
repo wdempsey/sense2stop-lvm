@@ -28,8 +28,12 @@ lat_pp = latent(data=tmp_latent_data, model=latent_poisson_process_ex2, params =
 sr_mem = measurement_model(data=tmp_clean_data, model=selfreport_mem_total, latent = tmp_latent_data, model_params={'p':0.9})
 test_model = model(init = clean_data,  latent = lat_pp , model = sr_mem)
 
-num_iters = 10000
+num_iters = 105000
 use_cutpoint = 5000
+
+np.random.seed(seed = 412983)
+#np.random.seed(seed = 34316)
+#np.random.seed(seed = 527884)
 
 # %%
 ###############################################################################

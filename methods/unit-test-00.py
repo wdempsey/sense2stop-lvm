@@ -362,7 +362,10 @@ class model(object):
         to perform adaptive updates.
         bartau = optimal acceptance rate (here, default is 0.574)
         '''
+
         epsilon = 0.10
+        #epsilon = 0.20
+
         # self.latent.params is a dictionary
         # latent_params contains the same values as self.latent.params
         # except that it is a numpy array
