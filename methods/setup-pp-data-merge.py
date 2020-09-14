@@ -54,6 +54,7 @@ all_participant_id = data_hq_episodes['id'].drop_duplicates()
 all_participant_id.index = np.array(range(0,len(all_participant_id.index)))
 all_dict = {}
 
+# %%
 for i in range(0, len(all_participant_id)):
   current_participant = all_participant_id[i]
   current_dict = {}
@@ -90,11 +91,15 @@ for i in range(0, len(all_participant_id)):
     result = pd.concat(frames)
 
     if len(result.index) > 0: 
+      # important step to sort according to hours_since_start_day
       result.sort_values(by=['hours_since_start_day'], inplace=True)
       result['hours_since_start_day_shifted'] = result['hours_since_start_day'].shift(periods=+1)
       result['hours_since_start_day_shifted'] = np.where(pd.isna(result['hours_since_start_day_shifted']), 0, result['hours_since_start_day_shifted'])
       result['time_between'] = result['hours_since_start_day'] - result['hours_since_start_day_shifted']
       # Let's create a time variable that depends on the value of 'smoke' #######
+      result['delta'] = np.where(np.logical_and(result['assessment_type']=='selfreport', result['when_smoke']==4), result['time_between']/2, result['delta'])
+      result['delta'] = np.where(np.logical_and(result['assessment_type']=='random_ema', result['when_smoke']==6), result['time_between']/2, result['delta'])
+
       result['puff_time'] = np.where(result['smoke']=='Yes', result['hours_since_start_day']-result['delta'], np.nan)
       # Rearrange columns #######################################################
       #result = result.loc[:, ['assessment_type', 'smoke','hours_since_start_day_shifted','hours_since_start_day','time_between','puff_time']]

@@ -122,7 +122,8 @@ data_random_ema['when_smoke'] = data_random_ema['when_smoke'].apply(lambda x: re
 def calculate_delta(message):
     accept_response = [1,2,3,4,5,6]
     # delta is in hours
-    use_this_delta = {1: np.mean([1,19])/60, 2: np.mean([20,39])/60, 3: np.mean([40,59])/60, 4: np.mean([60,79])/60, 5: np.mean([80,100])/60, 6: np.nan} 
+    #use_this_delta = {1: np.mean([1,19])/60, 2: np.mean([20,39])/60, 3: np.mean([40,59])/60, 4: np.mean([60,79])/60, 5: np.mean([80,100])/60, 6: np.nan} 
+    use_this_delta = {1: np.mean([1,19])/60, 2: np.mean([20,39])/60, 3: np.mean([40,59])/60, 4: np.mean([60,79])/60, 5: np.mean([80,100])/60, 6: 100/60} 
 
     if pd.isna(message):
         use_value = message
