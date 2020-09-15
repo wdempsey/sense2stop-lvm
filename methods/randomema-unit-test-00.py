@@ -107,6 +107,7 @@ def matching(observed_dict, latent_dict):
     
     return observed_dict, latent_dict
 
+
 # %%
 # Perform match for each PARTICIPANT-DAY
 for participant in clean_data.keys():
@@ -122,7 +123,7 @@ cnt_delay = 0
 for participant in clean_data.keys():
     for days in clean_data[participant].keys():
         current_data = clean_data[participant][days]
-        if np.sum(~(np.isnan(current_data['windowtag']) | (current_data['smoke']=='No')))>0:
+        if np.sum(~(np.isnan(current_data['windowtag']) | (current_data['smoke']=='No') | (current_data['assessment_type']=='random_ema')))>0:
             tmp_array_delay = np.array(current_data['delay'])
             tmp_array_delay = tmp_array_delay[~np.isnan(tmp_array_delay)]
             tot_delay = tot_delay + np.sum(tmp_array_delay)
@@ -177,75 +178,178 @@ def convert_windowtag_random_ema(windowtag):
 
 
 # %%
-use_participant = None
-use_days = None
-observed_dict = copy.deepcopy(clean_data[use_participant][use_days])
-latent_dict = copy.deepcopy(latent_data[use_participant][use_days])
+def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_delay_sr': 7.59, 'lambda_delay_random_ema': 5.91}):
+    prob_reported = []
+    prob_delay = []
+    log_prob_reported = []
+    log_prob_delay = []
+    tot_observed_smoked = np.sum(observed_dict['smoke']=='Yes')
+    tot_measurements = len(observed_dict['windowtag'])
+
+    if tot_observed_smoked>0:
+        for idx_assessment in range(0, tot_measurements):
+            if observed_dict['smoke'][idx_assessment]=='Yes' and observed_dict['assessment_type'][idx_assessment]=='selfreport':
+                # Grab true latent time matched to current reported time
+                idx_matched_latent_event = observed_dict['matched_latent_event'][idx_assessment]
+                if np.isnan(idx_matched_latent_event):
+                    prob_reported.extend([np.nan])
+                    prob_delay.extend([np.nan])
+                else:
+                    idx_matched_latent_event = np.int64(idx_matched_latent_event)
+                    curr_true_time = latent_dict['hours_since_start_day'][idx_matched_latent_event]
+                    # Grab current reported time
+                    # val_min and val_max have been converted to hours
+                    val_min, val_max = convert_windowtag_selfreport(windowtag = observed_dict['windowtag'][idx_assessment])
+
+                    # convert val_min and val_max to number of hours since start of day
+                    val_min = observed_dict['assessment_begin'][idx_assessment] - val_min
+                    val_max = observed_dict['assessment_begin'][idx_assessment] - val_max
+
+                    if observed_dict['windowtag'][idx_assessment]==4:
+                            val_max = observed_dict['assessment_begin_shifted'][idx_assessment]
+
+                    # a truncated distribution will be used
+                    # need to check whether assessment_begin_shifted < val_min < assessment_begin
+                    # need to check whether assessment_begin_shifted < val_max < assessment_begin
+
+                    check_val_min = (observed_dict['assessment_begin_shifted'][idx_assessment] <= val_min) and (val_min <= observed_dict['assessment_begin'][idx_assessment])
+                    check_val_max = (observed_dict['assessment_begin_shifted'][idx_assessment] <= val_max) and (val_max <= observed_dict['assessment_begin'][idx_assessment])
+                    check_val_minmax = check_val_min and check_val_max
+
+                    if check_val_minmax:
+                        # Grab current delay
+                        curr_delay = observed_dict['delay'][idx_assessment]
+                        # Calculated probability of reporting "between t1 to t2 hours ago"
+                        prob_upper_bound = norm.cdf(x = val_min, loc = curr_true_time, scale = curr_delay)
+                        prob_lower_bound = norm.cdf(x = val_max, loc = curr_true_time, scale = curr_delay)
+                        lower_bound_constraint = norm.cdf(x = observed_dict['assessment_begin_shifted'][idx_assessment], 
+                                                        loc = curr_true_time, 
+                                                        scale = curr_delay)
+                        upper_bound_constraint = norm.cdf(x = observed_dict['assessment_begin'][idx_assessment], 
+                                                        loc = curr_true_time, 
+                                                        scale = curr_delay)
+                        tot_prob_constrained = upper_bound_constraint - lower_bound_constraint
+                        c = (prob_upper_bound - prob_lower_bound)/tot_prob_constrained
+                        d = personday_mem_params['lambda_delay_sr']*np.exp(-(personday_mem_params['lambda_delay_sr'])*(observed_dict['delay'][idx_assessment]))
+                    else:
+                        c = 0
+                        d = personday_mem_params['lambda_delay_sr']*np.exp(-(personday_mem_params['lambda_delay_sr'])*(observed_dict['delay'][idx_assessment]))
+
+                    prob_reported.extend([c])
+                    prob_delay.extend([d])
+
+            elif observed_dict['smoke'][idx_assessment]=='Yes' and observed_dict['assessment_type'][idx_assessment]=='random_ema':
+                # Grab true latent time matched to current reported time
+                idx_matched_latent_event = observed_dict['matched_latent_event'][idx_assessment]
+                if np.isnan(idx_matched_latent_event):
+                    prob_reported.extend([np.nan])
+                    prob_delay.extend([np.nan])
+                else:
+                    idx_matched_latent_event = np.int64(idx_matched_latent_event)
+                    curr_true_time = latent_dict['hours_since_start_day'][idx_matched_latent_event]
+                    # Grab current reported time
+                    val_min, val_max = convert_windowtag_random_ema(windowtag = observed_dict['windowtag'][idx_assessment])
+
+                    # convert val_min and val_max to number of hours since start of day
+                    val_min = observed_dict['assessment_begin'][idx_assessment] - val_min
+                    val_max = observed_dict['assessment_begin'][idx_assessment] - val_max
+
+                    if observed_dict['windowtag'][idx_assessment]==6:
+                            val_max = observed_dict['assessment_begin_shifted'][idx_assessment]
+
+                    # a truncated distribution will be used
+                    # need to check whether assessment_begin_shifted < val_min < assessment_begin
+                    # need to check whether assessment_begin_shifted < val_max < assessment_begin
+
+                    check_val_min = (observed_dict['assessment_begin_shifted'][idx_assessment] <= val_min) and (val_min <= observed_dict['assessment_begin'][idx_assessment])
+                    check_val_max = (observed_dict['assessment_begin_shifted'][idx_assessment] <= val_max) and (val_max <= observed_dict['assessment_begin'][idx_assessment])
+                    check_val_minmax = check_val_min and check_val_max
+
+                    if check_val_minmax:
+                        # Grab current delay
+                        curr_delay = observed_dict['delay'][idx_assessment]
+                        # Calculated probability of reporting "between t1 to t2 hours ago"
+                        prob_upper_bound = norm.cdf(x = val_min, loc = curr_true_time, scale = curr_delay)
+                        prob_lower_bound = norm.cdf(x = val_max, loc = curr_true_time, scale = curr_delay)
+                        lower_bound_constraint = norm.cdf(x = observed_dict['assessment_begin_shifted'][idx_assessment], 
+                                                        loc = curr_true_time, 
+                                                        scale = curr_delay)
+                        upper_bound_constraint = norm.cdf(x = observed_dict['assessment_begin'][idx_assessment], 
+                                                        loc = curr_true_time, 
+                                                        scale = curr_delay)
+                        tot_prob_constrained = upper_bound_constraint - lower_bound_constraint
+                        c = (prob_upper_bound - prob_lower_bound)/tot_prob_constrained
+                        d = personday_mem_params['lambda_delay_random_ema']*np.exp(-(personday_mem_params['lambda_delay_random_ema'])*(observed_dict['delay'][idx_assessment]))
+                    else:
+                        c = 0
+                        d = personday_mem_params['lambda_delay_random_ema']*np.exp(-(personday_mem_params['lambda_delay_random_ema'])*(observed_dict['delay'][idx_assessment]))
+
+                    prob_reported.extend([c])
+                    prob_delay.extend([d])
+
+            # Cases when a 'No' smoking was reported in a Random EMA
+            else:
+                prob_reported.extend([np.nan])
+                prob_delay.extend([np.nan])
+        
+        # Format output
+        prob_reported = np.array(prob_reported)
+        log_prob_reported = np.log(prob_reported)
+        prob_delay = np.array(prob_delay)
+        log_prob_delay = np.log(prob_delay)
+    else:
+        pass
+
+    
+    observed_dict['prob_reported'] = prob_reported
+    observed_dict['log_prob_reported'] = log_prob_reported
+    observed_dict['prob_delay'] = prob_delay
+    observed_dict['log_prob_delay'] = log_prob_delay
+
+    return observed_dict
 
 # %%
-prob_reported = []
-tot_observed_smoked = np.sum(observed_dict['smoke']=='Yes')
-tot_measurements = len(observed_dict['windowtag'])
+def personday_mem_total(observed_dict, latent_dict, mem_params = {'p':0.9,'lambda_delay_sr': 7.59, 'lambda_delay_random_ema':5.91}):
+    """
+    Calculates total LOG-likelihood for a given PARTICIPANT-DAY
+    """
+
+    current_total_loglik = 0
+    tot_observed_smoked = np.sum(observed_dict['smoke']=='Yes')
+    tot_measurements = len(observed_dict['windowtag'])
+
+    if tot_observed_smoked>0:
+        m = len(latent_dict['matched'])
+        total_matched = sum(latent_dict['matched'])
+        current_total_loglik = total_matched*np.log(mem_params['p']) + (m - total_matched)*np.log(1-mem_params['p'])
+
+        observed_dict = personday_mem(observed_dict = observed_dict, latent_dict = latent_dict, personday_mem_params = mem_params)
+
+        for idx_assessment in range(0, tot_measurements):
+            if observed_dict['smoke'][idx_assessment]=='Yes' and (~np.isnan(observed_dict['matched_latent_event'][idx_assessment])):
+                current_total_loglik = current_total_loglik + observed_dict['log_prob_delay'][idx_assessment] + observed_dict['log_prob_reported'][idx_assessment]
+
+    return current_total_loglik
 
 # %%
-if tot_observed_smoked>0:
-    for idx_assessment in range(0, tot_measurements):
-        if observed_dict['smoke'][idx_assessment]=='Yes' and observed_dict['assessment_type'][idx_assessment]=='selfreport':
-            # Grab true latent time matched to current reported time
-            idx_matched_latent_event = observed_dict['matched_latent_event'][idx_assessment]
-            idx_matched_latent_event = np.int64(idx_matched_latent_event)
-            curr_true_time = latent_dict['hours_since_start_day'][idx_matched_latent_event]
-            # Grab current reported time
-            val_min, val_max = convert_windowtag_selfreport(windowtag = observed_dict['windowtag'][idx_assessment])
+dict_loglik = {}
+new_dict = {}
 
-            # convert val_min and val_max to number of hours since start of day
-            val_min = observed_dict['assessment_begin'][idx_assessment] - val_min/60
-            val_max = observed_dict['assessment_begin'][idx_assessment] - val_max/60
+for participant in clean_data.keys():
+    current_participant_dict = clean_data[participant]
+    for day in current_participant_dict.keys():
+        observed_dict = current_participant_dict[day]
+        latent_dict = latent_data[participant][day]
+        current_llik = personday_mem_total(observed_dict = observed_dict, latent_dict = latent_dict, mem_params = {'p':0.9, 'lambda_delay_sr': 7.59, 'lambda_delay_random_ema':5.91})
+        new_dict.update({day:current_llik})
 
-            if observed_dict['windowtag'][idx_assessment]==4:
-                val_max = observed_dict['assessment_begin'][idx_assessment]
+    dict_loglik.update({participant:new_dict})
+    new_dict = {}
 
-            # Grab current delay
-            curr_delay = observed_dict['delay'][idx_assessment]
-            # Calculate probabilities
-            prob_upper_bound = norm.cdf(x = curr_true_time - val_min, loc = curr_true_time, scale = curr_delay)
-            prob_lower_bound = norm.cdf(x = curr_true_time - val_max, loc = curr_true_time, scale = curr_delay)
-            prob_positive_recall = 1-norm.cdf(x = 0, loc = curr_true_time, scale = curr_delay)
-            c = (prob_upper_bound - prob_lower_bound)/prob_positive_recall
-            prob_reported.extend([c])
+# %%
+for participant in clean_data.keys():
+    current_participant_dict = clean_data[participant]
+    for day in current_participant_dict.keys():
+        print(dict_loglik[participant][day])
 
-        elif observed_dict['smoke'][idx_assessment]=='Yes' and observed_dict['assessment_type'][idx_assessment]=='random_ema':
-            # Grab true latent time matched to current reported time
-            idx_matched_latent_event = observed_dict['matched_latent_event'][idx_assessment]
-            idx_matched_latent_event = np.int64(idx_matched_latent_event)
-            curr_true_time = latent_dict['hours_since_start_day'][idx_matched_latent_event]
-            # Grab current reported time
-            val_min, val_max = convert_windowtag_random_ema(windowtag = observed_dict['windowtag'][idx_assessment])
-
-            # convert val_min and val_max to number of hours since start of day
-            val_min = observed_dict['assessment_begin'][idx_assessment] - val_min/60
-            val_max = observed_dict['assessment_begin'][idx_assessment] - val_max/60
-
-            if observed_dict['windowtag'][idx_assessment]==6:
-                val_max = observed_dict['assessment_begin'][idx_assessment]
-
-            # Grab current delay
-            curr_delay = observed_dict['delay'][idx_assessment]
-            # Calculate probabilities
-            prob_upper_bound = norm.cdf(x = curr_true_time - val_min, loc = curr_true_time, scale = curr_delay)
-            prob_lower_bound = norm.cdf(x = curr_true_time - val_max, loc = curr_true_time, scale = curr_delay)
-            prob_positive_recall = 1-norm.cdf(x = 0, loc = curr_true_time, scale = curr_delay)
-            c = (prob_upper_bound - prob_lower_bound)/prob_positive_recall
-            prob_reported.extend([c])
-
-        else:
-            next
-
-prob_reported = np.array(prob_reported)
-
-
-
-
-
-
-
+# %%
