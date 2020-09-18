@@ -178,7 +178,7 @@ def convert_windowtag_random_ema(windowtag):
 
 
 # %%
-def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_delay_sr': 7.59, 'lambda_delay_random_ema': 5.91}):
+def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_delay_sr': 7.59}):
     prob_reported = []
     prob_delay = []
     log_prob_reported = []
@@ -223,11 +223,11 @@ def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_de
                         prob_upper_bound = norm.cdf(x = val_min, loc = curr_true_time, scale = curr_delay)
                         prob_lower_bound = norm.cdf(x = val_max, loc = curr_true_time, scale = curr_delay)
                         lower_bound_constraint = norm.cdf(x = observed_dict['assessment_begin_shifted'][idx_assessment], 
-                                                        loc = curr_true_time, 
-                                                        scale = curr_delay)
+                                                          loc = curr_true_time, 
+                                                          scale = curr_delay)
                         upper_bound_constraint = norm.cdf(x = observed_dict['assessment_begin'][idx_assessment], 
-                                                        loc = curr_true_time, 
-                                                        scale = curr_delay)
+                                                          loc = curr_true_time, 
+                                                          scale = curr_delay)
                         tot_prob_constrained = upper_bound_constraint - lower_bound_constraint
                         c = (prob_upper_bound - prob_lower_bound)/tot_prob_constrained
                         d = personday_mem_params['lambda_delay_sr']*np.exp(-(personday_mem_params['lambda_delay_sr'])*(observed_dict['delay'][idx_assessment]))
@@ -272,17 +272,17 @@ def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_de
                         prob_upper_bound = norm.cdf(x = val_min, loc = curr_true_time, scale = curr_delay)
                         prob_lower_bound = norm.cdf(x = val_max, loc = curr_true_time, scale = curr_delay)
                         lower_bound_constraint = norm.cdf(x = observed_dict['assessment_begin_shifted'][idx_assessment], 
-                                                        loc = curr_true_time, 
-                                                        scale = curr_delay)
+                                                          loc = curr_true_time, 
+                                                          scale = curr_delay)
                         upper_bound_constraint = norm.cdf(x = observed_dict['assessment_begin'][idx_assessment], 
-                                                        loc = curr_true_time, 
-                                                        scale = curr_delay)
+                                                          loc = curr_true_time, 
+                                                          scale = curr_delay)
                         tot_prob_constrained = upper_bound_constraint - lower_bound_constraint
                         c = (prob_upper_bound - prob_lower_bound)/tot_prob_constrained
-                        d = personday_mem_params['lambda_delay_random_ema']*np.exp(-(personday_mem_params['lambda_delay_random_ema'])*(observed_dict['delay'][idx_assessment]))
+                        d = np.nan
                     else:
                         c = 0
-                        d = personday_mem_params['lambda_delay_random_ema']*np.exp(-(personday_mem_params['lambda_delay_random_ema'])*(observed_dict['delay'][idx_assessment]))
+                        d = np.nan
 
                     prob_reported.extend([c])
                     prob_delay.extend([d])
@@ -309,7 +309,7 @@ def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_de
     return observed_dict
 
 # %%
-def personday_mem_total(observed_dict, latent_dict, mem_params = {'p':0.9,'lambda_delay_sr': 7.59, 'lambda_delay_random_ema':5.91}):
+def personday_mem_total(observed_dict, latent_dict, mem_params = {'p':0.9,'lambda_delay_sr': 7.59}):
     """
     Calculates total LOG-likelihood for a given PARTICIPANT-DAY
     """
@@ -327,7 +327,12 @@ def personday_mem_total(observed_dict, latent_dict, mem_params = {'p':0.9,'lambd
 
         for idx_assessment in range(0, tot_measurements):
             if observed_dict['smoke'][idx_assessment]=='Yes' and (~np.isnan(observed_dict['matched_latent_event'][idx_assessment])):
-                current_total_loglik = current_total_loglik + observed_dict['log_prob_delay'][idx_assessment] + observed_dict['log_prob_reported'][idx_assessment]
+                if observed_dict['assessment_type'][idx_assessment]=='selfreport':
+                    current_total_loglik = current_total_loglik + observed_dict['log_prob_delay'][idx_assessment] + observed_dict['log_prob_reported'][idx_assessment]
+                elif observed_dict['assessment_type'][idx_assessment]=='random_ema':
+                    current_total_loglik = current_total_loglik + observed_dict['log_prob_reported'][idx_assessment]
+                else:
+                    pass
 
     return current_total_loglik
 
@@ -340,7 +345,7 @@ for participant in clean_data.keys():
     for day in current_participant_dict.keys():
         observed_dict = current_participant_dict[day]
         latent_dict = latent_data[participant][day]
-        current_llik = personday_mem_total(observed_dict = observed_dict, latent_dict = latent_dict, mem_params = {'p':0.9, 'lambda_delay_sr': 7.59, 'lambda_delay_random_ema':5.91})
+        current_llik = personday_mem_total(observed_dict = observed_dict, latent_dict = latent_dict, mem_params = {'p':0.9, 'lambda_delay_sr': 7.59})
         new_dict.update({day:current_llik})
 
     dict_loglik.update({participant:new_dict})
@@ -353,3 +358,5 @@ for participant in clean_data.keys():
         print(dict_loglik[participant][day])
 
 # %%
+
+
