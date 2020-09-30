@@ -122,24 +122,67 @@ for participant in clean_data.keys():
 
 # %%
 # Calculate initial estimate of delay
-tot_delay = 0
-cnt_delay = 0
 
+if False:
+    tot_delay = 0
+    cnt_delay = 0
+
+    for participant in clean_data.keys():
+        for days in clean_data[participant].keys():
+            current_data = clean_data[participant][days]
+            if np.sum(~(np.isnan(current_data['windowtag']) | (current_data['smoke']=='No') | (current_data['assessment_type']=='random_ema')))>0:
+                tmp_array_delay = np.array(current_data['delay'])
+                tmp_array_delay = tmp_array_delay[~np.isnan(tmp_array_delay)]
+                tot_delay = tot_delay + np.sum(tmp_array_delay)
+                cnt_delay = cnt_delay + len(current_data['windowtag'])
+
+    mean_delay_init = tot_delay/cnt_delay
+    lambda_delay_init = 1/mean_delay_init
+
+    print(mean_delay_init)
+    print(lambda_delay_init)
+
+# %%
 for participant in clean_data.keys():
-    for days in clean_data[participant].keys():
-        current_data = clean_data[participant][days]
-        if np.sum(~(np.isnan(current_data['windowtag']) | (current_data['smoke']=='No') | (current_data['assessment_type']=='random_ema')))>0:
-            tmp_array_delay = np.array(current_data['delay'])
-            tmp_array_delay = tmp_array_delay[~np.isnan(tmp_array_delay)]
-            tot_delay = tot_delay + np.sum(tmp_array_delay)
-            cnt_delay = cnt_delay + len(current_data['windowtag'])
+    for day in current_participant_dict.keys():
+        tot_measurements = len(clean_data[participant][day]['windowtag'])
+        tot_true_latent_events = len(latent_data[participant][day]['hours_since_start_day'])
+        if tot_measurements==0 and tot_true_latent_events>0:
+            print((participant,day))
 
-mean_delay_init = tot_delay/cnt_delay
-lambda_delay_init = 1/mean_delay_init
+# %%
+for participant in clean_data.keys():
+    for day in current_participant_dict.keys():
+        tot_measurements = len(clean_data[participant][day]['windowtag'])
+        tot_true_latent_events = len(latent_data[participant][day]['hours_since_start_day'])
+        if tot_measurements==0 and tot_true_latent_events==0:
+            print((participant,day))
 
-print(mean_delay_init)
-print(lambda_delay_init)
+# %%
+for participant in clean_data.keys():
+    for day in current_participant_dict.keys():
+        tot_measurements = len(clean_data[participant][day]['windowtag'])
+        tot_true_latent_events = len(latent_data[participant][day]['hours_since_start_day'])
+        if tot_measurements>0 and tot_true_latent_events==0:
+            if np.sum(clean_data[participant][day]['smoke']=='Yes')>0:
+                print((participant,day))
 
+# %%
+for participant in clean_data.keys():
+    for day in current_participant_dict.keys():
+        tot_measurements = len(clean_data[participant][day]['windowtag'])
+        tot_true_latent_events = len(latent_data[participant][day]['hours_since_start_day'])
+        if tot_measurements>0 and tot_true_latent_events==0:
+            print((participant,day))
+
+
+# %%
+for participant in clean_data.keys():
+    for day in current_participant_dict.keys():
+        tot_measurements = len(clean_data[participant][day]['windowtag'])
+        tot_true_latent_events = len(latent_data[participant][day]['hours_since_start_day'])
+        if tot_measurements>0 and tot_true_latent_events>0:
+            print((participant,day))
 
 # %%
 # Define functions for handling windowtag by assessment type
@@ -166,7 +209,7 @@ def convert_windowtag_random_ema(windowtag):
     accept_response = [1,2,3,4,5,6]
     # windowtag is in hours
     # use_this_window_max will be based on time when prevous EMA was delivered
-    use_this_window_min = {1: 1/60, 2: 20/60, 3: 40/60, 4: 60/60, 5: 80/60, 6: 100/60}
+    use_this_window_min = {1: 0/60, 2: 20/60, 3: 40/60, 4: 60/60, 5: 80/60, 6: 100/60}
     use_this_window_max = {1: 20/60, 2: 40/60, 3: 60/60, 4: 80/60, 5: 100/60, 6: np.nan}
 
     if pd.isna(windowtag):
@@ -181,7 +224,6 @@ def convert_windowtag_random_ema(windowtag):
 
     return use_value_min, use_value_max
 
-
 # %%
 def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_delay_sr': 7.59}):
     array_check_flag = []
@@ -190,10 +232,11 @@ def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_de
     prob_delay = []
     log_prob_reported = []
     log_prob_delay = []
-    tot_observed_smoked = np.sum(observed_dict['smoke']=='Yes')
+    
     tot_measurements = len(observed_dict['windowtag'])
+    tot_true_latent_events = len(latent_dict['hours_since_start_day'])
 
-    if tot_observed_smoked>0:
+    if tot_measurements>0 and tot_true_latent_events>0:
         for idx_assessment in range(0, tot_measurements):
             if observed_dict['smoke'][idx_assessment]=='Yes' and observed_dict['assessment_type'][idx_assessment]=='selfreport':
                 # Grab true latent time matched to current reported time
@@ -215,18 +258,22 @@ def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_de
                     val_min = observed_dict['assessment_begin'][idx_assessment] - val_min
                     val_max = observed_dict['assessment_begin'][idx_assessment] - val_max
 
-                    if observed_dict['windowtag'][idx_assessment]==4:
-                            val_max = 0 
-
+                    # note: val_max is earlier in the day after val_min after the above calculation
                     # a truncated distribution will be used
                     # need to check whether assessment_begin_shifted < val_min < assessment_begin
                     # need to check whether assessment_begin_shifted < val_max < assessment_begin
 
-                    check_val_min = (observed_dict['assessment_begin_shifted'][idx_assessment] <= val_min) and (val_min <= observed_dict['assessment_begin'][idx_assessment])
-                    check_val_max = (observed_dict['assessment_begin_shifted'][idx_assessment] <= val_max) and (val_max <= observed_dict['assessment_begin'][idx_assessment])
+                    if observed_dict['windowtag'][idx_assessment]==4:
+                        val_max = 0                     
+                        check_val_max = True
+                        check_val_min = (val_min >= observed_dict['assessment_begin_shifted'][idx_assessment])
+                    else:
+                        check_val_max = (val_max >= observed_dict['assessment_begin_shifted'][idx_assessment])
+                        check_val_min = (val_min >= observed_dict['assessment_begin_shifted'][idx_assessment])
+
 
                     if idx_assessment == 0:
-                        if check_val_min and check_val_max:
+                        if check_val_max and check_val_min:
                             # Grab current delay
                             curr_delay = observed_dict['delay'][idx_assessment]
                             # Calculated probability of reporting "between t1 to t2 hours ago"
@@ -248,7 +295,7 @@ def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_de
                             d = personday_mem_params['lambda_delay_sr']*np.exp(-(personday_mem_params['lambda_delay_sr'])*(observed_dict['delay'][idx_assessment]))
                             check_flag = -999
                     else:
-                        if check_val_min and check_val_max:
+                        if check_val_max and check_val_min:
                             # Grab current delay
                             curr_delay = observed_dict['delay'][idx_assessment]
                             # Calculated probability of reporting "between t1 to t2 hours ago"
@@ -266,7 +313,7 @@ def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_de
 
                             check_flag = 0
 
-                        elif (~check_val_min) and check_val_max:
+                        elif (~check_val_max) and check_val_min:
                             # is previous EMA 'Yes'?
                             if observed_dict['smoke'][idx_assessment-1] == 'Yes':
                                 # Grab current delay
@@ -305,6 +352,10 @@ def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_de
                                 c = 0
                                 d = personday_mem_params['lambda_delay_sr']*np.exp(-(personday_mem_params['lambda_delay_sr'])*(observed_dict['delay'][idx_assessment]))  
                                 check_flag = -555         
+                        elif (~check_val_max) and (~check_val_min):
+                            c = 0
+                            d = personday_mem_params['lambda_delay_sr']*np.exp(-(personday_mem_params['lambda_delay_sr'])*(observed_dict['delay'][idx_assessment]))
+                            check_flag = -666
                         else:
                             c = 0
                             d = personday_mem_params['lambda_delay_sr']*np.exp(-(personday_mem_params['lambda_delay_sr'])*(observed_dict['delay'][idx_assessment]))
@@ -331,24 +382,23 @@ def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_de
                     curr_true_time = latent_dict['hours_since_start_day'][idx_matched_latent_event]
                     # Grab current reported time
                     # val_min and val_max have been converted to hours
-                    val_min, val_max = convert_windowtag_selfreport(windowtag = observed_dict['windowtag'][idx_assessment])
+                    val_min, val_max = convert_windowtag_random_ema(windowtag = observed_dict['windowtag'][idx_assessment])
 
                     # convert val_min and val_max to number of hours since start of day
                     val_min = observed_dict['assessment_begin'][idx_assessment] - val_min
                     val_max = observed_dict['assessment_begin'][idx_assessment] - val_max
 
+                    # note: val_max is earlier in the day after val_min after the above calculation
                     if observed_dict['windowtag'][idx_assessment]==6:
-                            val_max = 0
-
-                    # a truncated distribution will be used
-                    # need to check whether assessment_begin_shifted < val_min < assessment_begin
-                    # need to check whether assessment_begin_shifted < val_max < assessment_begin
-
-                    check_val_min = (observed_dict['assessment_begin_shifted'][idx_assessment] <= val_min) and (val_min <= observed_dict['assessment_begin'][idx_assessment])
-                    check_val_max = (observed_dict['assessment_begin_shifted'][idx_assessment] <= val_max) and (val_max <= observed_dict['assessment_begin'][idx_assessment])
+                        val_max = 0                     
+                        check_val_max = True
+                        check_val_min = (val_min >= observed_dict['assessment_begin_shifted'][idx_assessment])
+                    else:
+                        check_val_max = (val_max >= observed_dict['assessment_begin_shifted'][idx_assessment])
+                        check_val_min = (val_min >= observed_dict['assessment_begin_shifted'][idx_assessment])
 
                     if idx_assessment == 0:
-                        if check_val_min and check_val_max:
+                        if check_val_max and check_val_min:
                             # Grab current delay
                             curr_delay = observed_dict['delay'][idx_assessment]
                             # Calculated probability of reporting "between t1 to t2 hours ago"
@@ -370,7 +420,7 @@ def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_de
                             d = np.nan
                             check_flag = -999
                     else:
-                        if check_val_min and check_val_max:
+                        if check_val_max and check_val_min:
                             # Grab current delay
                             curr_delay = observed_dict['delay'][idx_assessment]
                             # Calculated probability of reporting "between t1 to t2 hours ago"
@@ -388,7 +438,7 @@ def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_de
 
                             check_flag = 0
 
-                        elif (~check_val_min) and check_val_max:
+                        elif (~check_val_max) and check_val_min:
                             # is previous EMA 'Yes'?
                             if observed_dict['smoke'][idx_assessment-1] == 'Yes':
                                 # Grab current delay
@@ -427,6 +477,11 @@ def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_de
                                 c = 0
                                 d = np.nan
                                 check_flag = -555       
+                        
+                        elif (~check_val_max) and (~check_val_min):
+                            c = 0
+                            d = personday_mem_params['lambda_delay_sr']*np.exp(-(personday_mem_params['lambda_delay_sr'])*(observed_dict['delay'][idx_assessment]))
+                            check_flag = -666
                         else:
                             c = 0
                             d = np.nan
@@ -439,13 +494,26 @@ def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_de
                     array_check_flag.extend([check_flag])                    
 
             # Cases when a 'No' smoking was reported in a Random EMA
-            else:
-                prob_reported.extend([np.nan])
-                prob_delay.extend([np.nan])
+            else:  #observed_dict['smoke'][idx_assessment]=='No':
+                previous_time = observed_dict['assessment_begin_shifted'][idx_assessment]
+                current_time = observed_dict['assessment_begin'][idx_assessment]
+                all_true_smoking_times = latent_dict['hours_since_start_day']
 
+                any_detected = 0
+                for j in range(0, len(all_true_smoking_times)):
+                    current_check = (all_true_smoking_times[j] >= previous_time) and (all_true_smoking_times[j] <= current_time)
+                    if current_check is True:
+                        any_detected = 1
+                        break
+
+                if any_detected == 0:
+                    c = 1
+                else:
+                    c = 0
+
+                prob_reported.extend([c])
+                prob_delay.extend([np.nan])
                 array_check_flag.extend([-888])
-                
-        
 
         # Format output
         array_check_flag = np.array(array_check_flag)
@@ -454,7 +522,24 @@ def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_de
         log_prob_reported = np.log(prob_reported)
         prob_delay = np.array(prob_delay)
         log_prob_delay = np.log(prob_delay)
-        
+    
+    elif tot_measurements>0 and tot_true_latent_events==0:  # participant reported smoking 'no' all throughout
+        for idx_assessment in range(0, tot_measurements):
+            if observed_dict['smoke'][idx_assessment]=='No': 
+                prob_reported.extend([1])
+                prob_delay.extend([np.nan])
+
+                array_check_flag.extend([-888])
+            else:
+                prob_reported.extend([0])
+                prob_delay.extend([np.nan])   
+                array_check_flag.extend([-111])
+
+        prob_reported = np.array(prob_reported)
+        log_prob_reported = np.log(prob_reported)
+        prob_delay = np.array(prob_delay)
+        log_prob_delay = np.log(prob_delay)
+
     else:
         pass
 
@@ -468,62 +553,102 @@ def personday_mem(observed_dict, latent_dict, personday_mem_params = {'lambda_de
     return observed_dict
 
 
+# %%
+if False:
+    for participant in clean_data.keys():
+        for day in current_participant_dict.keys():
+            clean_data[participant][day] = personday_mem(observed_dict = clean_data[participant][day], latent_dict = latent_data[participant][day], personday_mem_params =  {'p':0.9, 'lambda_delay_sr': 7.59})
+
+    for participant in clean_data.keys():
+        for day in current_participant_dict.keys():
+            current_array = clean_data[participant][day]['array_check_flag']
+            if np.sum(current_array == -666)>0:
+                print((participant, day))
 
 # %%
-def personday_mem_total_lik(observed_dict, latent_dict, mem_params = {'p':0.9,'lambda_delay_sr': 7.59}):
+if False:
+
+    mem_params = {'p':0.9, 'lambda_delay_sr': 7.59}
+
+    for participant in clean_data.keys():
+        for day in current_participant_dict.keys():
+            observed_dict = copy.deepcopy(clean_data[participant][day])
+            latent_dict = copy.deepcopy(latent_data[participant][day])
+
+            observed_dict = personday_mem(observed_dict = observed_dict, latent_dict = latent_dict, personday_mem_params = mem_params)
+            tot_measurements = len(observed_dict['windowtag'])
+            tot_true_latent_events = len(latent_dict['hours_since_start_day'])
+            total_matched = np.sum(latent_dict['matched'])
+
+            if tot_measurements>0 and tot_true_latent_events>0:
+                total_loglik = total_matched * np.log(mem_params['p']) + (tot_true_latent_events - total_matched) * np.log(1-mem_params['p'])
+
+                for idx_assessment in range(0, tot_measurements):
+                    if observed_dict['smoke'][idx_assessment]=='Yes' and observed_dict['assessment_type'][idx_assessment]=='selfreport':
+                        total_loglik = total_loglik + observed_dict['log_prob_delay'][idx_assessment]
+                        total_loglik = total_loglik + observed_dict['log_prob_reported'][idx_assessment]
+                    elif observed_dict['smoke'][idx_assessment]=='Yes' and observed_dict['assessment_type'][idx_assessment]=='random_ema':
+                        total_loglik = total_loglik + observed_dict['log_prob_reported'][idx_assessment]
+                    else:  # 'No' is reported
+                        total_loglik = total_loglik + observed_dict['log_prob_reported'][idx_assessment]
+                
+            elif tot_measurements>0 and tot_true_latent_events==0:
+                total_loglik = 0
+                for idx_assessment in range(0, tot_measurements):
+                    total_loglik = total_loglik + observed_dict['log_prob_reported'][idx_assessment]
+            elif tot_measurements==0 and tot_true_latent_events>0:
+                total_loglik = total_matched * np.log(mem_params['p']) + (tot_true_latent_events - total_matched) * np.log(1-mem_params['p'])
+            else:
+                total_loglik = np.nan
+
+            print(participant,day,total_loglik)
+
+
+
+# %%
+def personday_mem_total_loglik(observed_dict, latent_dict, mem_params = {'p':0.9,'lambda_delay_sr': 7.59}):
     """
     Calculates total likelihood for a given PARTICIPANT-DAY
     """
     
-    # do not initialize current_total_lik to zero since np.log(0)=inf
-    current_total_lik = np.nan  # remains missing at output if not updated
-    tot_observed_smoked = np.sum(observed_dict['smoke']=='Yes')
+    observed_dict = personday_mem(observed_dict = observed_dict, latent_dict = latent_dict, personday_mem_params = mem_params)
     tot_measurements = len(observed_dict['windowtag'])
+    tot_true_latent_events = len(latent_dict['hours_since_start_day'])
+    total_matched = np.sum(latent_dict['matched'])
 
-    if tot_observed_smoked>0:
-        m = len(latent_dict['matched'])
-        total_matched = sum(latent_dict['matched'])
-        current_total_lik = (mem_params['p']**total_matched)*((1-mem_params['p'])**(m - total_matched))
-        observed_dict = personday_mem(observed_dict = observed_dict, latent_dict = latent_dict, personday_mem_params = mem_params)
+    if tot_measurements>0 and tot_true_latent_events>0:
+        total_loglik = total_matched * np.log(mem_params['p']) + (tot_true_latent_events - total_matched) * np.log(1-mem_params['p'])
 
         for idx_assessment in range(0, tot_measurements):
-            if observed_dict['smoke'][idx_assessment]=='Yes' and (~np.isnan(observed_dict['matched_latent_event'][idx_assessment])):
-                if observed_dict['assessment_type'][idx_assessment]=='selfreport':
-                    current_total_lik = current_total_lik * observed_dict['prob_delay'][idx_assessment] * observed_dict['prob_reported'][idx_assessment]
-                elif observed_dict['assessment_type'][idx_assessment]=='random_ema':
-                    current_total_lik = current_total_lik * observed_dict['prob_reported'][idx_assessment]
-                else:
-                    pass
+            if observed_dict['smoke'][idx_assessment]=='Yes' and observed_dict['assessment_type'][idx_assessment]=='selfreport':
+                total_loglik = total_loglik + observed_dict['log_prob_delay'][idx_assessment]
+                total_loglik = total_loglik + observed_dict['log_prob_reported'][idx_assessment]
+            elif observed_dict['smoke'][idx_assessment]=='Yes' and observed_dict['assessment_type'][idx_assessment]=='random_ema':
+                total_loglik = total_loglik + observed_dict['log_prob_reported'][idx_assessment]
+            else:  # 'No' is reported
+                total_loglik = total_loglik + observed_dict['log_prob_reported'][idx_assessment]
+        
+    elif tot_measurements>0 and tot_true_latent_events==0:
+        total_loglik = 0
+        for idx_assessment in range(0, tot_measurements):
+            total_loglik = total_loglik + observed_dict['log_prob_reported'][idx_assessment]
+    elif tot_measurements==0 and tot_true_latent_events>0:
+        total_loglik = total_matched * np.log(mem_params['p']) + (tot_true_latent_events - total_matched) * np.log(1-mem_params['p'])
     else:
-        observed_dict['array_check_flag'] = []
-
-    return current_total_lik
-
-# %%
-dict_lik = {}
-new_dict = {}
-
-for participant in clean_data.keys():
-    current_participant_dict = clean_data[participant]
-    for day in current_participant_dict.keys():
-        observed_dict = current_participant_dict[day]
-        latent_dict = latent_data[participant][day]
-        current_llik = personday_mem_total_lik(observed_dict = observed_dict, latent_dict = latent_dict, mem_params = {'p':0.9, 'lambda_delay_sr': 7.59})
-        new_dict.update({day:current_llik})
-
-    dict_lik.update({participant:new_dict})
-    new_dict = {}
+        total_loglik = np.nan
+    
+    return total_loglik
 
 
 # %%
 for participant in clean_data.keys():
     for day in current_participant_dict.keys():
-        current_array = clean_data[participant][day]['array_check_flag']
-        if current_array == []:
-            pass
-        else:
-            print(current_array)
-
+        observed_dict = copy.deepcopy(clean_data[participant][day])
+        latent_dict = copy.deepcopy(latent_data[participant][day])
+        current_loglik = personday_mem_total_loglik(observed_dict = observed_dict, latent_dict = latent_dict)
+        print(current_loglik)
 
 
 # %%
+
+

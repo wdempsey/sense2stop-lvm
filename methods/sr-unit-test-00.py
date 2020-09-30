@@ -364,7 +364,6 @@ class model(object):
         '''
 
         epsilon = 0.10
-        #epsilon = 0.20
 
         # self.latent.params is a dictionary
         # latent_params contains the same values as self.latent.params
