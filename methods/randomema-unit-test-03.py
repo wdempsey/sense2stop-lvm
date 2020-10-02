@@ -932,22 +932,6 @@ for current_iter in range(1,num_iters):
         cov_new = current_out_dict['covariance_new']
         sigma_new = current_out_dict['sigma_new']
         barX_new = current_out_dict['barX_new']
-
-        # Jitter latent times
-        if current_iter <= 1000:
-            dict_store_params[current_iter]["acceptprob_jitter"] = np.nan 
-        else:
-            acceptprob_jitter = test_model.adapMH_times()
-            dict_store_params[current_iter]["acceptprob_jitter"] = acceptprob_jitter
-        
-        # Perform match for each PARTICIPANT-DAY
-        try:
-            for participant in test_model.memmodel.data.keys():
-                for days in test_model.memmodel.data[participant].keys():
-                    test_model.memmodel.data[participant][days], test_model.latent.data[participant][days] = matching(observed_dict = test_model.memmodel.data[participant][days], latent_dict = test_model.latent.data[participant][days])
-
-        except:
-            pass
         
 
 
@@ -974,19 +958,18 @@ print(burn_in_accept_prob)
 
 
 # %%
-temp = np.zeros(shape = (num_iters, 3+len(lat_pp.params.keys())))
+temp = np.zeros(shape = (num_iters, 2+len(lat_pp.params.keys())))
 
 for iter in range(1,num_iters):
     temp[iter,0] = dict_store_params[iter]['new_params']['lambda_prequit']
     temp[iter,1] = dict_store_params[iter]['new_params']['lambda_postquit']
     temp[iter,2] = dict_store_params[iter]['sigma_new']
     temp[iter,3] = dict_store_params[iter]['acceptprob']
-    temp[iter,4] = dict_store_params[iter]['acceptprob_jitter']
 
 # %%
 plot_cutpoint = use_cutpoint + 1
 
-fig, axs = plt.subplots(3,3)
+fig, axs = plt.subplots(3,2)
 fig.suptitle('Adaptive MH Parameter Updates\n' + 'Acceptance Probability is '+ str(round(accept_prob*100, 1)) + str('%'), fontsize=12)
 axs[0,0].hist(temp[plot_cutpoint:,0], bins = 30)
 axs[0,1].plot(np.arange(temp[plot_cutpoint:,0].size),temp[plot_cutpoint:,0])
@@ -995,7 +978,6 @@ axs[1,1].plot(np.arange(temp[plot_cutpoint:,1].size),temp[plot_cutpoint:,1])
 
 axs[2,0].plot(np.arange(temp[plot_cutpoint:,2].size),temp[plot_cutpoint:,2])
 axs[2,1].plot(np.arange(temp[plot_cutpoint:,3].size),temp[plot_cutpoint:,3])
-axs[2,2].plot(np.arange(temp[plot_cutpoint:,4].size),temp[plot_cutpoint:,4])
 plt.show()
 
 
@@ -1003,4 +985,3 @@ plt.show()
 df = pd.DataFrame(data=temp[plot_cutpoint:,3].flatten())
 ma = df.rolling(window=100).mean()
 plt.plot(ma)
-
