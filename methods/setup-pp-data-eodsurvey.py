@@ -105,68 +105,88 @@ data_eodsurvey['rescaled_19to20'] = np.where(data_eodsurvey['19to20'] != 1.0, np
 eod_tot_rows = data_eodsurvey.shape[0]
 
 # %%
-data_eodsurvey['ticked_box'] = np.repeat({'ticked_box':np.nan}, repeats = eod_tot_rows)
+data_eodsurvey['ticked_box_raw'] = np.repeat({'ticked_box_raw':np.nan}, repeats = eod_tot_rows)
+data_eodsurvey['ticked_box_scaled'] = np.repeat({'ticked_box_scaled':np.nan}, repeats = eod_tot_rows)
+
+# %%
+data_eodsurvey['start_time_scaled'] = data_eodsurvey['start_time'].apply(lambda x: x.hour + (x.minute)/60 + (x.second)/3600) 
+data_eodsurvey['end_time_scaled'] = data_eodsurvey['end_time'].apply(lambda x: x.hour + (x.minute)/60 + (x.second)/3600)
 
 # %%
 
 for idx_row in range(0, eod_tot_rows):
+    curr_array_raw = []
     curr_array = []
+
     if data_eodsurvey['status'].iloc[idx_row] == 'COMPLETED':
         curr_box = data_eodsurvey['rescaled_8to9'].iloc[idx_row]
         if (~np.isnan(curr_box)) and (curr_box>=0):
             curr_array.extend([curr_box])
+            curr_array_raw.extend([8])
 
         curr_box = data_eodsurvey['rescaled_9to10'].iloc[idx_row]
         if (~np.isnan(curr_box)) and (curr_box>=0):
             curr_array.extend([curr_box])
+            curr_array_raw.extend([9])
 
         curr_box = data_eodsurvey['rescaled_10to11'].iloc[idx_row]
         if (~np.isnan(curr_box)) and (curr_box>=0):
             curr_array.extend([curr_box])
+            curr_array_raw.extend([10])
 
         curr_box = data_eodsurvey['rescaled_11to12'].iloc[idx_row]
         if (~np.isnan(curr_box)) and (curr_box>=0):
             curr_array.extend([curr_box])
+            curr_array_raw.extend([11])
 
         curr_box = data_eodsurvey['rescaled_12to13'].iloc[idx_row]
         if (~np.isnan(curr_box)) and (curr_box>=0):
             curr_array.extend([curr_box])
+            curr_array_raw.extend([12])
 
         curr_box = data_eodsurvey['rescaled_13to14'].iloc[idx_row]
         if (~np.isnan(curr_box)) and (curr_box>=0):
             curr_array.extend([curr_box])
+            curr_array_raw.extend([13])
 
         curr_box = data_eodsurvey['rescaled_14to15'].iloc[idx_row]
         if (~np.isnan(curr_box)) and (curr_box>=0):
             curr_array.extend([curr_box])
+            curr_array_raw.extend([14])
 
         curr_box = data_eodsurvey['rescaled_15to16'].iloc[idx_row]
         if (~np.isnan(curr_box)) and (curr_box>=0):
             curr_array.extend([curr_box])
+            curr_array_raw.extend([15])
 
         curr_box = data_eodsurvey['rescaled_16to17'].iloc[idx_row]
         if (~np.isnan(curr_box)) and (curr_box>=0):
             curr_array.extend([curr_box])
+            curr_array_raw.extend([16])
 
         curr_box = data_eodsurvey['rescaled_17to18'].iloc[idx_row]
         if (~np.isnan(curr_box)) and (curr_box>=0):
             curr_array.extend([curr_box])
+            curr_array_raw.extend([17])
 
         curr_box = data_eodsurvey['rescaled_18to19'].iloc[idx_row]
         if (~np.isnan(curr_box)) and (curr_box>=0):
             curr_array.extend([curr_box])
+            curr_array_raw.extend([18])
 
         curr_box = data_eodsurvey['rescaled_19to20'].iloc[idx_row]
         if (~np.isnan(curr_box)) and (curr_box>=0):
             curr_array.extend([curr_box])
+            curr_array_raw.extend([19])
     
-    data_eodsurvey['ticked_box'].iloc[idx_row] = np.array(curr_array)
+    data_eodsurvey['ticked_box_raw'].iloc[idx_row] = np.array(curr_array_raw)
+    data_eodsurvey['ticked_box_scaled'].iloc[idx_row] = np.array(curr_array)
 
 # %%
 data_eodsurvey['hours_since_start_day'] = (data_eodsurvey['eod_survey_time'] - data_eodsurvey['start_time'])/np.timedelta64(1,'h')
 
 # %%
-data_eodsurvey = data_eodsurvey.loc[:, ['participant_id', 'date', 'hours_since_start_day', 'ticked_box']]
+data_eodsurvey = data_eodsurvey.loc[:, ['participant_id', 'date', 'hours_since_start_day', 'ticked_box_raw','ticked_box_scaled','start_time_scaled','end_time_scaled']]
 
 # %%
 data_day_limits = pd.merge(left = data_day_limits, right = data_eodsurvey, how = 'left', on = ['participant_id','date'])
@@ -202,7 +222,10 @@ for i in range(0, len(all_participant_id)):
                         'study_day':this_study_day, 
                         'day_length': this_day_length, 
                         #'hours_since_start_day':np.array([]),
-                        'ticked_box':np.array([])
+                        'start_time_scaled':dat['start_time_scaled'].iloc[0],
+                        'end_time_scaled':dat['end_time_scaled'].iloc[0],
+                        'ticked_box_scaled':np.array([]),
+                        'ticked_box_raw':np.array([])
                         }
                     }
         else:
@@ -212,7 +235,10 @@ for i in range(0, len(all_participant_id)):
                         'study_day':this_study_day, 
                         'day_length': this_day_length, 
                         #'hours_since_start_day':dat['hours_since_start_day'].iloc[0],
-                        'ticked_box':dat['ticked_box'].iloc[0]
+                        'start_time_scaled':dat['start_time_scaled'].iloc[0],
+                        'end_time_scaled':dat['end_time_scaled'].iloc[0],
+                        'ticked_box_scaled':dat['ticked_box_scaled'].iloc[0],
+                        'ticked_box_raw':dat['ticked_box_raw'].iloc[0]
                         }
                     }
 
