@@ -36,7 +36,18 @@ class Tree:
 
 
 # %%
-mytree = Tree()
-mytree.GrowTree(depth=3)
-print(mytree.data)
+#mytree = Tree()
+#mytree.GrowTree(depth=1)
+#print(mytree.data)
+
+
+# %%
+
+
+
+
+
+
+
+
 
