@@ -207,6 +207,14 @@ for i in range(0, len(all_participant_id)):
       next
 
 #%%
+#%%
+filename = os.path.join(os.path.realpath(dir_picklejar), 'dict_knitted')
+outfile = open(filename, 'wb')
+pickle.dump(dict_knitted, outfile)
+outfile.close()
+
+
+#%%
 
 ###############################################################################
 # Now, knit puffmarker data into the fabric of random EMA & self-report data

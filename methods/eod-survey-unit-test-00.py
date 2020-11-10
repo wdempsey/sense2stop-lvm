@@ -141,7 +141,7 @@ tmp_dict_latent['true_smoke_times'] = true_smoke_times
 rho = 0.6
 # Exchangeable correlation matrix
 use_cormat = np.eye(len(true_smoke_times)) + rho*(np.ones((len(true_smoke_times),1)) * np.ones((1,len(true_smoke_times))) - np.eye(len(true_smoke_times)))
-use_sd = 90/60  # in hours
+use_sd = 5/60 #0.50 #90/60  # in hours
 use_covmat = (use_sd**2)*use_cormat
 mytree = Tree()
 mytree.GrowTree(depth=len(true_smoke_times))
