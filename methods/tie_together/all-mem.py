@@ -73,6 +73,46 @@ class ParticipantDayMEM:
         self.observed_eod_survey_data = observed_eod_survey_data
         self.observed_puffmarker_data = observed_puffmarker_data
 
+    def inherit_all_data(self,
+                         InstanceLatent = None,
+                         InstanceSelfReport = None, InstanceRandomEMA = None,
+                         InstanceEODSurvey = None, InstanceHTMG = None):
+        """
+        Initialize latent and observed data in all subcomponents in one fell swoop
+        """
+
+        # Setting default value of each argument to none allows the end-user
+        # to pick and choose which particular subcomponents to use together
+
+        if InstanceLatent is not None:
+            InstanceLatent.participant = self.participant
+            InstanceLatent.day = self.day
+            InstanceLatent.latent_data = self.latent_data
+
+        if InstanceSelfReport is not None:
+            InstanceSelfReport.participant = self.participant
+            InstanceSelfReport.day = self.day
+            InstanceSelfReport.latent_data = self.latent_data
+            InstanceSelfReport.observed_data = self.observed_ema_data
+
+        if InstanceRandomEMA is not None:
+            InstanceRandomEMA.participant = self.participant
+            InstanceRandomEMA.day = self.day
+            InstanceRandomEMA.latent_data = self.latent_data
+            InstanceRandomEMA.observed_data = self.observed_ema_data
+
+        if InstanceEODSurvey is not None:
+            InstanceEODSurvey.participant = self.participant
+            InstanceEODSurvey.day = self.day
+            InstanceEODSurvey.latent_data = self.latent_data
+            InstanceEODSurvey.observed_data = self.observed_eod_survey_data
+
+        if InstanceHTMG is not None:
+            InstanceHTMG.participant = self.participant
+            InstanceHTMG.day = self.day
+            InstanceHTMG.latent_data = self.latent_data
+            InstanceHTMG.observed_data = self.observed_puffmarker_data
+
     def update_latent_data(self, 
                            new_latent_data,
                            InstanceLatent = None,
@@ -105,74 +145,68 @@ class ParticipantDayMEM:
         if InstanceHTMG is not None:
             InstanceHTMG.latent_data = new_latent_data
 
-        return None
-
-
     # Define classes corresponding to subcomponent of MEM
     # Each class simply inherits the latent and observed data of ParticipantDayMEM
     # Additionally, each of the following classes would have an attribute for parameter values
 
     class Latent:
-        def __init__(self, outer_instance, params = None):
-            self.participant = outer_instance.participant
-            self.day = outer_instance.day
-            self.latent_data = outer_instance.latent_data
-            self.params = params
+        def __init__(self):
+            self.participant = None
+            self.day = None
+            self.latent_data = None
+            self.params = None
         
-        # Add methods:
+        # Add methods to class object:
         # - calculate log-likelihood using existing values of params
 
 
     class SelfReport:
-        def __init__(self, outer_instance, params = None):
-            self.participant = outer_instance.participant
-            self.day = outer_instance.day
-            self.latent_data = outer_instance.latent_data
-            self.observed_data = outer_instance.observed_ema_data
-            self.params = params
-    
-        # Add methods:
+        def __init__(self):
+            self.participant = None
+            self.day = None
+            self.latent_data = None
+            self.observed_data = None
+            self.params = None
+
+        # Add methods to class object:
         # - calculate log-likelihood using existing values of params
 
 
     class RandomEMA:
-        def __init__(self, outer_instance, params = None):
-            self.participant = outer_instance.participant
-            self.day = outer_instance.day
-            self.latent_data = outer_instance.latent_data
-            self.observed_data = outer_instance.observed_ema_data
-            self.params = params
+        def __init__(self):
+            self.participant = None
+            self.day = None
+            self.latent_data = None
+            self.observed_data = None
+            self.params = None
 
-        # Add methods:
+        # Add methods to class object:
         # - calculate log-likelihood using existing values of params
 
 
     class EODSurvey:
-        def __init__(self, outer_instance, params = None):
-            self.participant = outer_instance.participant
-            self.day = outer_instance.day
-            self.latent_data = outer_instance.latent_data
-            self.observed_data = outer_instance.observed_eod_survey_data
-            self.params = params
+        def __init__(self):
+            self.participant = None
+            self.day = None
+            self.latent_data = None
+            self.observed_data = None
+            self.params = None
 
-        # Add methods:
+        # Add methods to class object:
         # - calculate log-likelihood using existing values of params
 
 
     class HTMG:
-        def __init__(self, outer_instance, params = None):
-            self.participant = outer_instance.participant
-            self.day = outer_instance.day
-            self.latent_data = outer_instance.latent_data
-            self.observed_data = outer_instance.observed_puffmarker_data
-            self.params = params
+        def __init__(self):
+            self.participant = None
+            self.day = None
+            self.latent_data = None
+            self.observed_data = None
+            self.params = None
 
-        # Add methods:
+        # Add methods to class object:
         # - calculate log-likelihood using existing values of params
 
-
-# %%
-exec(open(os.path.join(os.path.realpath(dir_code_methods), 'tie_together', 'helper-classes.py')).read())
 
 # %%
 current_participant = None
@@ -188,15 +222,23 @@ this_object = ParticipantDayMEM(participant = current_participant,
                                 observed_eod_survey_data = dict_observed_eod_survey[current_participant][current_day],
                                 observed_puffmarker_data = dict_observed_puffmarker[current_participant][current_day])
 
-# Instantiate subcomponent objects for a particular participant day
-latent_obj = this_object.Latent(outer_instance = this_object)
-selfreport_obj = this_object.SelfReport(outer_instance = this_object)
-randomema_obj = this_object.RandomEMA(outer_instance = this_object)
-eodsurvey_obj = this_object.EODSurvey(outer_instance = this_object)
 
 # %%
-print(eodsurvey_obj.latent_data)
-print(selfreport_obj.latent_data)
+# Instantiate subcomponent objects for a particular participant day
+latent_obj = this_object.Latent()
+selfreport_obj = this_object.SelfReport()
+randomema_obj = this_object.RandomEMA()
+eodsurvey_obj = this_object.EODSurvey()
+
+# %%
+this_object.inherit_all_data(InstanceLatent = latent_obj,
+                             InstanceSelfReport = selfreport_obj,
+                             InstanceRandomEMA = randomema_obj,
+                             InstanceEODSurvey = eodsurvey_obj)
+
+print(selfreport_obj.observed_data)
+print(randomema_obj.observed_data)
+print(eodsurvey_obj.observed_data)
 
 # %%
 this_object.update_latent_data(new_latent_data = init_latent_data[current_participant][new_current_day], 
@@ -207,5 +249,7 @@ this_object.update_latent_data(new_latent_data = init_latent_data[current_partic
 
 print(eodsurvey_obj.latent_data)
 print(selfreport_obj.latent_data)
+print(eodsurvey_obj.latent_data)
+
 
 # %%
