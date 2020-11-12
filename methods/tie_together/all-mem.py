@@ -507,25 +507,30 @@ class ParticipantDayMEM:
                 end_day = 24
                 
                 # Rescale time to be within 24 hour clock
-                true_smoke_times = self.latent_data['hours_since_start_day'] + self.observed_data['start_time_hour_of_day']
-
-                # Specify covariance matrix based on an exchangeable correlation matrix
-                rho = 0.6
-                use_cormat = np.eye(len(true_smoke_times)) + rho*(np.ones((len(true_smoke_times),1)) * np.ones((1,len(true_smoke_times))) - np.eye(len(true_smoke_times)))
-                use_sd = 20/60 # in hours
-                use_covmat = (use_sd**2) * use_cormat
-                limits_of_integration = GrowTree(depth=len(true_smoke_times))
-
-                # Calculate total possible probability
-                total_possible_prob, error_code_total_possible_prob = mvn.mvnun(lower = np.repeat(start_day, len(true_smoke_times)),
-                                                                                upper = np.repeat(end_day, len(true_smoke_times)),
-                                                                                means = true_smoke_times,
-                                                                                covar = use_covmat)
+                all_true_smoke_times = self.latent_data['hours_since_start_day'] + self.observed_data['start_time_hour_of_day']
                 
                 for k in range(0, len(all_boxes)):
                     curr_box = all_boxes[k] # lower limit of Box k; setting curr_lk and curr_box to be separate variables in case change of scale is needed for curr_lk
                     curr_lk = all_boxes[k] # lower limit of Box k
                     curr_uk = curr_lk + 1 # upper limit of Box k; add one hour to lower limit
+                    recall_epsilon = 2 # in hours
+
+                    true_smoke_times = all_true_smoke_times[(all_true_smoke_times > curr_lk - recall_epsilon) * (all_true_smoke_times < curr_uk + recall_epsilon)]
+
+                    # Specify covariance matrix based on an exchangeable correlation matrix
+                    rho = 0.6
+                    use_cormat = np.eye(len(true_smoke_times)) + rho*(np.ones((len(true_smoke_times),1)) * np.ones((1,len(true_smoke_times))) - np.eye(len(true_smoke_times)))
+                    use_sd = 20/60 # in hours
+                    use_covmat = (use_sd**2) * use_cormat
+                    limits_of_integration = GrowTree(depth=len(true_smoke_times))
+
+                    # Calculate total possible probability
+                    total_possible_prob, error_code_total_possible_prob = mvn.mvnun(lower = np.repeat(start_day, len(true_smoke_times)),
+                                                                                    upper = np.repeat(end_day, len(true_smoke_times)),
+                                                                                    means = true_smoke_times,
+                                                                                    covar = use_covmat)
+
+                    # Begin calculating edge probabilities
                     collect_edge_probabilities = np.array([])
 
                     for j in range(0, len(limits_of_integration)):

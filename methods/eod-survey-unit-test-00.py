@@ -90,23 +90,28 @@ end_day = 24
 all_boxes = np.array([8,9,10,11,12,13,14,15,16,17,18,19,20])
 arr_ticked = tmp_dict_eod['ticked_box_raw']
 arr_not_ticked = np.setdiff1d(all_boxes, arr_ticked)
-true_smoke_times = tmp_dict_latent['hours_since_start_day'] + tmp_dict_eod['start_time_scaled']
-tmp_dict_latent['true_smoke_times'] = true_smoke_times
-rho = 0.6
-# Exchangeable correlation matrix
-use_cormat = np.eye(len(true_smoke_times)) + rho*(np.ones((len(true_smoke_times),1)) * np.ones((1,len(true_smoke_times))) - np.eye(len(true_smoke_times)))
-use_sd = 90/60 # in hours
-use_covmat = (use_sd**2)*use_cormat
-mytree = Tree()
-mytree.GrowTree(depth=len(true_smoke_times))
-limits_of_integration = mytree.data
-
-total_possible_prob, error_code_total_possible_prob = mvn.mvnun(lower=np.repeat(start_day,len(true_smoke_times)),upper=np.repeat(end_day,len(true_smoke_times)),means=true_smoke_times,covar=use_covmat)
 
 k=0  # this is the current Box k; k=0 is 8am - 9am; k=6 is 2pm; k=10 is 6pm
 curr_lk = all_boxes[k] # lower limit of Box k
 curr_uk = curr_lk + 1 # upper limit of Box k
 collect_edge_probabilities = np.array([])
+
+all_true_smoke_times = tmp_dict_latent['hours_since_start_day'] + tmp_dict_eod['start_time_scaled']
+tmp_dict_latent['true_smoke_times'] = all_true_smoke_times
+true_smoke_times = all_true_smoke_times[(all_true_smoke_times> curr_lk - 2) * (all_true_smoke_times < curr_uk + 2)]
+
+rho = 0.6
+# Exchangeable correlation matrix
+use_cormat = np.eye(len(true_smoke_times)) + rho*(np.ones((len(true_smoke_times),1)) * np.ones((1,len(true_smoke_times))) - np.eye(len(true_smoke_times)))
+use_sd = 90/60 # in hours
+use_covmat = (use_sd**2)*use_cormat
+
+total_possible_prob, error_code_total_possible_prob = mvn.mvnun(lower=np.repeat(start_day,len(true_smoke_times)),upper=np.repeat(end_day,len(true_smoke_times)),means=true_smoke_times,covar=use_covmat)
+
+
+mytree = Tree()
+mytree.GrowTree(depth=len(true_smoke_times))
+limits_of_integration = mytree.data
 
 for j in range(0, len(limits_of_integration)):
     curr_limits = np.array(limits_of_integration[j])
@@ -136,18 +141,6 @@ end_day = 24
 all_boxes = np.array([8,9,10,11,12,13,14,15,16,17,18,19,20])
 arr_ticked = tmp_dict_eod['ticked_box_raw']
 arr_not_ticked = np.setdiff1d(all_boxes, arr_ticked)
-true_smoke_times = tmp_dict_latent['hours_since_start_day'] + tmp_dict_eod['start_time_scaled']
-tmp_dict_latent['true_smoke_times'] = true_smoke_times
-rho = 0.6
-# Exchangeable correlation matrix
-use_cormat = np.eye(len(true_smoke_times)) + rho*(np.ones((len(true_smoke_times),1)) * np.ones((1,len(true_smoke_times))) - np.eye(len(true_smoke_times)))
-use_sd = 5/60 #0.50 #90/60  # in hours
-use_covmat = (use_sd**2)*use_cormat
-mytree = Tree()
-mytree.GrowTree(depth=len(true_smoke_times))
-limits_of_integration = mytree.data
-
-total_possible_prob, error_code_total_possible_prob = mvn.mvnun(lower=np.repeat(start_day,len(true_smoke_times)),upper=np.repeat(end_day,len(true_smoke_times)),means=true_smoke_times,covar=use_covmat)
 
 collect_box_probs = np.array([])
 for k in range(0, len(all_boxes)):
@@ -155,6 +148,21 @@ for k in range(0, len(all_boxes)):
     curr_lk = all_boxes[k] # lower limit of Box k
     curr_uk = curr_lk + 1 # upper limit of Box k
     collect_edge_probabilities = np.array([])
+        
+    all_true_smoke_times = tmp_dict_latent['hours_since_start_day'] + tmp_dict_eod['start_time_scaled']
+    tmp_dict_latent['true_smoke_times'] = all_true_smoke_times
+    true_smoke_times = all_true_smoke_times[(all_true_smoke_times > curr_lk - 2) * (all_true_smoke_times < curr_uk + 2)]
+
+    rho = 0.6
+    # Exchangeable correlation matrix
+    use_cormat = np.eye(len(true_smoke_times)) + rho*(np.ones((len(true_smoke_times),1)) * np.ones((1,len(true_smoke_times))) - np.eye(len(true_smoke_times)))
+    use_sd = 5/60 #0.50 #90/60  # in hours
+    use_covmat = (use_sd**2)*use_cormat
+    mytree = Tree()
+    mytree.GrowTree(depth=len(true_smoke_times))
+    limits_of_integration = mytree.data
+
+    total_possible_prob, error_code_total_possible_prob = mvn.mvnun(lower=np.repeat(start_day,len(true_smoke_times)),upper=np.repeat(end_day,len(true_smoke_times)),means=true_smoke_times,covar=use_covmat)
 
     for j in range(0, len(limits_of_integration)):
         curr_limits = np.array(limits_of_integration[j])
@@ -174,7 +182,7 @@ for k in range(0, len(all_boxes)):
 
 prob_observed_box_checking_pattern = np.prod(collect_box_probs)
 
-print('True latent smoking times', true_smoke_times)
+print('True latent smoking times', all_true_smoke_times)
 print('Boxes checked: ', arr_ticked)
 print('Boxes not checked: ', arr_not_ticked)
 print('Probability for observing box checking pattern for specific Box k given true latent smoking times', np.round(collect_box_probs, 3))
