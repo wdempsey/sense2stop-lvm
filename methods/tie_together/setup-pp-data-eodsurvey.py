@@ -217,8 +217,8 @@ for i in range(0, len(all_participant_id)):
                         'study_day':this_study_day, 
                         'day_length': this_day_length, 
                         'start_time_hour_of_day':current_participant_day_limits['start_time_hour_of_day'].iloc[j],
-                        'end_time_hour_of_day':current_participant_day_limits['end_time_hour_of_day'].iloc[j],
-                        #'hours_since_start_day':np.array([]),
+                        #'end_time_hour_of_day':current_participant_day_limits['end_time_hour_of_day'].iloc[j],
+                        'assessment_begin':np.array([]),
                         'ticked_box_scaled':np.array([]),
                         'ticked_box_raw':np.array([])
                         }
@@ -230,8 +230,8 @@ for i in range(0, len(all_participant_id)):
                         'study_day':this_study_day, 
                         'day_length': this_day_length, 
                         'start_time_hour_of_day':current_participant_day_limits['start_time_hour_of_day'].iloc[j],
-                        'end_time_hour_of_day':current_participant_day_limits['end_time_hour_of_day'].iloc[j],
-                        #'hours_since_start_day':dat['hours_since_start_day'].iloc[0],
+                        #'end_time_hour_of_day':current_participant_day_limits['end_time_hour_of_day'].iloc[j],
+                        'assessment_begin':np.array([dat['hours_since_start_day'].iloc[0]]),
                         'ticked_box_scaled':dat['ticked_box_scaled'].iloc[0],
                         'ticked_box_raw':dat['ticked_box_raw'].iloc[0]
                         }

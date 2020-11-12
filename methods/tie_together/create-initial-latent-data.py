@@ -98,9 +98,11 @@ for i in range(0, len(all_participant_id)):
       result['hours_since_start_day_shifted'] = np.where(pd.isna(result['hours_since_start_day_shifted']), 0, result['hours_since_start_day_shifted'])
       result['time_between'] = result['hours_since_start_day'] - result['hours_since_start_day_shifted']
       # Let's create a time variable that depends on the value of 'smoke' #######
-      result['delta'] = np.where(np.logical_and(result['assessment_type']=='selfreport', result['when_smoke']==4), result['time_between']/2, result['delta'])
-      result['delta'] = np.where(np.logical_and(result['assessment_type']=='random_ema', result['when_smoke']==6), result['time_between']/2, result['delta'])
+      # Note: in setup-pp-data-selfreport.py if when_smoke=4, delta is set to .5 hours
+      result['delta'] = np.where(np.logical_and(result['assessment_type']=='selfreport', result['when_smoke']==4), result['delta'] + (result['hours_since_start_day'] - result['delta'] - result['hours_since_start_day_shifted'])/2, result['delta'])
+      result['delta'] = np.where(np.logical_and(result['assessment_type']=='random_ema', result['when_smoke']==6), result['delta'] + (result['hours_since_start_day'] - result['delta'] - result['hours_since_start_day_shifted'])/2, result['delta'])
 
+      # Assign a puff time only if participant reported 'Yes'
       result['puff_time'] = np.where(result['smoke']=='Yes', result['hours_since_start_day']-result['delta'], np.nan)
       # Rearrange columns #######################################################
       #result = result.loc[:, ['assessment_type', 'smoke','hours_since_start_day_shifted','hours_since_start_day','time_between','puff_time']]
@@ -140,9 +142,14 @@ for i in range(0, len(all_participant_id)):
       dat['flag'] = np.where(pd.isna(dat['puff_time']), np.nan, dat['flag'])
       total_count_flagged += dat['flag'].sum()
       total_count_rows += len(dat.index)
+
+      if dat['flag'].sum() > 0:
+        print(dat)
     
     else:
       next
+
+print(total_count_flagged/total_count_rows)
 
 #%%
 collect_dat = pd.DataFrame({})
@@ -336,10 +343,7 @@ for participant in dict_knitted_with_puffmarker.keys():
         if len(current_data.index)==0:
             next
         else:
-            # note that even if participant reported "Yes" smoked, 
-            # delta is set to missing if in Self Report participant reported to have smoked "more than 30 minutes ago"
-            # or in Random EMAs where participant reported to have smoked "more than 2 hours ago"
-            current_data_yes = current_data[(current_data['smoke']=='Yes') & ~(np.isnan(current_data['delta']))]
+            current_data_yes = current_data[current_data['smoke']=='Yes']
             if len(current_data_yes)==0:
                 next
             else:
@@ -377,6 +381,46 @@ outfile = open(filename, 'wb')
 pickle.dump(latent_data, outfile)
 outfile.close()
 
+# %%
+#########################################################################################################
+# Create "mock" true latent times using dict_knitted_with_puffmarker
+# Then we will test this first assuming that observed times come from Self-Report and/or Random EMA only
+#########################################################################################################
 
+small_latent_data = {}
 
+for participant in dict_knitted_with_puffmarker.keys():
+    current_participant_dict = {}
+    for days in dict_knitted_with_puffmarker[participant].keys():
+        current_data = dict_knitted_with_puffmarker[participant][days]
+        all_puff_time = []
+        if len(current_data.index)==0:
+            next
+        else:
+            current_data_yes = current_data[current_data['smoke']=='Yes']
+            if len(current_data_yes)==0:
+                next
+            else:
+                for this_row in range(0, len(current_data_yes.index)):
+                    all_puff_time.append(current_data_yes['puff_time'].iloc[this_row])
+
+        # The output of the next line should be one number only, but it will be an array object
+        # Hence, the .iloc[0] converts the array object into a float
+        current_day_length = data_day_limits[(data_day_limits['participant_id']==participant) & (data_day_limits['study_day']==days)]['day_length'].iloc[0]
+        new_dict = {'participant_id':participant, 
+                    'study_day':days, 
+                    'day_length':current_day_length, 
+                    'latent_event_order': (np.arange(len(all_puff_time))),  # begins with zero (not 1)
+                    'hours_since_start_day': np.array(all_puff_time)}
+        current_participant_dict.update({days: new_dict})
+    # Add this participant's data to dictionary
+    small_latent_data.update({participant:current_participant_dict})
+
+#%%
+filename = os.path.join(os.path.realpath(dir_picklejar), 'init_latent_data_small')
+outfile = open(filename, 'wb')
+pickle.dump(small_latent_data, outfile)
+outfile.close()
+
+# %%
 

@@ -111,7 +111,6 @@ data_selfreport['message'] = data_selfreport['message'].apply(lambda x: recode_m
 def calculate_delta(message):
     accept_response = [1,2,3,4]
     # delta is in hours
-    #use_this_delta = {1: np.mean([0,5])/60, 2: np.mean([5,15])/60, 3: np.mean([15,30])/60, 4: np.nan} 
     use_this_delta = {1: np.mean([0,5])/60, 2: np.mean([5,15])/60, 3: np.mean([15,30])/60, 4: 30/60} 
 
     if pd.isna(message):
