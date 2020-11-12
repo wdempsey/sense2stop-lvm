@@ -21,6 +21,9 @@ data_eodsurvey = pd.read_csv(os.path.join(os.path.realpath(dir_data), 'eod-ema-f
 # output of this script is the data frame data_day_limits
 exec(open(os.path.join(os.path.realpath(dir_code_methods), 'tie_together', 'setup-day-limits.py')).read())
 
+data_day_limits['start_time_hour_of_day'] = data_day_limits['start_time'].apply(lambda x: x.hour + (x.minute)/60 + (x.second)/3600) 
+data_day_limits['end_time_hour_of_day'] = data_day_limits['end_time'].apply(lambda x: x.hour + (x.minute)/60 + (x.second)/3600)
+
 
 # %%
 data_eodsurvey['eod_survey_time'] = (
@@ -213,6 +216,8 @@ for i in range(0, len(all_participant_id)):
                         {'participant_id':current_participant,
                         'study_day':this_study_day, 
                         'day_length': this_day_length, 
+                        'start_time_hour_of_day':current_participant_day_limits['start_time_hour_of_day'].iloc[j],
+                        'end_time_hour_of_day':current_participant_day_limits['end_time_hour_of_day'].iloc[j],
                         #'hours_since_start_day':np.array([]),
                         'ticked_box_scaled':np.array([]),
                         'ticked_box_raw':np.array([])
@@ -224,6 +229,8 @@ for i in range(0, len(all_participant_id)):
                         {'participant_id':current_participant,
                         'study_day':this_study_day, 
                         'day_length': this_day_length, 
+                        'start_time_hour_of_day':current_participant_day_limits['start_time_hour_of_day'].iloc[j],
+                        'end_time_hour_of_day':current_participant_day_limits['end_time_hour_of_day'].iloc[j],
                         #'hours_since_start_day':dat['hours_since_start_day'].iloc[0],
                         'ticked_box_scaled':dat['ticked_box_scaled'].iloc[0],
                         'ticked_box_raw':dat['ticked_box_raw'].iloc[0]
@@ -240,8 +247,4 @@ filename = os.path.join(os.path.realpath(dir_picklejar), 'observed_dict_eod_surv
 outfile = open(filename, 'wb')
 pickle.dump(all_dict, outfile)
 outfile.close()
-
-
-
-
 
