@@ -38,6 +38,12 @@ init_latent_data = pickle.load(infile)
 infile.close()
 
 # %%
+filename = os.path.join(os.path.realpath(dir_picklejar), 'collect_total_loglik')
+infile = open(filename,'rb')
+collect_total_loglik = pickle.load(infile)
+infile.close()
+
+# %%
 # Differing conclusions
 current_participant = None
 current_day = None
@@ -60,11 +66,11 @@ print(truth)
 fig1 = plt.figure(facecolor='white')
 ax1 = plt.axes(frameon=True)
 ax1.axes.get_yaxis().set_visible(False)
-plt.ylim(bottom=-7, top=+7)
+plt.ylim(bottom=-7, top=+10)
 
 plt.scatter(eod_times, np.repeat(0, len(eod_times)), s=50, label="End-of-Day EMA")
 plt.scatter(sr_ema_pufftime, np.repeat(-1, len(sr_ema_pufftime)), s=50, label="SR")
-plt.scatter(pm_times, np.repeat(-2, len(pm_times)), s=50, label="Puffmarker")
+#plt.scatter(pm_times, np.repeat(-2, len(pm_times)), s=50, label="Puffmarker")
 plt.scatter(random_ema_pufftime, np.repeat(-3, len(random_ema_pufftime)), s=50, label="Random EMA (Yes)")
 plt.scatter(random_ema_nopuff, np.repeat(-4, len(random_ema_nopuff)), s=50, label="Random EMA (No)")
 plt.scatter(truth, np.repeat(-5, len(truth)), s=50, label="Truth")
@@ -74,3 +80,5 @@ plt.legend(loc='upper left')
 plt.show()
 
 # %%
+
+

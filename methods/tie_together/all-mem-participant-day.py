@@ -535,9 +535,10 @@ class ParticipantDayMEM:
                         curr_box = all_boxes[k] # lower limit of Box k; setting curr_lk and curr_box to be separate variables in case change of scale is needed for curr_lk
                         curr_lk = all_boxes[k] # lower limit of Box k
                         curr_uk = curr_lk + 1 # upper limit of Box k; add one hour to lower limit
-                        recall_epsilon = 1.5 # in hours
+                        recall_epsilon = 1 # in hours
 
                         true_smoke_times = all_true_smoke_times[(all_true_smoke_times > curr_lk - recall_epsilon) * (all_true_smoke_times < curr_uk + recall_epsilon)]
+                        print(true_smoke_times)
 
                         if len(true_smoke_times) > 0:
                             # Specify covariance matrix based on an exchangeable correlation matrix
@@ -606,64 +607,55 @@ class ParticipantDayMEM:
         # - calculate log-likelihood using existing values of params
 
 
-# %%
-###############################################################################
-# Execute workflow for all participant-days
-###############################################################################
-
-all_participants = np.array(data_day_limits.participant_id.unique())
-all_days = np.array(data_day_limits.study_day.unique())
-collect_total_loglik = {}
-
-for current_participant in all_participants:
-    current_dict = {}
-
-    for current_day in all_days:
-        # Instantiate object for a particular participant day
-        this_object = ParticipantDayMEM(participant = current_participant, 
-                                        day = current_day,
-                                        latent_data = init_latent_data[current_participant][current_day],
-                                        observed_ema_data = dict_observed_ema[current_participant][current_day],
-                                        observed_eod_survey_data = dict_observed_eod_survey[current_participant][current_day],
-                                        observed_puffmarker_data = dict_observed_puffmarker[current_participant][current_day])
-
-        # Instantiate subcomponent objects for a particular participant day
-        latent_obj = this_object.Latent()
-        selfreport_obj = this_object.SelfReport()
-        randomema_obj = this_object.RandomEMA()
-        eodsurvey_obj = this_object.EODSurvey()
-
-        # Subcomponent objects inherit all data from this_object
-        this_object.inherit_all_data(InstanceLatent = latent_obj,
-                                     InstanceSelfReport = selfreport_obj,
-                                     InstanceRandomEMA = randomema_obj,
-                                     InstanceEODSurvey = eodsurvey_obj)
-
-        # Specify parameters to be estimated
-        latent_obj.params = {'lambda_prequit':0.45, 'lambda_postquit':0.30}
-
-        # Begin calculating total loglikelihood
-        total_loglik = 0
-        total_loglik += latent_obj.calc_loglik()
-        selfreport_obj.match()
-        total_loglik += selfreport_obj.calc_loglik()
-        randomema_obj.match()
-        total_loglik += randomema_obj.calc_loglik()
-        total_loglik += eodsurvey_obj.calc_loglik()
-
-        # Print total loglikelihood
-        print((current_participant, current_day, total_loglik))
-        new_dict = {current_day:{'total_loglik':total_loglik}}
-        current_dict.update(new_dict)
-
-    collect_total_loglik.update({current_participant:current_dict})
-
-
-#%%
-filename = os.path.join(os.path.realpath(dir_picklejar), 'collect_total_loglik')
-outfile = open(filename, 'wb')
-pickle.dump(collect_total_loglik, outfile)
-outfile.close()
-
 
 # %%
+###############################################################################
+# Execute workflow for one particular participant-day
+###############################################################################
+
+current_participant = None
+current_day = None
+
+# Instantiate object for a particular participant day
+this_object = ParticipantDayMEM(participant = current_participant, 
+                                day = current_day,
+                                latent_data = init_latent_data[current_participant][current_day],
+                                observed_ema_data = dict_observed_ema[current_participant][current_day],
+                                observed_eod_survey_data = dict_observed_eod_survey[current_participant][current_day],
+                                observed_puffmarker_data = dict_observed_puffmarker[current_participant][current_day])
+
+# Instantiate subcomponent objects for a particular participant day
+latent_obj = this_object.Latent()
+selfreport_obj = this_object.SelfReport()
+randomema_obj = this_object.RandomEMA()
+eodsurvey_obj = this_object.EODSurvey()
+
+# Subcomponent objects inherit all data from this_object
+this_object.inherit_all_data(InstanceLatent = latent_obj,
+                             InstanceSelfReport = selfreport_obj,
+                             InstanceRandomEMA = randomema_obj,
+                             InstanceEODSurvey = eodsurvey_obj)
+
+# Specify parameters to be estimated
+latent_obj.params = {'lambda_prequit':0.45, 'lambda_postquit':0.30}
+
+# %%
+print(this_object.latent_data)
+
+print(this_object.observed_ema_data)
+
+print(this_object.observed_eod_survey_data)
+
+# %%
+# Begin calculating total loglikelihood
+total_loglik = 0
+total_loglik += latent_obj.calc_loglik()
+selfreport_obj.match()
+total_loglik += selfreport_obj.calc_loglik()
+randomema_obj.match()
+total_loglik += randomema_obj.calc_loglik()
+total_loglik += eodsurvey_obj.calc_loglik()
+
+# Print total loglikelihood
+print(total_loglik)
+
