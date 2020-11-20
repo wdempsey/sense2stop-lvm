@@ -22,7 +22,7 @@ dir_code_methods = os.environ['dir_code_methods']
 # Columns contain start of day & end of day timestamps
 exec(open(os.path.join(os.path.realpath(dir_code_methods), 'tie_together', 'setup-day-limits.py')).read())
 
-filename = os.path.join(os.path.realpath(dir_picklejar), 'init_latent_data_small')
+filename = os.path.join(os.path.realpath(dir_picklejar), 'init_latent_data')
 infile = open(filename,'rb')
 init_latent_data = pickle.load(infile)
 infile.close()
@@ -200,21 +200,23 @@ class ParticipantDayMEM:
             Calculate loglikelihood for latent process subcomponent
             '''   
 
-            # Inputs to be checked ------------------------------------------------------------------------
-            m = len(self.latent_data['latent_event_order'])
-
-            if m==0:
-                raise ValueError('Total number of latent events for current participant-day is: ', m)
-
-            # Begin after checks on inputs have been passed -----------------------------------------------
+            smoking_times = self.latent_data['hours_since_start_day']
+            day_length = self.latent_data['day_length']
             lambda_prequit = self.params['lambda_prequit']
             lambda_postquit = self.params['lambda_postquit']
-            smoking_times = self.latent_data['hours_since_start_day']
+            
+            # Calculate the total number of latent smoking times in the current iteration
+            m = len(smoking_times)
 
+            # lambda_prequit: number of events per hour during prequit period
+            # lambda_postquit: number of events per hour during postquit period
+            # day_length: total number of hours between wakeup time to sleep time on a given participant day
             if self.day <4:
-                total_loglik = m*np.log(lambda_prequit) - lambda_prequit*np.sum(smoking_times)
+                total_lik = np.exp(-lambda_prequit*day_length) * ((lambda_prequit*day_length) ** m) / np.math.factorial(m)
+                total_loglik = np.log(total_lik)
             else:
-                total_loglik = m*np.log(lambda_postquit) - lambda_postquit*np.sum(smoking_times)
+                total_lik = np.exp(-lambda_postquit*day_length) * ((lambda_postquit*day_length) ** m) / np.math.factorial(m)
+                total_loglik = np.log(total_lik)
 
             return total_loglik
 
@@ -231,33 +233,31 @@ class ParticipantDayMEM:
             Call the method match after SelfReport inherits all data from ParticipantDayMEM
             '''
 
-            # Inputs to be checked ----------------------------------------------------------------------------
-            m = len(self.latent_data['latent_event_order'])
+            # Inputs to be checked --------------------------------------------
+            all_latent_times = self.latent_data['hours_since_start_day']
+            tot_latent_events = len(all_latent_times)
             tot_sr = np.sum(self.observed_data['assessment_type']=='selfreport')
 
-            if m==0:
-                raise ValueError('Total number of latent events for current participant-day is: ', m)
-            elif tot_sr==0:
-                raise ValueError('Total number of selfreport EMA for current participant-day is: ', tot_sr)
+            if tot_latent_events > 0 and tot_sr > 0:
+                tot_observed = len(self.observed_data['assessment_order'])
+                self.observed_data['matched_latent_time'] = np.repeat(np.nan, tot_observed)
+
+                for i in range(0, tot_observed):
+                    current_lb = self.observed_data['assessment_begin_shifted'][i]
+                    current_ub = self.observed_data['assessment_begin'][i]
+                    current_assessment_type = self.observed_data['assessment_type'][i]
+
+                    if current_assessment_type=='selfreport':
+                        which_within = (all_latent_times >= current_lb) & (all_latent_times < current_ub)
+                        which_idx = np.where(which_within)
+                        matched_idx = np.max(which_idx)
+                        matched_latent_time = all_latent_times[matched_idx]
+                        self.observed_data['matched_latent_time'][i] = matched_latent_time
+            
             else:
-                pass
+                tot_observed = len(self.observed_data['assessment_order'])
+                self.observed_data['matched_latent_time'] = np.repeat(np.nan, tot_observed)
 
-            # Begin after checks on inputs have been passed ---------------------------------------------------
-            all_latent_times = self.latent_data['hours_since_start_day']
-            tot_observed = len(self.observed_data['assessment_order'])
-            self.observed_data['matched_latent_time'] = np.repeat(np.nan, tot_observed)
-
-            for i in range(0, tot_observed):
-                current_lb = self.observed_data['assessment_begin_shifted'][i]
-                current_ub = self.observed_data['assessment_begin'][i]
-                current_assessment_type = self.observed_data['assessment_type'][i]
-
-                if current_assessment_type=='selfreport':
-                    which_within = (all_latent_times >= current_lb) & (all_latent_times < current_ub)
-                    which_idx = np.where(which_within)
-                    matched_idx = np.max(which_idx)
-                    matched_latent_time = all_latent_times[matched_idx]
-                    self.observed_data['matched_latent_time'][i] = matched_latent_time
 
         def calc_loglik(self):
             '''
@@ -265,74 +265,88 @@ class ParticipantDayMEM:
             Calculate loglikelihood corresponding to self report EMA subcomponent
             '''
 
-            # Inputs to be checked ----------------------------------------------------------------------------
-            m = len(self.latent_data['latent_event_order'])
-            tot_sr = np.sum(self.observed_data['assessment_type']=='selfreport')
-
-            if m==0:
-                raise ValueError('Total number of latent events for current participant-day is: ', m)
-            elif tot_sr==0:
-                raise ValueError('Total number of selfreport EMA for current participant-day is: ', tot_sr)
-            else:
-                pass
-
-            # Begin after checks on inputs have been passed ---------------------------------------------------
-            prob_reporting = 0.9
-            lambda_delay = 12
-
+            # Inputs to be checked --------------------------------------------
             all_latent_times = self.latent_data['hours_since_start_day']
             tot_latent_events = len(all_latent_times)
-            tot_reported = np.sum(self.observed_data['assessment_type']=='selfreport')
+            tot_sr = np.sum(self.observed_data['assessment_type']=='selfreport')  # Total number of Self-Report
 
-            # Subcomponent due to propensity to self-report
-            total_loglik = tot_reported * np.log(prob_reporting) + (tot_latent_events - tot_reported) * np.log(1-prob_reporting)
+            # Specify parameter values ----------------------------------------
+            prob_reporting = 0.9
+            lambda_delay = 12
+            
+            if tot_latent_events > 0 and tot_sr > 0:            
+                all_latent_times = self.latent_data['hours_since_start_day']
+                tot_latent_events = len(all_latent_times)
 
-            # Subcomponent due to delay
-            self.observed_data['delay'] = self.observed_data['assessment_begin'] - self.observed_data['matched_latent_time']
-            total_loglik += tot_reported * np.log(lambda_delay) - lambda_delay * np.nansum(self.observed_data['delay'])
+                # Subcomponent due to propensity to self-report
+                total_loglik = tot_sr * np.log(prob_reporting) + (tot_latent_events - tot_sr) * np.log(1-prob_reporting)
 
-            # Subcomponent due to recall
-            tot_ema = len(self.observed_data['assessment_order'])
-            self.observed_data['prob_bk'] = np.repeat(np.nan, tot_ema)
-            self.observed_data['log_prob_bk'] = np.repeat(np.nan, tot_ema)
+                # Subcomponent due to delay
+                self.observed_data['delay'] = self.observed_data['assessment_begin'] - self.observed_data['matched_latent_time']
+                total_loglik += tot_sr * np.log(lambda_delay) - lambda_delay * np.nansum(self.observed_data['delay'])
 
-            for i in range(0, tot_ema):
-                if self.observed_data['assessment_type'][i]=='selfreport':
-                    current_lb = self.observed_data['assessment_begin_shifted'][i]
-                    current_ub = self.observed_data['assessment_begin'][i] 
-                    curr_true_time = self.observed_data['matched_latent_time'][i]
+                # Subcomponent due to recall
+                tot_ema = len(self.observed_data['assessment_order'])
+                self.observed_data['prob_bk'] = np.repeat(np.nan, tot_ema)
+                self.observed_data['log_prob_bk'] = np.repeat(np.nan, tot_ema)
 
-                    # Calculate denominator of bk
-                    use_scale = (current_ub - current_lb)*1
-                    total_prob_constrained_lb = norm.cdf(x = current_lb, loc = curr_true_time, scale = use_scale)
-                    total_prob_constrained_ub = norm.cdf(x = current_ub, loc = curr_true_time, scale = use_scale)
-                    tot_prob_constrained = total_prob_constrained_ub - total_prob_constrained_lb
+                for i in range(0, tot_ema):
+                    if self.observed_data['assessment_type'][i]=='selfreport':
+                        current_lb = self.observed_data['assessment_begin_shifted'][i]
+                        current_ub = self.observed_data['assessment_begin'][i] 
+                        curr_true_time = self.observed_data['matched_latent_time'][i]
 
-                    # Calculate numerator of bk
-                    windowtag = self.observed_data['windowtag'][i]
-                    
-                    # Note: each value of windowtag corresponds to a response option in hours
-                    # use_this_window_max will be based on time when prevous EMA was delivered
-                    use_this_window_min = {1: 0/60, 2: 5/60, 3: 15/60, 4: 30/60}
-                    use_this_window_max = {1: 5/60, 2: 15/60, 3: 30/60, 4: np.nan} 
-                     
-                    # lower limit of integration
-                    if windowtag == 4:
-                        current_lk = self.observed_data['assessment_begin_shifted'][i] 
-                    else:
-                        current_lk = self.observed_data['assessment_begin'][i] - use_this_window_max[windowtag] 
+                        # Calculate denominator of bk
+                        use_scale = (current_ub - current_lb)*1
+                        total_prob_constrained_lb = norm.cdf(x = current_lb, loc = curr_true_time, scale = use_scale)
+                        total_prob_constrained_ub = norm.cdf(x = current_ub, loc = curr_true_time, scale = use_scale)
+                        tot_prob_constrained = total_prob_constrained_ub - total_prob_constrained_lb
 
-                    # upper limit of integration
-                    current_uk = self.observed_data['assessment_begin'][i] - use_this_window_min[windowtag]
-                    
-                    prob_constrained_lk = norm.cdf(x = current_lk, loc = curr_true_time, scale = use_scale)
-                    prob_constrained_uk = norm.cdf(x = current_uk, loc = curr_true_time, scale = use_scale)
+                        # Calculate numerator of bk
+                        windowtag = self.observed_data['windowtag'][i]
+                        
+                        # Note: each value of windowtag corresponds to a response option in hours
+                        # use_this_window_max will be based on time when prevous EMA was delivered
+                        use_this_window_min = {1: 0/60, 2: 5/60, 3: 15/60, 4: 30/60}
+                        use_this_window_max = {1: 5/60, 2: 15/60, 3: 30/60, 4: np.nan} 
+                        
+                        # lower limit of integration
+                        if windowtag == 4:
+                            current_lk = self.observed_data['assessment_begin_shifted'][i] 
+                        else:
+                            current_lk = self.observed_data['assessment_begin'][i] - use_this_window_max[windowtag] 
 
-                    self.observed_data['prob_bk'][i] = (prob_constrained_uk - prob_constrained_lk)/tot_prob_constrained
-                    self.observed_data['log_prob_bk'][i] = np.log(self.observed_data['prob_bk'][i])
+                        # upper limit of integration
+                        current_uk = self.observed_data['assessment_begin'][i] - use_this_window_min[windowtag]
+                        
+                        prob_constrained_lk = norm.cdf(x = current_lk, loc = curr_true_time, scale = use_scale)
+                        prob_constrained_uk = norm.cdf(x = current_uk, loc = curr_true_time, scale = use_scale)
 
-            # We have already exited the for loop
-            total_loglik += np.nansum(self.observed_data['log_prob_bk'])
+                        self.observed_data['prob_bk'][i] = (prob_constrained_uk - prob_constrained_lk)/tot_prob_constrained
+                        self.observed_data['log_prob_bk'][i] = np.log(self.observed_data['prob_bk'][i])
+
+                # We have already exited the for loop
+                total_loglik += np.nansum(self.observed_data['log_prob_bk'])
+
+            elif tot_latent_events == 0 and tot_sr > 0:
+                # This case could happen if, for example, previous move might have been a 'death'
+                # but participant initiated at least one self-report.
+                # Assume that participant does not lie when they Self-Report
+                # Hence, set total_loglik to -np.inf
+                total_loglik = -np.inf
+
+            elif tot_latent_events > 0 and tot_sr == 0:  
+                # This case could happen if, for example, previous move might have been a 'birth'
+                # but there was no self-report observed.
+                # Assume that participant does not lie when they Self-Report
+                # However, participant may neglect to Self-Report a smoking incident
+                # for example, due to burden
+                total_loglik = tot_sr * np.log(prob_reporting) + (tot_latent_events - tot_sr) * np.log(1-prob_reporting)
+
+            else:
+                # In this case: tot_latent_events == 0 and tot_sr == 0
+                total_loglik = 0
+
             return total_loglik 
 
 
@@ -350,44 +364,39 @@ class ParticipantDayMEM:
             '''
 
             # Inputs to be checked ----------------------------------------------------------------------------
-            tot_random_ema = np.sum(self.observed_data['assessment_type']=='random_ema')
-            m = len(self.latent_data['latent_event_order'])
+            all_latent_times = self.latent_data['hours_since_start_day']
+            tot_latent_events = len(all_latent_times)
+
             tot_random_ema_yes = (1*(self.observed_data['assessment_type']=='random_ema'))*(1*(self.observed_data['smoke']=='Yes'))
             tot_random_ema_yes = np.sum(tot_random_ema_yes)
 
-            if tot_random_ema==0:
-                raise ValueError('Total number of Ranodm EMA for current participant-day is: ', tot_random_ema)
-            elif (m==0) and (tot_random_ema_yes>0):
-                raise ValueError('Total number of latent events for current participant-day is: ', m, 
-                                 'but number of Random EMA where participant reported Yes is ', tot_random_ema_yes)
+            if tot_latent_events > 0 and tot_random_ema_yes > 0:
+                tot_observed = len(self.observed_data['assessment_order'])
+                self.observed_data['matched_latent_time'] = np.repeat(np.nan, tot_observed)
+                self.observed_data['any_matched_latent_time'] = np.repeat(np.nan, tot_observed)
+
+                for i in range(0, tot_observed):
+                    current_assessment_type = self.observed_data['assessment_type'][i]
+
+                    if current_assessment_type == 'random_ema':
+                        # First, calculate value of any_matched_latent_time
+                        current_lb = self.observed_data['assessment_begin_shifted'][i]
+                        current_ub = self.observed_data['assessment_begin'][i]
+                        which_within = (all_latent_times >= current_lb) & (all_latent_times < current_ub)
+                        self.observed_data['any_matched_latent_time'][i] = np.where(np.sum(which_within) > 0, 1, 0)
+
+                        # Next, if participant reported 'yes' in a Random EMA, determine which latent times are matched
+                        current_smoking_indicator = self.observed_data['smoke'][i]
+
+                        if current_smoking_indicator == 'Yes':
+                            which_idx = np.where(which_within)
+                            matched_idx = np.max(which_idx)
+                            matched_latent_time = all_latent_times[matched_idx]
+                            self.observed_data['matched_latent_time'][i] = matched_latent_time
+
             else:
-                pass
-
-            # Begin after checks on inputs have been passed ---------------------------------------------------
-            all_latent_times = self.latent_data['hours_since_start_day']
-
-            tot_observed = len(self.observed_data['assessment_order'])
-            self.observed_data['matched_latent_time'] = np.repeat(np.nan, tot_observed)
-            self.observed_data['any_matched_latent_time'] = np.repeat(np.nan, tot_observed)
-
-            for i in range(0, tot_observed):
-                current_assessment_type = self.observed_data['assessment_type'][i]
-
-                if current_assessment_type == 'random_ema':
-                    # First, calculate value of any_matched_latent_time
-                    current_lb = self.observed_data['assessment_begin_shifted'][i]
-                    current_ub = self.observed_data['assessment_begin'][i]
-                    which_within = (all_latent_times >= current_lb) & (all_latent_times < current_ub)
-                    self.observed_data['any_matched_latent_time'][i] = np.where(np.sum(which_within) > 0, 1, 0)
-
-                    # Next, if participant reported 'yes' in a Random EMA, determine which latent times are matched
-                    current_smoking_indicator = self.observed_data['smoke'][i]
-
-                    if current_smoking_indicator == 'Yes':
-                        which_idx = np.where(which_within)
-                        matched_idx = np.max(which_idx)
-                        matched_latent_time = all_latent_times[matched_idx]
-                        self.observed_data['matched_latent_time'][i] = matched_latent_time
+                tot_observed = len(self.observed_data['assessment_order'])
+                self.observed_data['matched_latent_time'] = np.repeat(np.nan, tot_observed)
 
         
         def calc_loglik(self):
@@ -397,78 +406,90 @@ class ParticipantDayMEM:
             '''
 
             # Inputs to be checked ----------------------------------------------------------------------------
-            tot_random_ema = np.sum(self.observed_data['assessment_type']=='random_ema')
-            m = len(self.latent_data['latent_event_order'])
+            all_latent_times = self.latent_data['hours_since_start_day']
+            tot_latent_events = len(all_latent_times)
+
+            tot_random_ema = (1*(self.observed_data['assessment_type']=='random_ema'))
+            tot_random_ema = np.sum(tot_random_ema)
+
             tot_random_ema_yes = (1*(self.observed_data['assessment_type']=='random_ema'))*(1*(self.observed_data['smoke']=='Yes'))
             tot_random_ema_yes = np.sum(tot_random_ema_yes)
 
-            if tot_random_ema==0:
-                raise ValueError('Total number of Random EMA for current participant-day is: ', tot_random_ema)
-            elif (m==0) and (tot_random_ema_yes>0):
-                raise ValueError('Total number of latent events for current participant-day is: ', m, 
-                                 'but number of Random EMA where participant reported Yes is ', tot_random_ema_yes)
-            else:
-                pass
+            tot_random_ema_no = (1*(self.observed_data['assessment_type']=='random_ema'))*(1*(self.observed_data['smoke']=='No'))
+            tot_random_ema_no = np.sum(tot_random_ema_no)
 
-            # Begin after checks on inputs have been passed ---------------------------------------------------
-            all_latent_times = self.latent_data['hours_since_start_day']
-            tot_latent_events = len(all_latent_times)
+            if tot_latent_events > 0 and tot_random_ema > 0:
+                # Subcomponent due to recall
+                tot_ema = len(self.observed_data['assessment_order'])
+                self.observed_data['prob_bk'] = np.repeat(np.nan, tot_ema)
+                self.observed_data['log_prob_bk'] = np.repeat(np.nan, tot_ema)
+
+                for i in range(0, tot_ema):
+                    if (self.observed_data['assessment_type'][i]=='random_ema') and (self.observed_data['smoke'][i]=='Yes'):
+                        current_lb = self.observed_data['assessment_begin_shifted'][i]
+                        current_ub = self.observed_data['assessment_begin'][i] 
+                        curr_true_time = self.observed_data['matched_latent_time'][i]
+
+                        # Calculate denominator of bk
+                        use_scale = use_scale = (current_ub - current_lb)*1
+                        total_prob_constrained_lb = norm.cdf(x = current_lb, loc = curr_true_time, scale = use_scale)
+                        total_prob_constrained_ub = norm.cdf(x = current_ub, loc = curr_true_time, scale = use_scale)
+                        tot_prob_constrained = total_prob_constrained_ub - total_prob_constrained_lb
+
+                        # Calculate numerator of bk
+                        windowtag = self.observed_data['windowtag'][i]
+                        
+                        # Note: each value of windowtag corresponds to a response option in hours
+                        # use_this_window_max will be based on time when prevous EMA was delivered
+                        use_this_window_min = {1: 0/60, 2: 20/60, 3: 40/60, 4: 60/60, 5: 80/60, 6: 100/60}
+                        use_this_window_max = {1: 20/60, 2: 40/60, 3: 60/60, 4: 80/60, 5: 100/60, 6: np.nan}
+                        
+                        # lower limit of integration
+                        if windowtag == 6:
+                            current_lk = self.observed_data['assessment_begin_shifted'][i] 
+                        else:
+                            current_lk = self.observed_data['assessment_begin'][i] - use_this_window_max[windowtag] 
+
+                        # upper limit of integration
+                        current_uk = self.observed_data['assessment_begin'][i] - use_this_window_min[windowtag]
+                        
+                        prob_constrained_lk = norm.cdf(x = current_lk, loc = curr_true_time, scale = use_scale)
+                        prob_constrained_uk = norm.cdf(x = current_uk, loc = curr_true_time, scale = use_scale)
+
+                        self.observed_data['prob_bk'][i] = (prob_constrained_uk - prob_constrained_lk)/tot_prob_constrained
+                        self.observed_data['log_prob_bk'][i] = np.log(self.observed_data['prob_bk'][i])
+                    
+                    elif (self.observed_data['assessment_type'][i]=='random_ema') and (self.observed_data['smoke'][i]=='No'):
+                        any_matched = self.observed_data['any_matched_latent_time'][i]
+                        
+                        if any_matched == 0:
+                            self.observed_data['prob_bk'][i] = 1
+                            self.observed_data['log_prob_bk'][i] = np.log(self.observed_data['prob_bk'][i])
+                        else:
+                            # A latent smoking event occurring between previous and current assessment was detected
+                            # even if, at the current assessment, the participant reported 'No' smoking
+                            self.observed_data['prob_bk'][i] = 0
+                            self.observed_data['log_prob_bk'][i] = np.log(self.observed_data['prob_bk'][i])
+                    else:
+                        pass
+
+                total_loglik = np.nansum(self.observed_data['log_prob_bk'])
+
+            elif tot_latent_events == 0 and tot_random_ema > 0 and tot_random_ema_no > 0:
+                # A death occurred and participant reported 'NO' in Random EMA
+                total_loglik = 0
             
-            # Subcomponent due to recall
-            tot_ema = len(self.observed_data['assessment_order'])
-            self.observed_data['prob_bk'] = np.repeat(np.nan, tot_ema)
-            self.observed_data['log_prob_bk'] = np.repeat(np.nan, tot_ema)
+            elif tot_latent_events == 0 and tot_random_ema > 0 and tot_random_ema_no == 0:
+                # A death occurred but participant reported 'YES' in a Random EMA
+                total_loglik = -np.inf
+            
+            elif tot_latent_events > 0 and tot_random_ema == 0:
+                # A birth occurred but participant did not respond to any Random EMA
+                total_loglik = 0
+            else:
+                # tot_latent_events == 0 and tot_random_ema == 0:
+                total_loglik = 0
 
-            for i in range(0, tot_ema):
-                if (self.observed_data['assessment_type'][i]=='random_ema') and (self.observed_data['smoke'][i]=='Yes'):
-                    current_lb = self.observed_data['assessment_begin_shifted'][i]
-                    current_ub = self.observed_data['assessment_begin'][i] 
-                    curr_true_time = self.observed_data['matched_latent_time'][i]
-
-                    # Calculate denominator of bk
-                    use_scale = use_scale = (current_ub - current_lb)*1
-                    total_prob_constrained_lb = norm.cdf(x = current_lb, loc = curr_true_time, scale = use_scale)
-                    total_prob_constrained_ub = norm.cdf(x = current_ub, loc = curr_true_time, scale = use_scale)
-                    tot_prob_constrained = total_prob_constrained_ub - total_prob_constrained_lb
-
-                    # Calculate numerator of bk
-                    windowtag = self.observed_data['windowtag'][i]
-                    
-                    # Note: each value of windowtag corresponds to a response option in hours
-                    # use_this_window_max will be based on time when prevous EMA was delivered
-                    use_this_window_min = {1: 0/60, 2: 20/60, 3: 40/60, 4: 60/60, 5: 80/60, 6: 100/60}
-                    use_this_window_max = {1: 20/60, 2: 40/60, 3: 60/60, 4: 80/60, 5: 100/60, 6: np.nan}
-                     
-                    # lower limit of integration
-                    if windowtag == 6:
-                        current_lk = self.observed_data['assessment_begin_shifted'][i] 
-                    else:
-                        current_lk = self.observed_data['assessment_begin'][i] - use_this_window_max[windowtag] 
-
-                    # upper limit of integration
-                    current_uk = self.observed_data['assessment_begin'][i] - use_this_window_min[windowtag]
-                    
-                    prob_constrained_lk = norm.cdf(x = current_lk, loc = curr_true_time, scale = use_scale)
-                    prob_constrained_uk = norm.cdf(x = current_uk, loc = curr_true_time, scale = use_scale)
-
-                    self.observed_data['prob_bk'][i] = (prob_constrained_uk - prob_constrained_lk)/tot_prob_constrained
-                    self.observed_data['log_prob_bk'][i] = np.log(self.observed_data['prob_bk'][i])
-                
-                elif (self.observed_data['assessment_type'][i]=='random_ema') and (self.observed_data['smoke'][i]=='No'):
-                    any_matched = self.observed_data['any_matched_latent_time'][i]
-                    
-                    if any_matched == 0:
-                        self.observed_data['prob_bk'][i] = 1
-                        self.observed_data['log_prob_bk'][i] = np.log(self.observed_data['prob_bk'][i])
-                    else:
-                        # A latent smoking event occurring between previous and current assessment was detected
-                        # even if, at the current assessment, the participant reported 'No' smoking
-                        self.observed_data['prob_bk'][i] = 0
-                        self.observed_data['log_prob_bk'][i] = np.log(self.observed_data['prob_bk'][i])
-                else:
-                    pass
-
-            total_loglik = np.nansum(self.observed_data['log_prob_bk'])
             return total_loglik 
 
 
@@ -488,77 +509,85 @@ class ParticipantDayMEM:
             # Inputs to be checked ----------------------------------------------------------------------------
             any_eod_ema = len(self.observed_data['assessment_begin'])
 
-            if any_eod_ema == 0:
-                raise ValueError('Total number of end-of-day EMA current participant-day is: ', any_eod_ema)
+            if any_eod_ema > 0:
+                # Begin after checks on inputs have been passed ---------------------------------------------------            
+                # Go through each box one by one
+                collect_box_probs = np.array([])
+                arr_ticked = self.observed_data['ticked_box_raw']  # which boxes were ticked?
+                m = len(self.latent_data['latent_event_order'])  # are there any latent smoking events?
+                all_boxes = np.array([8,9,10,11,12,13,14,15,16,17,18,19,20])
 
-            # Begin after checks on inputs have been passed ---------------------------------------------------            
-            # Go through each box one by one
-            collect_box_probs = np.array([])
-            arr_ticked = self.observed_data['ticked_box_raw']  # which boxes were ticked?
-            m = len(self.latent_data['latent_event_order'])  # are there any latent smoking events?
-            all_boxes = np.array([8,9,10,11,12,13,14,15,16,17,18,19,20])
+                if (m == 0) and (len(arr_ticked) == 0):
+                    collect_box_probs = np.repeat(1, len(all_boxes))
+                elif (m == 0) and (len(arr_ticked) > 0):
+                    collect_box_probs = np.repeat(0, len(all_boxes))
+                else:
+                    start_day = 0
+                    end_day = 24
+                    
+                    # Rescale time to be within 24 hour clock
+                    all_true_smoke_times = self.latent_data['hours_since_start_day'] + self.observed_data['start_time_hour_of_day']
+                    
+                    for k in range(0, len(all_boxes)):
+                        curr_box = all_boxes[k] # lower limit of Box k; setting curr_lk and curr_box to be separate variables in case change of scale is needed for curr_lk
+                        curr_lk = all_boxes[k] # lower limit of Box k
+                        curr_uk = curr_lk + 1 # upper limit of Box k; add one hour to lower limit
+                        recall_epsilon = 2 # in hours
 
-            if (m == 0) and (len(arr_ticked) == 0):
-                collect_box_probs = np.repeat(1, len(all_boxes))
-            elif (m == 0) and (len(arr_ticked) > 0):
-                collect_box_probs = np.repeat(0, len(all_boxes))
+                        true_smoke_times = all_true_smoke_times[(all_true_smoke_times > curr_lk - recall_epsilon) * (all_true_smoke_times < curr_uk + recall_epsilon)]
+
+                        if len(true_smoke_times) > 0:
+                            # Specify covariance matrix based on an exchangeable correlation matrix
+                            rho = 0.6
+                            use_cormat = np.eye(len(true_smoke_times)) + rho*(np.ones((len(true_smoke_times),1)) * np.ones((1,len(true_smoke_times))) - np.eye(len(true_smoke_times)))
+                            use_sd = 20/60 # in hours
+                            use_covmat = (use_sd**2) * use_cormat
+                            limits_of_integration = GrowTree(depth=len(true_smoke_times))
+
+                            # Calculate total possible probability
+                            total_possible_prob, error_code_total_possible_prob = mvn.mvnun(lower = np.repeat(start_day, len(true_smoke_times)),
+                                                                                            upper = np.repeat(end_day, len(true_smoke_times)),
+                                                                                            means = true_smoke_times,
+                                                                                            covar = use_covmat)
+
+                            # Begin calculating edge probabilities
+                            collect_edge_probabilities = np.array([])
+
+                            for j in range(0, len(limits_of_integration)):
+                                curr_limits = np.array(limits_of_integration[j])
+                                curr_lower_limits = np.where(curr_limits==0, start_day, curr_uk)
+                                curr_upper_limits = np.where(curr_limits==0, curr_lk, end_day)
+                                edge_probabilities, error_code_edge_probabilities = mvn.mvnun(lower = curr_lower_limits,
+                                                                                            upper = curr_upper_limits, 
+                                                                                            means = true_smoke_times, 
+                                                                                            covar = use_covmat)
+                                collect_edge_probabilities = np.append(collect_edge_probabilities, edge_probabilities)
+
+                            total_edge_probabilities = np.sum(collect_edge_probabilities)
+                            prob_none_recalled_within_current_box = total_edge_probabilities/total_possible_prob
+                            prob_at_least_one_recalled_within_box = 1-prob_none_recalled_within_current_box                    
+
+                        else:
+                            prob_none_recalled_within_current_box = 1
+                            prob_at_least_one_recalled_within_box = 1-prob_none_recalled_within_current_box    
+
+                        # Exit the first IF-ELSE statement
+                        if curr_box in arr_ticked:
+                            collect_box_probs = np.append(collect_box_probs, prob_at_least_one_recalled_within_box)
+                        else:
+                            collect_box_probs = np.append(collect_box_probs, prob_none_recalled_within_current_box)
+
+
+                # Exit if-else statement
+                prob_observed_box_checking_pattern = np.prod(collect_box_probs)
+                loglik = np.log(prob_observed_box_checking_pattern)
+
+                self.observed_data['prob_bk'] = collect_box_probs
+                self.observed_data['product_prob_bk'] = prob_observed_box_checking_pattern
+                self.observed_data['log_product_prob_bk'] = loglik
+
             else:
-                start_day = 0
-                end_day = 24
-                
-                # Rescale time to be within 24 hour clock
-                all_true_smoke_times = self.latent_data['hours_since_start_day'] + self.observed_data['start_time_hour_of_day']
-                
-                for k in range(0, len(all_boxes)):
-                    curr_box = all_boxes[k] # lower limit of Box k; setting curr_lk and curr_box to be separate variables in case change of scale is needed for curr_lk
-                    curr_lk = all_boxes[k] # lower limit of Box k
-                    curr_uk = curr_lk + 1 # upper limit of Box k; add one hour to lower limit
-                    recall_epsilon = 2 # in hours
-
-                    true_smoke_times = all_true_smoke_times[(all_true_smoke_times > curr_lk - recall_epsilon) * (all_true_smoke_times < curr_uk + recall_epsilon)]
-
-                    # Specify covariance matrix based on an exchangeable correlation matrix
-                    rho = 0.6
-                    use_cormat = np.eye(len(true_smoke_times)) + rho*(np.ones((len(true_smoke_times),1)) * np.ones((1,len(true_smoke_times))) - np.eye(len(true_smoke_times)))
-                    use_sd = 20/60 # in hours
-                    use_covmat = (use_sd**2) * use_cormat
-                    limits_of_integration = GrowTree(depth=len(true_smoke_times))
-
-                    # Calculate total possible probability
-                    total_possible_prob, error_code_total_possible_prob = mvn.mvnun(lower = np.repeat(start_day, len(true_smoke_times)),
-                                                                                    upper = np.repeat(end_day, len(true_smoke_times)),
-                                                                                    means = true_smoke_times,
-                                                                                    covar = use_covmat)
-
-                    # Begin calculating edge probabilities
-                    collect_edge_probabilities = np.array([])
-
-                    for j in range(0, len(limits_of_integration)):
-                        curr_limits = np.array(limits_of_integration[j])
-                        curr_lower_limits = np.where(curr_limits==0, start_day, curr_uk)
-                        curr_upper_limits = np.where(curr_limits==0, curr_lk, end_day)
-                        edge_probabilities, error_code_edge_probabilities = mvn.mvnun(lower = curr_lower_limits,
-                                                                                      upper = curr_upper_limits, 
-                                                                                      means = true_smoke_times, 
-                                                                                      covar = use_covmat)
-                        collect_edge_probabilities = np.append(collect_edge_probabilities, edge_probabilities)
-
-                    total_edge_probabilities = np.sum(collect_edge_probabilities)
-                    prob_none_recalled_within_current_box = total_edge_probabilities/total_possible_prob
-                    prob_at_least_one_recalled_within_box = 1-prob_none_recalled_within_current_box                    
-
-                    if curr_box in arr_ticked:
-                        collect_box_probs = np.append(collect_box_probs, prob_at_least_one_recalled_within_box)
-                    else:
-                        collect_box_probs = np.append(collect_box_probs, prob_none_recalled_within_current_box)
-
-            # Exit if-else statement
-            prob_observed_box_checking_pattern = np.prod(collect_box_probs)
-            loglik = np.log(prob_observed_box_checking_pattern)
-
-            self.observed_data['prob_bk'] = collect_box_probs
-            self.observed_data['product_prob_bk'] = prob_observed_box_checking_pattern
-            self.observed_data['log_product_prob_bk'] = loglik
+                loglik = 0
 
             return loglik
 
@@ -606,32 +635,25 @@ this_object.inherit_all_data(InstanceLatent = latent_obj,
 # Specify parameters to be estimated
 latent_obj.params = {'lambda_prequit':0.45, 'lambda_postquit':0.30}
 
-# Prepare to calculate total loglikelihood
-curr_tot_latent_events = len(latent_obj.latent_data['latent_event_order'])
-curr_tot_selfreport = np.sum(selfreport_obj.observed_data['assessment_type']=='selfreport')
-curr_tot_random_ema = np.sum(randomema_obj.observed_data['assessment_type']=='random_ema')
-curr_tot_random_ema_yes = (1*(randomema_obj.observed_data['assessment_type']=='random_ema'))*(1*(randomema_obj.observed_data['smoke']=='Yes'))
-curr_tot_random_ema_yes = np.sum(curr_tot_random_ema_yes)
-curr_any_eod_ema = len(eodsurvey_obj.observed_data['assessment_begin'])
+# %%
+print(this_object.latent_data)
 
+print(this_object.observed_ema_data)
+
+print(this_object.observed_eod_survey_data)
+
+# %%
 # Begin calculating total loglikelihood
 total_loglik = 0
-
-if curr_tot_latent_events != 0:
-    total_loglik += latent_obj.calc_loglik()
-
-if (curr_tot_latent_events != 0) and (curr_tot_selfreport != 0):
-    selfreport_obj.match()
-    total_loglik += selfreport_obj.calc_loglik()
-
-if (curr_tot_random_ema != 0) and ~((curr_tot_random_ema_yes > 0) and (curr_tot_latent_events == 0)):
-    randomema_obj.match()
-    total_loglik += randomema_obj.calc_loglik()
-
-if curr_any_eod_ema != 0:
-    total_loglik += eodsurvey_obj.calc_loglik()
+total_loglik += latent_obj.calc_loglik()
+selfreport_obj.match()
+total_loglik += selfreport_obj.calc_loglik()
+randomema_obj.match()
+total_loglik += randomema_obj.calc_loglik()
+total_loglik += eodsurvey_obj.calc_loglik()
 
 # Print total loglikelihood
 print(total_loglik)
 
+# %%
 
