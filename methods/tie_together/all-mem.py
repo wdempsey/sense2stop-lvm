@@ -547,7 +547,7 @@ class ParticipantDayMEM:
 
                         if len(true_smoke_times) > 0:
                             # Specify covariance matrix based on an exchangeable correlation matrix
-                            rho = 0.1
+                            rho = 0.8
                             use_cormat = np.eye(len(true_smoke_times)) + rho*(np.ones((len(true_smoke_times),1)) * np.ones((1,len(true_smoke_times))) - np.eye(len(true_smoke_times)))
                             use_sd = 50/60 # in hours
                             use_covmat = (use_sd**2) * use_cormat
@@ -612,6 +612,27 @@ class ParticipantDayMEM:
         # - calculate log-likelihood using existing values of params
 
 
+class OverallMEM:
+    """
+    Collection of ParticipantDayMEM objects as inputs
+    Update parameters using Adaptive MH algorithm
+    Perform jitter, birth/death moves
+    """
+
+    def __init__(self, collection_objects):
+        # Each participant-day has its own MEM
+        self.collection_objects = collection_objects
+
+    # ADD METHODS 
+    # Within each method, loop through each participant-day
+
+    def adapMH_params(self):
+        pass
+
+    def adapMH_times(self):
+        pass
+
+
 # %%
 ###############################################################################
 # Execute workflow for all participant-days
@@ -624,7 +645,7 @@ collect_total_loglik = {}
 # For check
 collect_running_total = {}
 
-for sim_idx in range(0,1000):
+for sim_idx in range(0,200):
     running_total = 0
     count_inf = 0
 
@@ -648,9 +669,9 @@ for sim_idx in range(0,1000):
 
             # Subcomponent objects inherit all data from this_object
             this_object.inherit_all_data(InstanceLatent = latent_obj,
-                                        InstanceSelfReport = selfreport_obj,
-                                        InstanceRandomEMA = randomema_obj,
-                                        InstanceEODSurvey = eodsurvey_obj)
+                                         InstanceSelfReport = selfreport_obj,
+                                         InstanceRandomEMA = randomema_obj,
+                                         InstanceEODSurvey = eodsurvey_obj)
 
             # Specify parameters to be estimated
             latent_obj.params = {'lambda_prequit':0.45, 'lambda_postquit':0.30}
@@ -671,10 +692,10 @@ for sim_idx in range(0,1000):
             # Print total loglikelihood
             #print((current_participant, current_day, total_loglik))
             new_dict = {current_day:{'loglik_contribution_latent':loglik_contribution_latent,
-                                    'loglik_contribution_selfreport':loglik_contribution_selfreport,
-                                    'loglik_contribution_randomema':loglik_contribution_randomema,
-                                    'loglik_contribution_eodsurvey':loglik_contribution_eodsurvey,
-                                    'total_loglik':total_loglik}}
+                                     'loglik_contribution_selfreport':loglik_contribution_selfreport,
+                                     'loglik_contribution_randomema':loglik_contribution_randomema,
+                                     'loglik_contribution_eodsurvey':loglik_contribution_eodsurvey,
+                                     'total_loglik':total_loglik}}
             current_dict.update(new_dict)
 
         collect_total_loglik.update({current_participant:current_dict})
@@ -690,16 +711,41 @@ for sim_idx in range(0,1000):
 
 
 #%%
-filename = os.path.join(os.path.realpath(dir_picklejar), 'collect_running_total')
-outfile = open(filename, 'wb')
-pickle.dump(collect_running_total, outfile)
-outfile.close()
+#filename = os.path.join(os.path.realpath(dir_picklejar), 'collect_running_total')
+#outfile = open(filename, 'wb')
+#pickle.dump(collect_running_total, outfile)
+#outfile.close()
 
 #%%
-filename = os.path.join(os.path.realpath(dir_picklejar), 'collect_total_loglik')
-outfile = open(filename, 'wb')
-pickle.dump(collect_total_loglik, outfile)
-outfile.close()
+#filename = os.path.join(os.path.realpath(dir_picklejar), 'collect_total_loglik')
+#outfile = open(filename, 'wb')
+#pickle.dump(collect_total_loglik, outfile)
+#outfile.close()
 
 
 # %%
+all_loglik = np.array([])
+all_iter = np.array([])
+for idx in range(0, 200):
+    all_loglik = np.append(all_loglik, collect_running_total[idx])
+    all_iter = np.append(all_iter, idx)
+
+ave_all_loglik = np.mean(all_loglik)
+std_dev = np.sqrt(np.var(all_loglik))
+
+# %%
+print(ave_all_loglik)
+print(std_dev)
+
+# %%
+fig1 = plt.figure(facecolor='white')
+ax1 = plt.axes(frameon=True)
+plt.ylim(bottom=-90, top=-60)
+plt.scatter(all_iter, all_loglik, s=20, color = "black")
+plt.plot(all_iter, np.repeat(ave_all_loglik, len(all_iter)), "r--", linewidth = 3)
+plt.xlabel("Draw#")
+plt.ylabel("Contribution to Loglik (Mean = -76, SD = 1.91)")
+plt.title("Recall Times: High Corr + Moderate SD (rho=0.80, sd=50/60)")
+# %%
+
+
