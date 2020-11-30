@@ -97,6 +97,11 @@ for i in range(0, len(all_participant_id)):
       result['hours_since_start_day_shifted'] = result['hours_since_start_day'].shift(periods=+1)
       result['hours_since_start_day_shifted'] = np.where(pd.isna(result['hours_since_start_day_shifted']), 0, result['hours_since_start_day_shifted'])
       result['time_between'] = result['hours_since_start_day'] - result['hours_since_start_day_shifted']
+
+      which_not_duplicate = (result['time_between']!=0)
+      which_idx = np.where(which_not_duplicate)
+      result = result.iloc[which_idx]
+
       # Let's create a time variable that depends on the value of 'smoke' #######
       # Note: in setup-pp-data-selfreport.py if when_smoke=4, delta is set to .5 hours
       result['delta'] = np.where(np.logical_and(result['assessment_type']=='selfreport', result['when_smoke']==4), result['delta'] + (result['hours_since_start_day'] - result['delta'] - result['hours_since_start_day_shifted'])/2, result['delta'])

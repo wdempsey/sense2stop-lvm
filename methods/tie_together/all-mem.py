@@ -385,6 +385,7 @@ class ParticipantDayMEM:
                         # First, calculate value of any_matched_latent_time
                         current_lb = self.observed_data['assessment_begin_shifted'][i]
                         current_ub = self.observed_data['assessment_begin'][i]
+
                         which_within = (all_latent_times >= current_lb) & (all_latent_times < current_ub)
                         self.observed_data['any_matched_latent_time'][i] = np.where(np.sum(which_within) > 0, 1, 0)
 
@@ -535,15 +536,20 @@ class ParticipantDayMEM:
                         curr_box = all_boxes[k] # lower limit of Box k; setting curr_lk and curr_box to be separate variables in case change of scale is needed for curr_lk
                         curr_lk = all_boxes[k] # lower limit of Box k
                         curr_uk = curr_lk + 1 # upper limit of Box k; add one hour to lower limit
-                        recall_epsilon = 1.5 # in hours
+                        recall_epsilon = 3 # in hours
 
-                        true_smoke_times = all_true_smoke_times[(all_true_smoke_times > curr_lk - recall_epsilon) * (all_true_smoke_times < curr_uk + recall_epsilon)]
+                        subset_true_smoke_times = all_true_smoke_times[(all_true_smoke_times > curr_lk - recall_epsilon) * (all_true_smoke_times < curr_uk + recall_epsilon)]
+                        
+                        if len(subset_true_smoke_times) > 5:
+                            true_smoke_times = np.random.choice(a = subset_true_smoke_times, size = 5, replace = False)
+                        else:
+                            true_smoke_times = subset_true_smoke_times
 
                         if len(true_smoke_times) > 0:
                             # Specify covariance matrix based on an exchangeable correlation matrix
-                            rho = 0.6
+                            rho = 0.1
                             use_cormat = np.eye(len(true_smoke_times)) + rho*(np.ones((len(true_smoke_times),1)) * np.ones((1,len(true_smoke_times))) - np.eye(len(true_smoke_times)))
-                            use_sd = 20/60 # in hours
+                            use_sd = 50/60 # in hours
                             use_covmat = (use_sd**2) * use_cormat
                             limits_of_integration = GrowTree(depth=len(true_smoke_times))
 
@@ -615,49 +621,79 @@ all_participants = np.array(data_day_limits.participant_id.unique())
 all_days = np.array(data_day_limits.study_day.unique())
 collect_total_loglik = {}
 
-for current_participant in all_participants:
-    current_dict = {}
+# For check
+collect_running_total = {}
 
-    for current_day in all_days:
-        # Instantiate object for a particular participant day
-        this_object = ParticipantDayMEM(participant = current_participant, 
-                                        day = current_day,
-                                        latent_data = init_latent_data[current_participant][current_day],
-                                        observed_ema_data = dict_observed_ema[current_participant][current_day],
-                                        observed_eod_survey_data = dict_observed_eod_survey[current_participant][current_day],
-                                        observed_puffmarker_data = dict_observed_puffmarker[current_participant][current_day])
+for sim_idx in range(0,1000):
+    running_total = 0
+    count_inf = 0
 
-        # Instantiate subcomponent objects for a particular participant day
-        latent_obj = this_object.Latent()
-        selfreport_obj = this_object.SelfReport()
-        randomema_obj = this_object.RandomEMA()
-        eodsurvey_obj = this_object.EODSurvey()
+    for current_participant in all_participants:
+        current_dict = {}
 
-        # Subcomponent objects inherit all data from this_object
-        this_object.inherit_all_data(InstanceLatent = latent_obj,
-                                     InstanceSelfReport = selfreport_obj,
-                                     InstanceRandomEMA = randomema_obj,
-                                     InstanceEODSurvey = eodsurvey_obj)
+        for current_day in all_days:
+            # Instantiate object for a particular participant day
+            this_object = ParticipantDayMEM(participant = current_participant, 
+                                            day = current_day,
+                                            latent_data = init_latent_data[current_participant][current_day],
+                                            observed_ema_data = dict_observed_ema[current_participant][current_day],
+                                            observed_eod_survey_data = dict_observed_eod_survey[current_participant][current_day],
+                                            observed_puffmarker_data = dict_observed_puffmarker[current_participant][current_day])
 
-        # Specify parameters to be estimated
-        latent_obj.params = {'lambda_prequit':0.45, 'lambda_postquit':0.30}
+            # Instantiate subcomponent objects for a particular participant day
+            latent_obj = this_object.Latent()
+            selfreport_obj = this_object.SelfReport()
+            randomema_obj = this_object.RandomEMA()
+            eodsurvey_obj = this_object.EODSurvey()
 
-        # Begin calculating total loglikelihood
-        total_loglik = 0
-        total_loglik += latent_obj.calc_loglik()
-        selfreport_obj.match()
-        total_loglik += selfreport_obj.calc_loglik()
-        randomema_obj.match()
-        total_loglik += randomema_obj.calc_loglik()
-        total_loglik += eodsurvey_obj.calc_loglik()
+            # Subcomponent objects inherit all data from this_object
+            this_object.inherit_all_data(InstanceLatent = latent_obj,
+                                        InstanceSelfReport = selfreport_obj,
+                                        InstanceRandomEMA = randomema_obj,
+                                        InstanceEODSurvey = eodsurvey_obj)
 
-        # Print total loglikelihood
-        print((current_participant, current_day, total_loglik))
-        new_dict = {current_day:{'total_loglik':total_loglik}}
-        current_dict.update(new_dict)
+            # Specify parameters to be estimated
+            latent_obj.params = {'lambda_prequit':0.45, 'lambda_postquit':0.30}
 
-    collect_total_loglik.update({current_participant:current_dict})
+            # Begin calculating total loglikelihood
+            total_loglik = 0
+            loglik_contribution_latent = latent_obj.calc_loglik()
+            total_loglik += loglik_contribution_latent
+            selfreport_obj.match()
+            loglik_contribution_selfreport = selfreport_obj.calc_loglik()
+            total_loglik += loglik_contribution_selfreport
+            randomema_obj.match()
+            loglik_contribution_randomema = randomema_obj.calc_loglik()
+            total_loglik += loglik_contribution_randomema
+            loglik_contribution_eodsurvey = eodsurvey_obj.calc_loglik()
+            total_loglik += loglik_contribution_eodsurvey
 
+            # Print total loglikelihood
+            #print((current_participant, current_day, total_loglik))
+            new_dict = {current_day:{'loglik_contribution_latent':loglik_contribution_latent,
+                                    'loglik_contribution_selfreport':loglik_contribution_selfreport,
+                                    'loglik_contribution_randomema':loglik_contribution_randomema,
+                                    'loglik_contribution_eodsurvey':loglik_contribution_eodsurvey,
+                                    'total_loglik':total_loglik}}
+            current_dict.update(new_dict)
+
+        collect_total_loglik.update({current_participant:current_dict})
+
+        # For checks
+        if loglik_contribution_eodsurvey != -np.inf:
+            running_total += collect_total_loglik[current_participant][current_day]['loglik_contribution_eodsurvey']
+        else:
+            count_inf += 1
+    
+    collect_running_total.update({sim_idx:running_total})
+    print(running_total)
+
+
+#%%
+filename = os.path.join(os.path.realpath(dir_picklejar), 'collect_running_total')
+outfile = open(filename, 'wb')
+pickle.dump(collect_running_total, outfile)
+outfile.close()
 
 #%%
 filename = os.path.join(os.path.realpath(dir_picklejar), 'collect_total_loglik')
