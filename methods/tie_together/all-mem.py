@@ -16,12 +16,14 @@ exec(open('../../env_vars.py').read())
 dir_data = os.environ['dir_data']
 dir_picklejar = os.environ['dir_picklejar']
 dir_code_methods = os.environ['dir_code_methods']
+# %%
 
 # Output of this script is the data frame data_day_limits
 # Each row of data_day_limits corresponds to a given participant-day
 # Columns contain start of day & end of day timestamps
 exec(open(os.path.join(os.path.realpath(dir_code_methods), 'tie_together', 'setup-day-limits.py')).read())
 
+# This is the output of init_latent_data.py
 filename = os.path.join(os.path.realpath(dir_picklejar), 'init_latent_data')
 infile = open(filename,'rb')
 init_latent_data = pickle.load(infile)
@@ -318,10 +320,9 @@ class ParticipantDayMEM:
 
                         # upper limit of integration
                         current_uk = self.observed_data['assessment_begin'][i] - use_this_window_min[windowtag]
-                        
+
                         prob_constrained_lk = norm.cdf(x = current_lk, loc = curr_true_time, scale = use_scale)
                         prob_constrained_uk = norm.cdf(x = current_uk, loc = curr_true_time, scale = use_scale)
-
                         self.observed_data['prob_bk'][i] = (prob_constrained_uk - prob_constrained_lk)/tot_prob_constrained
                         self.observed_data['log_prob_bk'][i] = np.log(self.observed_data['prob_bk'][i])
 
@@ -462,6 +463,7 @@ class ParticipantDayMEM:
 
                         self.observed_data['prob_bk'][i] = (prob_constrained_uk - prob_constrained_lk)/tot_prob_constrained
                         self.observed_data['log_prob_bk'][i] = np.log(self.observed_data['prob_bk'][i])
+                        
                     
                     elif (self.observed_data['assessment_type'][i]=='random_ema') and (self.observed_data['smoke'][i]=='No'):
                         any_matched = self.observed_data['any_matched_latent_time'][i]
@@ -540,6 +542,7 @@ class ParticipantDayMEM:
 
                         subset_true_smoke_times = all_true_smoke_times[(all_true_smoke_times > curr_lk - recall_epsilon) * (all_true_smoke_times < curr_uk + recall_epsilon)]
                         
+                        # This is a source of randomness because at each iteration, we are not guaranteed to draw the same five points. 
                         if len(subset_true_smoke_times) > 5:
                             true_smoke_times = np.random.choice(a = subset_true_smoke_times, size = 5, replace = False)
                         else:
@@ -686,25 +689,25 @@ for sim_idx in range(0,200):
             randomema_obj.match()
             loglik_contribution_randomema = randomema_obj.calc_loglik()
             total_loglik += loglik_contribution_randomema
-            loglik_contribution_eodsurvey = eodsurvey_obj.calc_loglik()
-            total_loglik += loglik_contribution_eodsurvey
+            #loglik_contribution_eodsurvey = eodsurvey_obj.calc_loglik()
+            #total_loglik += loglik_contribution_eodsurvey
 
             # Print total loglikelihood
             #print((current_participant, current_day, total_loglik))
             new_dict = {current_day:{'loglik_contribution_latent':loglik_contribution_latent,
                                      'loglik_contribution_selfreport':loglik_contribution_selfreport,
                                      'loglik_contribution_randomema':loglik_contribution_randomema,
-                                     'loglik_contribution_eodsurvey':loglik_contribution_eodsurvey,
+                                     #'loglik_contribution_eodsurvey':loglik_contribution_eodsurvey,
                                      'total_loglik':total_loglik}}
             current_dict.update(new_dict)
 
         collect_total_loglik.update({current_participant:current_dict})
 
         # For checks
-        if loglik_contribution_eodsurvey != -np.inf:
-            running_total += collect_total_loglik[current_participant][current_day]['loglik_contribution_eodsurvey']
-        else:
-            count_inf += 1
+        #if loglik_contribution_eodsurvey != -np.inf:
+        #    running_total += collect_total_loglik[current_participant][current_day]['loglik_contribution_eodsurvey']
+        #else:
+        #    count_inf += 1
     
     collect_running_total.update({sim_idx:running_total})
     print(running_total)

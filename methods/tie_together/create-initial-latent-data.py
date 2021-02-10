@@ -381,7 +381,7 @@ for participant in dict_knitted_with_puffmarker.keys():
     latent_data.update({participant:current_participant_dict})
 
 #%%
-filename = os.path.join(os.path.realpath(dir_picklejar), 'init_latent_data')
+filename = os.path.join(os.path.realpath(dir_picklejar), 'init_latent_data')  # Initialize using Self-Report, Random EMA, and puffmarker
 outfile = open(filename, 'wb')
 pickle.dump(latent_data, outfile)
 outfile.close()
@@ -422,7 +422,7 @@ for participant in dict_knitted_with_puffmarker.keys():
     small_latent_data.update({participant:current_participant_dict})
 
 #%%
-filename = os.path.join(os.path.realpath(dir_picklejar), 'init_latent_data_small')
+filename = os.path.join(os.path.realpath(dir_picklejar), 'init_latent_data_small')  # Initialize using Self-Report and Random EMA only. Do not use puffmarker.
 outfile = open(filename, 'wb')
 pickle.dump(small_latent_data, outfile)
 outfile.close()
