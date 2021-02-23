@@ -122,36 +122,67 @@ class Latent:
 
         return total_loglik
     
-    def construct_grid(self, increment = 1/60, sampling = False):
+    def construct_grid(self, increment = 30/60):
         '''
         Determine the points at which the overall likelihood function is to be evaluated on based on day length
         Args: 
             increment (in hours): used to construct a partition 0, increment, 2*increment, 3*increment, ...
         '''
         day_length = self.latent_data['day_length']
-
-        if sampling == True:
-            if day_length <= increment:
-                buckets = np.array([0, day_length])
-            else:
-                buckets = np.arange(0, day_length, increment)
-                
-            lower_bounds = buckets[0:(len(buckets)-1)]
-            upper_bounds = buckets[1:(len(buckets))]
-            grid = np.random.uniform(low=lower_bounds, high=upper_bounds)
-            grid = np.append(0, grid)
-            grid = np.setdiff1d(ar1 = grid, ar2 = self.latent_data['hours_since_start_day'])
-
+        
+        if day_length <= increment:
+            buckets = np.array([0, day_length])
         else:
-            if day_length <= increment:
-                buckets = np.array([0, day_length])
-            else:
-                buckets = np.arange(0, day_length, increment)
-            
-            grid = buckets
-            grid = np.setdiff1d(ar1 = grid, ar2 = self.latent_data['hours_since_start_day'])
+            buckets = np.arange(0, day_length, increment)
+        
+        grid = buckets
+        grid = np.setdiff1d(ar1 = grid, ar2 = self.latent_data['hours_since_start_day'])
         
         return(grid)
+
+
+# %%
+# Perform sanity checks on the calc_loglik() function within the Latent Class
+
+loglik_arr_low = np.array([])
+loglik_arr_high = np.array([])
+tot_arr = np.array([])
+
+use_lambda_low = .1
+use_lambda_high = 1.5
+
+for current_participant in data_day_limits['participant_id'].unique():
+    for current_day in data_day_limits['study_day'].unique():
+        # Try a low value for lambda
+        latent_obj = Latent(participant = current_participant, 
+                            day = current_day,
+                            latent_data = init_latent_data[current_participant][current_day],
+                            params = {'lambda_prequit':use_lambda_low, 'lambda_postquit':use_lambda_low})
+        current_loglik = latent_obj.calc_loglik()
+        loglik_arr_low = np.append(loglik_arr_low, current_loglik)
+        # Try a high value for lambda
+        latent_obj = Latent(participant = current_participant, 
+                            day = current_day,
+                            latent_data = init_latent_data[current_participant][current_day],
+                            params = {'lambda_prequit':use_lambda_high, 'lambda_postquit':use_lambda_high})
+        current_loglik = latent_obj.calc_loglik()
+        loglik_arr_high = np.append(loglik_arr_high, current_loglik)
+
+        # How many latent smoking times are there in the current participant-day?
+        curr_tot = len(init_latent_data[current_participant][current_day]['latent_event_order'])
+        tot_arr = np.append(tot_arr, curr_tot)
+
+
+plt.figure(clear=True)
+plt.title('lambda = {} (red), lambda = {} (blue) smoking events per hour'.format(use_lambda_low, use_lambda_high))
+plt.xlim(left=-0.4, right= np.max(tot_arr)+1)
+plt.ylim(bottom=np.min(np.append(loglik_arr_low, loglik_arr_high))-10, top=np.max(np.append(loglik_arr_low, loglik_arr_high))+10)
+plt.scatter(tot_arr, loglik_arr_high, c='b', s=50, alpha = .3)
+plt.scatter(tot_arr, loglik_arr_low, c='r', s=50, alpha=.3)
+plt.xlabel("Total No. Latent Smoking Times")
+plt.ylabel("Log-likelihood")
+
+
 
 # %%
 
@@ -171,7 +202,7 @@ class SelfReport:
 
     def match(self):
         '''
-        Call the method match after SelfReport inherits all data from ParticipantDayMEM
+        Matches each Self-Report EMA with one latent smoking time occurring before the Self-Report EMA
         '''
 
         # Inputs to be checked --------------------------------------------
@@ -200,10 +231,9 @@ class SelfReport:
                         self.observed_data['matched_latent_time'][i] = matched_latent_time
                     else:
                         # This case can occur when between time 0 and time t there is no
-                        # latent smoking time, but a self-report occurred at time t
-                        # This may happen after a dumb death
+                        # latent smoking time, but a self-report occurred between time 0 and time t
+                        # This case may happen after a dumb death move
                         self.observed_data['matched_latent_time'][i] = np.nan
-
         
         else:
             # In this case, matching cannot occur
@@ -314,6 +344,7 @@ class SelfReport:
             total_loglik = 0
 
         return total_loglik 
+
 
 # %%
 
@@ -427,6 +458,9 @@ class EODSurvey:
 
         return loglik
 
+
+
+
 # %%
 
 def SamplerSmartBirthDumbDeath(latent_obj, selfreport_obj, eodsurvey_obj):
@@ -453,11 +487,12 @@ def SamplerSmartBirthDumbDeath(latent_obj, selfreport_obj, eodsurvey_obj):
     # reverse move proposal distribution is smart birth
     which_move_type = np.random.choice(['add_point','delete_point'], 1, p=[0.5,0.5])
     which_move_type = which_move_type[0] # from array to string
+    use_this_increment = 30/60
 
     if which_move_type == 'add_point':
         # Construct forward move proposal distribution: smart birth
         current_latent_smoking_times = latent_obj.latent_data['hours_since_start_day']
-        current_grid = latent_obj.construct_grid(increment=1, sampling=False)
+        current_grid = latent_obj.construct_grid(increment=use_this_increment)
         current_grid_loglik = np.array([])
 
         for idx_grid in range(0, len(current_grid)):
@@ -501,12 +536,7 @@ def SamplerSmartBirthDumbDeath(latent_obj, selfreport_obj, eodsurvey_obj):
         #######################################################################
         acceptance_ratio = (pi_xprime/pi_x) * (q_x_given_xprime/q_xprime_given_x)
         acceptance_ratio = acceptance_ratio[0]  # from array to numeric
-
-        if ~np.isnan(acceptance_ratio):
-            acceptance_prob = np.min([1, acceptance_ratio])
-        else:
-            acceptance_prob = 0
-        
+        acceptance_prob = np.min([1, acceptance_ratio])
         accept_proposal = np.random.choice([0,1], 1, p=[1-acceptance_prob,acceptance_prob])
         accept_proposal = accept_proposal[0]  # from array to numeric
 
@@ -547,7 +577,7 @@ def SamplerSmartBirthDumbDeath(latent_obj, selfreport_obj, eodsurvey_obj):
         # Construct reverse move proposal distribution: smart birth
         # Use new_latent_smoking_times_after_death to do so
         latent_obj.update_latent_data(latent_smoking_times=new_latent_smoking_times_after_death)
-        current_grid = latent_obj.construct_grid(increment=1, sampling=False)
+        current_grid = latent_obj.construct_grid(increment=use_this_increment)
         current_grid_loglik = np.array([])
 
         for idx_grid in range(0, len(current_grid)):
@@ -586,12 +616,7 @@ def SamplerSmartBirthDumbDeath(latent_obj, selfreport_obj, eodsurvey_obj):
         #######################################################################
         acceptance_ratio = (pi_xprime/pi_x) * (q_x_given_xprime/q_xprime_given_x)
         acceptance_ratio = acceptance_ratio[0]  # from array to numeric
-
-        if ~np.isnan(acceptance_ratio):
-            acceptance_prob = np.min([1, acceptance_ratio])
-        else:
-            acceptance_prob = 0
-        
+        acceptance_prob = np.min([1, acceptance_ratio])
         accept_proposal = np.random.choice([0,1], 1, p=[1-acceptance_prob,acceptance_prob])
         accept_proposal = accept_proposal[0]  # from array to numeric
 
@@ -664,6 +689,10 @@ def PlotPDFSmartBirthDumbDeath(latent_obj, selfreport_obj, eodsurvey_obj, curren
     if len(assessment_begin_times_selfreport)>0:
         plt.scatter(assessment_begin_times_selfreport, np.repeat(-0.13, len(assessment_begin_times_selfreport)), c='grey', s=150, marker='*')
 
+
+
+
+
 # %%
 current_participant = None
 current_day = None
@@ -672,7 +701,7 @@ current_day = None
 latent_obj = Latent(participant = current_participant, 
                     day = current_day,
                     latent_data = init_latent_data[current_participant][current_day],
-                    params = {'lambda_prequit':0.45, 'lambda_postquit':0.30})
+                    params = {'lambda_prequit':.00001, 'lambda_postquit':.00001})
 
 selfreport_obj = SelfReport(participant = current_participant, 
                             day = current_day,
@@ -687,13 +716,35 @@ eodsurvey_obj = EODSurvey(participant = current_participant,
 # Save current configuration of points before any smart birth dumb death combo will be performed
 saved_latent_data = copy.deepcopy(latent_obj.latent_data)
 
-# %%
-for idx_iter in range(0,5):
+for idx_iter in range(0,3):
     which_move_type, acceptance_ratio, pi_xprime, pi_x, q_x_given_xprime, q_xprime_given_x, acceptance_prob, accept_proposal, current_pdf_smart_birth, current_grid = SamplerSmartBirthDumbDeath(latent_obj=latent_obj, selfreport_obj=selfreport_obj, eodsurvey_obj=eodsurvey_obj)
     #print(acceptance_ratio, pi_xprime, pi_x, q_x_given_xprime, q_xprime_given_x)
     print(which_move_type, acceptance_ratio, accept_proposal)
     PlotCDFSmartBirthDumbDeath(latent_obj=latent_obj, selfreport_obj=selfreport_obj, eodsurvey_obj=eodsurvey_obj, current_pdf_smart_birth=current_pdf_smart_birth, current_grid=current_grid)
-    #PlotPDFSmartBirthDumbDeath(latent_obj=latent_obj, selfreport_obj=selfreport_obj, eodsurvey_obj=eodsurvey_obj, current_pdf_smart_birth=current_pdf_smart_birth, current_grid=current_grid)
+    PlotPDFSmartBirthDumbDeath(latent_obj=latent_obj, selfreport_obj=selfreport_obj, eodsurvey_obj=eodsurvey_obj, current_pdf_smart_birth=current_pdf_smart_birth, current_grid=current_grid)
+
 
 # %%
+for current_participant in data_day_limits['participant_id'].unique():
+    for current_day in data_day_limits['study_day'].unique():
+        # Instantiate classes
+        latent_obj = Latent(participant = current_participant, 
+                            day = current_day,
+                            latent_data = init_latent_data[current_participant][current_day],
+                            params = {'lambda_prequit':0.45, 'lambda_postquit':0.30})
 
+        selfreport_obj = SelfReport(participant = current_participant, 
+                                    day = current_day,
+                                    latent_data = init_latent_data[current_participant][current_day],
+                                    observed_data = dict_observed_ema[current_participant][current_day])
+
+        eodsurvey_obj = EODSurvey(participant = current_participant, 
+                                day = current_day,
+                                latent_data = init_latent_data[current_participant][current_day],
+                                observed_data = dict_observed_eod_survey[current_participant][current_day])
+
+        which_move_type, acceptance_ratio, pi_xprime, pi_x, q_x_given_xprime, q_xprime_given_x, acceptance_prob, accept_proposal, current_pdf_smart_birth, current_grid = SamplerSmartBirthDumbDeath(latent_obj=latent_obj, selfreport_obj=selfreport_obj, eodsurvey_obj=eodsurvey_obj)
+        print(which_move_type, acceptance_ratio, pi_xprime, pi_x, accept_proposal)
+
+
+# %%
