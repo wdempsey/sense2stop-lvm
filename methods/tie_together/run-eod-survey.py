@@ -207,10 +207,10 @@ init_eodsurvey_obj = EODSurvey(participant = current_participant,
                                day = current_day, 
                                latent_data = init_latent_data[current_participant][current_day],
                                observed_data = dict_observed_eod_survey[current_participant][current_day],
-                               params = {'recall_epsilon':3, 'sd': 30/60, 'rho':0.8, 'budget':3})
+                               params = {'recall_epsilon':3, 'sd': 30/60, 'rho':0.8, 'budget':10})
 
 # %%
-eodsurvey_grid = construct_grid(increment = 180/60, day_length = init_eodsurvey_obj.latent_data['day_length'])
+eodsurvey_grid = construct_grid(increment = 60/60, day_length = init_eodsurvey_obj.latent_data['day_length'])
 eodsurvey_grid_sets = get_sets_along_grid(grid = eodsurvey_grid, current_latent_data = init_eodsurvey_obj.latent_data['hours_since_start_day'])
 
 # %%
