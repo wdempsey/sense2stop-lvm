@@ -6,6 +6,8 @@ from scipy.stats import mvn
 import os
 import pickle
 import copy
+import matplotlib.pyplot as plt
+from scipy import interpolate
 
 exec(open('../../env_vars.py').read())
 dir_picklejar = os.environ['dir_picklejar']
@@ -19,6 +21,13 @@ filename = os.path.join(os.path.realpath(dir_picklejar), 'observed_dict_eod_surv
 infile = open(filename,'rb')
 dict_observed_eod_survey = pickle.load(infile)
 infile.close()
+
+filename = os.path.join(os.path.realpath(dir_picklejar), 'observed_dict_all_ema')
+infile = open(filename,'rb')
+dict_observed_ema = pickle.load(infile)
+infile.close()
+
+
 
 # %%
 def GrowTree(depth):
@@ -39,7 +48,6 @@ def GrowTree(depth):
                 right_leaf = np.append(np.array(current_data[i]), 1)
                 list_curr_level[2*i] = list(left_leaf)
                 list_curr_level[2*i + 1] = list(right_leaf)
-                #print(list_curr_level)
                 
             # Go one level below
             current_data = list_curr_level
@@ -72,15 +80,37 @@ def get_sets_along_grid(grid, current_latent_data):
 
     return sets_along_grid
 
+def parallelize_calc_loglik(x):
+  '''
+  x is an instance of EODSurveyClass which has been instantiated prior to calling 
+  the function parallelize_class_methods
+  '''
+  loglik = x.calc_loglik()
+
+  return (x.index, loglik)
+
+
+
 # %%
 
 class EODSurvey:
-    def __init__(self, participant = None, day = None, latent_data = None, observed_data = None, params = None):
+    '''
+    A collection of objects and methods related to latent process subcomponent
+    '''
+
+    def __init__(self, participant = None, day = None, latent_data = None, observed_data = None, params = None, index = None):
         self.participant = participant
         self.day = day
         self.latent_data = copy.deepcopy(latent_data)
         self.observed_data = copy.deepcopy(observed_data)
         self.params = copy.deepcopy(params)
+        self.index = index
+
+    def update_params(self, new_params):
+        '''
+        Update parameters
+        '''
+        self.params = copy.deepcopy(new_params)
 
     def calc_loglik(self):
         '''
@@ -181,61 +211,153 @@ class EODSurvey:
             self.observed_data['log_product_prob_bk'] = loglik
 
         else:
-            # If participant did not complete EOD survey, then this measurement type should not contribute to the loglikelihood
+            # If participant did not complete EOD survey, then this measurement type should NOT contribute to the loglikelihood
             loglik = 0
 
         return loglik
 
+class Latent:
+    '''
+    A collection of objects and methods related to latent process subcomponent
+    '''
+    def __init__(self, participant = None, day = None, latent_data = None, params = None, index = None):
+        self.participant = participant
+        self.day = day
+        self.latent_data = copy.deepcopy(latent_data)
+        self.params = copy.deepcopy(params)
+        self.index = index
+
+    def update_params(self, new_params):
+        '''
+        Update parameters
+        '''
+        self.params = copy.deepcopy(new_params)
+    
+    def calc_loglik(self):  
+        '''
+        Calculate loglikelihood for latent process subcomponent
+        ''' 
+        smoking_times = self.latent_data['hours_since_start_day']
+        day_length = self.latent_data['day_length']
+        lambda_prequit = self.params['lambda_prequit']
+        lambda_postquit = self.params['lambda_postquit']
+        
+        # Calculate the total number of latent smoking times in the current iteration
+        m = len(smoking_times)
+
+        # lambda_prequit: number of events per hour during prequit period
+        # lambda_postquit: number of events per hour during postquit period
+        # day_length: total number of hours between wakeup time to sleep time on a given participant day
+        if self.day <4:
+            lik = np.exp(-lambda_prequit*day_length) * ((lambda_prequit*day_length) ** m) / np.math.factorial(m)
+            loglik = np.log(lik)
+        else:
+            lik = np.exp(-lambda_postquit*day_length) * ((lambda_postquit*day_length) ** m) / np.math.factorial(m)
+            loglik = np.log(lik)
+
+        return loglik
 
 # %%
-def parallelize_class_methods(x):
-  '''
-  x is an instance of EODSurveyClass which has been instantiated prior to calling 
-  the function parallelize_class_methods
-  '''
-  loglik = x.calc_loglik()
-  return loglik
 
+latent_params = {'lambda_prequit':1, 'lambda_postquit':1}
+eodsurvey_params = {'recall_epsilon':3, 'sd': 30/60, 'rho':0.8, 'budget':10}
+dict_latent_data = copy.deepcopy(init_latent_data)
 
-# %%
 current_participant = None
 current_day = None
 
+# Initialize Latent object
+init_latent_obj = Latent(participant = current_participant,
+                            day = current_day,
+                            latent_data = dict_latent_data[current_participant][current_day],
+                            params = copy.deepcopy(latent_params))
+
+
 # Initialize EODSurvey object
-# Do not consider birthing new points yet
 init_eodsurvey_obj = EODSurvey(participant = current_participant, 
-                               day = current_day, 
-                               latent_data = init_latent_data[current_participant][current_day],
-                               observed_data = dict_observed_eod_survey[current_participant][current_day],
-                               params = {'recall_epsilon':3, 'sd': 30/60, 'rho':0.8, 'budget':10})
+                                day = current_day, 
+                                latent_data = dict_latent_data[current_participant][current_day],
+                                observed_data = dict_observed_eod_survey[current_participant][current_day],
+                                params = copy.deepcopy(eodsurvey_params))
 
 # %%
-eodsurvey_grid = construct_grid(increment = 60/60, day_length = init_eodsurvey_obj.latent_data['day_length'])
+
+# Construct grid
+latent_grid = construct_grid(increment = 1/60, day_length = init_latent_obj.latent_data['day_length'])
+latent_grid_sets = get_sets_along_grid(grid = latent_grid, current_latent_data = init_latent_obj.latent_data['hours_since_start_day'])
+
+eodsurvey_grid = construct_grid(increment = 30/60, day_length = init_eodsurvey_obj.latent_data['day_length'])
 eodsurvey_grid_sets = get_sets_along_grid(grid = eodsurvey_grid, current_latent_data = init_eodsurvey_obj.latent_data['hours_since_start_day'])
 
-# %%
-total_grid_sets = len(eodsurvey_grid_sets)
+# Work with Latent class objects
+latent_total_grid_sets = len(latent_grid_sets)
 
-my_list = []
-for idx_set in range(0, total_grid_sets):
-    current_latent_data = copy.deepcopy(init_latent_data[current_participant][current_day])
-    current_latent_data['hours_since_start_day'] = eodsurvey_grid_sets[idx_set]
-    my_list.append(EODSurvey(participant = current_participant, 
-                             day = current_day, 
-                             latent_data = current_latent_data,
-                             observed_data = dict_observed_eod_survey[current_participant][current_day],
-                             params = {'recall_epsilon':3, 'sd': 30/60, 'rho':0.8, 'budget':10}))
+# Each element of the list is an instance of the Latent class
+latent_my_list = []
+for idx_set in range(0, latent_total_grid_sets):
+    candidate_latent_data = copy.deepcopy(init_latent_obj.latent_data)
+    candidate_latent_data['hours_since_start_day'] = latent_grid_sets[idx_set]
+    latent_my_list.append(Latent(participant = current_participant,
+                                 day = current_day,
+                                 latent_data = candidate_latent_data,
+                                 params = copy.deepcopy(latent_params),
+                                 index = idx_set))
+
+# Work with EODSurvey class objects
+eodsurvey_total_grid_sets = len(eodsurvey_grid_sets)
+
+# Each element of the list is an instance of the EODSurvey class
+eodsurvey_my_list = []
+for idx_set in range(0, eodsurvey_total_grid_sets):
+    candidate_latent_data = copy.deepcopy(init_eodsurvey_obj.latent_data)
+    candidate_latent_data['hours_since_start_day'] = eodsurvey_grid_sets[idx_set]
+    eodsurvey_my_list.append(EODSurvey(participant = current_participant, 
+                                       day = current_day, 
+                                       latent_data = candidate_latent_data,
+                                       observed_data = init_eodsurvey_obj.observed_data,
+                                       params = copy.deepcopy(eodsurvey_params),
+                                       index = idx_set))
+
+
 
 # %%
 if __name__ == '__main__':
-    with Pool(processes = 8) as p:
-
+    with Pool(processes = 16) as p:
         start_time = time.time()
-        my_output = p.map(parallelize_class_methods, my_list)
+        latent_my_output = p.map(parallelize_calc_loglik, latent_my_list)
+        eodsurvey_my_output = p.map(parallelize_calc_loglik, eodsurvey_my_list)
         end_time = time.time()
 
-        print(f"Time taken {end_time - start_time} seconds")
-        print(my_output)
+        print(end_time - start_time)
+        
+        # Sort output
+        latent_my_output = sorted(latent_my_output, key=lambda tup: tup[0], reverse=False)
+        eodsurvey_my_output = sorted(eodsurvey_my_output, key=lambda tup: tup[0], reverse=False)
 
-# %%
+        # Get calculated loglik
+        latent_grid_loglik = []
+        eodsurvey_grid_loglik = []
+
+        for a_tuple in latent_my_output:
+            latent_grid_loglik.append(a_tuple[1])
+
+        for a_tuple in eodsurvey_my_output:
+            eodsurvey_grid_loglik.append(a_tuple[1])
+
+        # Perform interpolation of eodsurvey at the minute-level
+        f = interpolate.interp1d(x = eodsurvey_grid, y = eodsurvey_grid_loglik, fill_value="extrapolate")
+        interpolated_eodsurvey_grid_loglik = f(latent_grid)
+
+        # Calculate the PDF using loglikelihood contribution from all measurement types
+        # This is the smart birth proposal distribution
+        element_wise_loglik = latent_grid_loglik + interpolated_eodsurvey_grid_loglik
+        element_wise_lik = np.exp(element_wise_loglik)
+        current_denominator_pdf_smart_birth = np.sum(element_wise_lik)
+        current_pdf_smart_birth = element_wise_lik/current_denominator_pdf_smart_birth
+        current_cdf_smart_birth = np.cumsum(current_pdf_smart_birth)
+
+        # Plot the CDF of smart birth proposal
+        plt.step(latent_grid, current_cdf_smart_birth, 'r-', where='post')
+        plt.savefig(os.path.join(os.path.realpath(dir_picklejar), 'cdf.png'))
+
 
