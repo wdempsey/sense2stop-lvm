@@ -80,3 +80,8 @@ data_day_limits = data_day_limits.loc[:, ['participant_id', 'date', 'study_day',
 
 
 # %%
+filename = os.path.join(os.path.realpath(dir_picklejar), 'data_day_limits')
+outfile = open(filename, 'wb')
+pickle.dump(data_day_limits, outfile)
+outfile.close()
+
