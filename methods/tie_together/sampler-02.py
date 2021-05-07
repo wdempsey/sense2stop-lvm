@@ -661,7 +661,10 @@ def grid_likelihood_latent(current_participant, current_day, latent_params, dict
         element_wise_loglik.append(res)
 
     element_wise_lik = np.exp(element_wise_loglik)
-    return element_wise_lik
+    f = interpolate.interp1d(x = latent_grid, y = element_wise_lik, fill_value="extrapolate")
+
+    return f #element_wise_lik
+
 
 
 # %%
@@ -679,7 +682,7 @@ def grid_likelihood_eodsurvey(current_participant, current_day, latent_params, e
                                     params = copy.deepcopy(eodsurvey_params))
 
     # Construct grid
-    fine_grid = construct_grid(increment = 1/60, day_length = init_eodsurvey_obj.latent_data['day_length'])
+    #fine_grid = construct_grid(increment = 1/60, day_length = init_eodsurvey_obj.latent_data['day_length'])
     eodsurvey_grid = construct_grid(increment = 30/60, day_length = init_eodsurvey_obj.latent_data['day_length'])
     eodsurvey_grid, eodsurvey_grid_sets = get_sets_along_grid(init_grid = eodsurvey_grid, current_latent_data = init_eodsurvey_obj.latent_data['hours_since_start_day'])
 
@@ -715,11 +718,11 @@ def grid_likelihood_eodsurvey(current_participant, current_day, latent_params, e
     
     eodsurvey_grid_lik = np.exp(eodsurvey_grid_loglik)
     # Perform interpolation of eodsurvey at the minute-level
-    # Note: interpolate likelihood instead og loglikelihood to avoid having to interpolate over -inf values. This will produce an error.
+    # Note: interpolate likelihood instead of loglikelihood to avoid having to interpolate over -inf values. This will produce an error.
     f = interpolate.interp1d(x = eodsurvey_grid, y = eodsurvey_grid_lik, fill_value="extrapolate")
-    interpolated_eodsurvey_grid_lik = f(fine_grid)
+    #interpolated_eodsurvey_grid_lik = f(fine_grid)
         
-    return interpolated_eodsurvey_grid_lik
+    return f #interpolated_eodsurvey_grid_lik
 
 
 # %%
@@ -762,7 +765,11 @@ def grid_likelihood_selfreport(current_participant, current_day, latent_params, 
         element_wise_loglik.append(res)
 
     element_wise_lik = np.exp(element_wise_loglik)
-    return element_wise_lik
+
+    f = interpolate.interp1d(x = selfreport_grid, y = element_wise_lik, fill_value="extrapolate")
+
+    return f #element_wise_lik
+
 
 
 # %%
@@ -805,7 +812,10 @@ def grid_likelihood_randomema(current_participant, current_day, latent_params, r
         element_wise_loglik.append(res)
 
     element_wise_lik = np.exp(element_wise_loglik)
-    return element_wise_lik
+
+    f = interpolate.interp1d(x = randomema_grid, y = element_wise_lik, fill_value="extrapolate")
+
+    return f #element_wise_lik
 
 
 # %%
@@ -845,18 +855,19 @@ if __name__ == '__main__':
     dict_latent_data = copy.deepcopy(init_latent_data)
 
 
-
 # %%
     # Latent model: Likelihood corresponding to each point on the grid
     dict_latent_likelihood = {}
     for current_participant in all_participant_ids: 
         current_dict = {}
         for current_day in all_days:  # all_days here
-            v = grid_likelihood_latent(current_participant = current_participant, 
-                                       current_day = current_day, 
-                                       latent_params = latent_params, 
-                                       dict_latent_data = dict_latent_data)
-            current_dict.update({current_day:v})
+            interp_func = grid_likelihood_latent(current_participant = current_participant, 
+                                                 current_day = current_day, 
+                                                 latent_params = latent_params, 
+                                                 dict_latent_data = dict_latent_data)
+            use_this_grid = construct_grid(increment = 1/60, day_length = dict_latent_data[current_participant][current_day]['day_length'])
+            smoothed_lik = interp_func(use_this_grid)
+            current_dict.update({current_day:smoothed_lik})
         dict_latent_likelihood.update({current_participant:current_dict})
 
 # %%
@@ -865,13 +876,16 @@ if __name__ == '__main__':
     for current_participant in all_participant_ids:
         current_dict = {}
         for current_day in all_days:  # all_days here
-            v = grid_likelihood_eodsurvey(current_participant = current_participant, 
-                                          current_day = current_day, 
-                                          latent_params = latent_params, 
-                                          eodsurvey_params = eodsurvey_params, 
-                                          dict_latent_data = dict_latent_data, 
-                                          dict_observed_eod_survey = dict_observed_eod_survey)
-            current_dict.update({current_day:v})
+            interp_func = grid_likelihood_eodsurvey(current_participant = current_participant, 
+                                                    current_day = current_day, 
+                                                    latent_params = latent_params, 
+                                                    eodsurvey_params = eodsurvey_params, 
+                                                    dict_latent_data = dict_latent_data, 
+                                                    dict_observed_eod_survey = dict_observed_eod_survey)
+            
+            use_this_grid = construct_grid(increment = 1/60, day_length = dict_latent_data[current_participant][current_day]['day_length'])
+            smoothed_lik = interp_func(use_this_grid)
+            current_dict.update({current_day:smoothed_lik})
         dict_mem_eodsurvey_likelihood.update({current_participant:current_dict})
 
 # %%
@@ -880,13 +894,16 @@ if __name__ == '__main__':
     for current_participant in all_participant_ids:
         current_dict = {}
         for current_day in all_days:  # all_days here
-            v = grid_likelihood_selfreport(current_participant = current_participant, 
-                                           current_day = current_day, 
-                                           latent_params = latent_params, 
-                                           selfreport_params = selfreport_params, 
-                                           dict_latent_data = dict_latent_data, 
-                                           dict_observed_ema = dict_observed_ema)
-            current_dict.update({current_day:v})
+            interp_func = grid_likelihood_selfreport(current_participant = current_participant, 
+                                                     current_day = current_day, 
+                                                     latent_params = latent_params, 
+                                                     selfreport_params = selfreport_params, 
+                                                     dict_latent_data = dict_latent_data, 
+                                                     dict_observed_ema = dict_observed_ema)
+            
+            use_this_grid = construct_grid(increment = 1/60, day_length = dict_latent_data[current_participant][current_day]['day_length'])
+            smoothed_lik = interp_func(use_this_grid)
+            current_dict.update({current_day:smoothed_lik})
         dict_mem_selfreport_likelihood.update({current_participant:current_dict})
 
 # %%
@@ -895,16 +912,17 @@ if __name__ == '__main__':
     for current_participant in all_participant_ids:
         current_dict = {}
         for current_day in all_days:  # all_days here
-            v = grid_likelihood_randomema(current_participant = current_participant, 
-                                           current_day = current_day, 
-                                           latent_params = latent_params, 
-                                           randomema_params = randomema_params, 
-                                           dict_latent_data = dict_latent_data, 
-                                           dict_observed_ema = dict_observed_ema)
-            current_dict.update({current_day:v})
+            interp_func = grid_likelihood_randomema(current_participant = current_participant, 
+                                                    current_day = current_day, 
+                                                    latent_params = latent_params, 
+                                                    randomema_params = randomema_params, 
+                                                    dict_latent_data = dict_latent_data, 
+                                                    dict_observed_ema = dict_observed_ema)
+            
+            use_this_grid = construct_grid(increment = 1/60, day_length = dict_latent_data[current_participant][current_day]['day_length'])
+            smoothed_lik = interp_func(use_this_grid)
+            current_dict.update({current_day:smoothed_lik})
         dict_mem_randomema_likelihood.update({current_participant:current_dict})
-
-
 
 # %%
     for current_participant in all_participant_ids:
@@ -914,13 +932,15 @@ if __name__ == '__main__':
             lik_selfreport = dict_mem_selfreport_likelihood[current_participant][current_day]
             lik_randomema = dict_mem_randomema_likelihood[current_participant][current_day]
 
-            # Preparation for plotting smart birth CDF
+            ###################################################################
+            # Latent, EOD Survey, Self Report, Random EMA
+            ###################################################################
             current_element_wise_lik = lik_latent + lik_eodsurvey + lik_selfreport + lik_randomema
             current_denominator_pdf_smart_birth = np.sum(current_element_wise_lik)
             current_pdf_smart_birth = current_element_wise_lik/current_denominator_pdf_smart_birth
             current_cdf_smart_birth = np.cumsum(current_pdf_smart_birth)
+
             current_grid = construct_grid(increment = 1/60, day_length = dict_latent_data[current_participant][current_day]['day_length'])
-            current_grid, grid_sets = get_sets_along_grid(init_grid = current_grid, current_latent_data = dict_latent_data[current_participant][current_day]['hours_since_start_day'])
 
             # Preparation for plotting current set of latent smoking times
             current_latent_smoking_times = dict_latent_data[current_participant][current_day]['hours_since_start_day']
@@ -967,9 +987,187 @@ if __name__ == '__main__':
             plt.xlabel('Hours Elapsed Since Start of Day')
             plt.ylabel('Cumulative Density')
             plt.legend(loc='upper left', prop={'size': 10})
-            plt.savefig(os.path.join(os.path.realpath(dir_picklejar), 'smart_birth_cdf_plot', 'overall_cdf', '{}_{}_cdf.jpg'.format(current_participant, current_day)))
-            plt.clf()  
+
+            plt.savefig(os.path.join(os.path.realpath(dir_picklejar), 'smart_birth_cdf_plot', 'overall_{}_{}_cdf.jpg'.format(current_participant, current_day)))
+            plt.clf() 
+
+            ###################################################################
+            # EOD Survey only
+            ###################################################################
+            current_element_wise_lik = lik_eodsurvey
+            current_denominator_pdf_smart_birth = np.sum(current_element_wise_lik)
+            current_pdf_smart_birth = current_element_wise_lik/current_denominator_pdf_smart_birth
+            current_cdf_smart_birth = np.cumsum(current_pdf_smart_birth)
+
+            current_grid = construct_grid(increment = 1/60, day_length = dict_latent_data[current_participant][current_day]['day_length'])
+
+            # Preparation for plotting current set of latent smoking times
+            current_latent_smoking_times = dict_latent_data[current_participant][current_day]['hours_since_start_day']
+            # Preparation for plotting observed measurements -- end of day survey
+            current_checked_boxes_eod_survey = dict_observed_eod_survey[current_participant][current_day]['ticked_box_scaled']
+            # Preparation for plotting observed measurements -- ema
+            if len(dict_observed_ema[current_participant][current_day]['assessment_type'])>0:
+                idx_selfreport = np.where(dict_observed_ema[current_participant][current_day]['assessment_type']=='selfreport')
+                idx_random_ema = np.where(dict_observed_ema[current_participant][current_day]['assessment_type']=='random_ema')
+                current_selfreport_ema = dict_observed_ema[current_participant][current_day]['assessment_begin'][idx_selfreport]        
+                current_random_ema = dict_observed_ema[current_participant][current_day]['assessment_begin'][idx_random_ema]     
+
+            # Show plot
+            current_day_length = np.max(current_grid)
+            plt.xticks(np.arange(0, current_day_length+1, 1.0))
+            plt.yticks(np.arange(0,1.1,0.1))
+            plt.ylim(bottom=-0.20, top=1.05)
+            plt.step(current_grid, current_cdf_smart_birth, 'r-', where='post') 
+
+            if len(current_latent_smoking_times)>0:
+                plt.scatter(current_latent_smoking_times, np.repeat(-0.05, len(current_latent_smoking_times)), s=10, marker = 'o', label='Current Latent Smoking Times')
+            
+            if len(current_checked_boxes_eod_survey)>0:
+                list_seg = []
+                for idx in range(0, len(current_checked_boxes_eod_survey)):
+                    lower_lim = current_checked_boxes_eod_survey[idx]
+                    upper_lim = lower_lim + 1   
+                    
+                    plt.scatter(lower_lim, -.1, marker = '|', s=30, c='g')
+                    plt.scatter(upper_lim, -.1, marker = '|', s=30, c='g')
+
+                    list_seg.append((lower_lim, upper_lim))
+                    list_seg.append((-.1,-.1))
+                    list_seg.append('g')
+                
+                plt.plot(*list_seg)
+            
+            if len(current_selfreport_ema)>0:
+                plt.scatter(current_selfreport_ema, np.repeat(-0.075, len(current_selfreport_ema)), s=10, marker = '^', c = 'orange', label='Self-Report EMA')
+
+            if len(current_selfreport_ema)>0:
+                plt.scatter(current_random_ema, np.repeat(-0.075, len(current_random_ema)), s=10, marker = '^', c = 'brown', label='Random EMA')
+
+            plt.xlabel('Hours Elapsed Since Start of Day')
+            plt.ylabel('Cumulative Density')
+            plt.legend(loc='upper left', prop={'size': 10})
+
+            plt.savefig(os.path.join(os.path.realpath(dir_picklejar), 'smart_birth_cdf_plot', 'eod_{}_{}_cdf.jpg'.format(current_participant, current_day)))
+            plt.clf() 
+
+            ###################################################################
+            # Random EMA only
+            ###################################################################
+            current_element_wise_lik = lik_randomema
+            current_denominator_pdf_smart_birth = np.sum(current_element_wise_lik)
+            current_pdf_smart_birth = current_element_wise_lik/current_denominator_pdf_smart_birth
+            current_cdf_smart_birth = np.cumsum(current_pdf_smart_birth)
+
+            current_grid = construct_grid(increment = 1/60, day_length = dict_latent_data[current_participant][current_day]['day_length'])
+
+            # Preparation for plotting current set of latent smoking times
+            current_latent_smoking_times = dict_latent_data[current_participant][current_day]['hours_since_start_day']
+            # Preparation for plotting observed measurements -- end of day survey
+            current_checked_boxes_eod_survey = dict_observed_eod_survey[current_participant][current_day]['ticked_box_scaled']
+            # Preparation for plotting observed measurements -- ema
+            if len(dict_observed_ema[current_participant][current_day]['assessment_type'])>0:
+                idx_selfreport = np.where(dict_observed_ema[current_participant][current_day]['assessment_type']=='selfreport')
+                idx_random_ema = np.where(dict_observed_ema[current_participant][current_day]['assessment_type']=='random_ema')
+                current_selfreport_ema = dict_observed_ema[current_participant][current_day]['assessment_begin'][idx_selfreport]        
+                current_random_ema = dict_observed_ema[current_participant][current_day]['assessment_begin'][idx_random_ema]     
+
+            # Show plot
+            current_day_length = np.max(current_grid)
+            plt.xticks(np.arange(0, current_day_length+1, 1.0))
+            plt.yticks(np.arange(0,1.1,0.1))
+            plt.ylim(bottom=-0.20, top=1.05)
+            plt.step(current_grid, current_cdf_smart_birth, 'r-', where='post') 
+
+            if len(current_latent_smoking_times)>0:
+                plt.scatter(current_latent_smoking_times, np.repeat(-0.05, len(current_latent_smoking_times)), s=10, marker = 'o', label='Current Latent Smoking Times')
+            
+            if len(current_checked_boxes_eod_survey)>0:
+                list_seg = []
+                for idx in range(0, len(current_checked_boxes_eod_survey)):
+                    lower_lim = current_checked_boxes_eod_survey[idx]
+                    upper_lim = lower_lim + 1   
+                    
+                    plt.scatter(lower_lim, -.1, marker = '|', s=30, c='g')
+                    plt.scatter(upper_lim, -.1, marker = '|', s=30, c='g')
+
+                    list_seg.append((lower_lim, upper_lim))
+                    list_seg.append((-.1,-.1))
+                    list_seg.append('g')
+                
+                plt.plot(*list_seg)
+            
+            if len(current_selfreport_ema)>0:
+                plt.scatter(current_selfreport_ema, np.repeat(-0.075, len(current_selfreport_ema)), s=10, marker = '^', c = 'orange', label='Self-Report EMA')
+
+            if len(current_selfreport_ema)>0:
+                plt.scatter(current_random_ema, np.repeat(-0.075, len(current_random_ema)), s=10, marker = '^', c = 'brown', label='Random EMA')
+
+            plt.xlabel('Hours Elapsed Since Start of Day')
+            plt.ylabel('Cumulative Density')
+            plt.legend(loc='upper left', prop={'size': 10})
+
+            plt.savefig(os.path.join(os.path.realpath(dir_picklejar), 'smart_birth_cdf_plot', 'random_{}_{}_cdf.jpg'.format(current_participant, current_day)))
+            plt.clf() 
 
 
+            ###################################################################
+            # Self Report
+            ###################################################################
+            current_element_wise_lik = lik_selfreport
+            current_denominator_pdf_smart_birth = np.sum(current_element_wise_lik)
+            current_pdf_smart_birth = current_element_wise_lik/current_denominator_pdf_smart_birth
+            current_cdf_smart_birth = np.cumsum(current_pdf_smart_birth)
+
+            current_grid = construct_grid(increment = 1/60, day_length = dict_latent_data[current_participant][current_day]['day_length'])
+
+            # Preparation for plotting current set of latent smoking times
+            current_latent_smoking_times = dict_latent_data[current_participant][current_day]['hours_since_start_day']
+            # Preparation for plotting observed measurements -- end of day survey
+            current_checked_boxes_eod_survey = dict_observed_eod_survey[current_participant][current_day]['ticked_box_scaled']
+            # Preparation for plotting observed measurements -- ema
+            if len(dict_observed_ema[current_participant][current_day]['assessment_type'])>0:
+                idx_selfreport = np.where(dict_observed_ema[current_participant][current_day]['assessment_type']=='selfreport')
+                idx_random_ema = np.where(dict_observed_ema[current_participant][current_day]['assessment_type']=='random_ema')
+                current_selfreport_ema = dict_observed_ema[current_participant][current_day]['assessment_begin'][idx_selfreport]        
+                current_random_ema = dict_observed_ema[current_participant][current_day]['assessment_begin'][idx_random_ema]     
+
+            # Show plot
+            current_day_length = np.max(current_grid)
+            plt.xticks(np.arange(0, current_day_length+1, 1.0))
+            plt.yticks(np.arange(0,1.1,0.1))
+            plt.ylim(bottom=-0.20, top=1.05)
+            plt.step(current_grid, current_cdf_smart_birth, 'r-', where='post') 
+
+            if len(current_latent_smoking_times)>0:
+                plt.scatter(current_latent_smoking_times, np.repeat(-0.05, len(current_latent_smoking_times)), s=10, marker = 'o', label='Current Latent Smoking Times')
+            
+            if len(current_checked_boxes_eod_survey)>0:
+                list_seg = []
+                for idx in range(0, len(current_checked_boxes_eod_survey)):
+                    lower_lim = current_checked_boxes_eod_survey[idx]
+                    upper_lim = lower_lim + 1   
+                    
+                    plt.scatter(lower_lim, -.1, marker = '|', s=30, c='g')
+                    plt.scatter(upper_lim, -.1, marker = '|', s=30, c='g')
+
+                    list_seg.append((lower_lim, upper_lim))
+                    list_seg.append((-.1,-.1))
+                    list_seg.append('g')
+                
+                plt.plot(*list_seg)
+            
+            if len(current_selfreport_ema)>0:
+                plt.scatter(current_selfreport_ema, np.repeat(-0.075, len(current_selfreport_ema)), s=10, marker = '^', c = 'orange', label='Self-Report EMA')
+
+            if len(current_selfreport_ema)>0:
+                plt.scatter(current_random_ema, np.repeat(-0.075, len(current_random_ema)), s=10, marker = '^', c = 'brown', label='Random EMA')
+
+            plt.xlabel('Hours Elapsed Since Start of Day')
+            plt.ylabel('Cumulative Density')
+            plt.legend(loc='upper left', prop={'size': 10})
+
+            plt.savefig(os.path.join(os.path.realpath(dir_picklejar), 'smart_birth_cdf_plot', 'selfreport_{}_{}_cdf.jpg'.format(current_participant, current_day)))
+            plt.clf() 
 
 # %%
+
