@@ -149,7 +149,8 @@ for i in range(0, len(all_participant_id)):
       total_count_rows += len(dat.index)
 
       if dat['flag'].sum() > 0:
-        print(dat)
+        #print(dat)
+        print(current_participant, this_study_day)
     
     else:
       next
@@ -199,10 +200,10 @@ for i in range(0, len(all_participant_id)):
 
     if len(dat.index)>0:
       tmp_length = dat['hours_since_start_day'] - dat['hours_since_start_day_shifted']
-      tmp_const = np.random.uniform(0,tmp_length,1)[0]
       # When the very first smoking event occurs before start of day
-      # set value of puff_time to be some value between hours_since_start_day_shifted and hours_since_start_day
-      dat['puff_time'] = np.where((dat['flag']==1) & (dat['hours_since_start_day_shifted']==0), tmp_const , dat['puff_time'])  
+      # That is, dat['puff_time']<0 occurs when dat['flag']==1 and and dat['hours_since_start_day_shifted']==0
+      dat['puff_time'] = np.where((dat['flag']==1) & (dat['hours_since_start_day_shifted']==0), 0.5*(dat['hours_since_start_day_shifted'] + dat['hours_since_start_day']) , dat['puff_time'])
+
       # When the participant reported a smoking event in the current EMA to occur BEFORE
       # the previous EMA, then set puff_time to be the midpoint between the previous and current EMA
       dat['puff_time'] = np.where((dat['flag']==1) & (dat['hours_since_start_day_shifted']>0), 0.5*(dat['hours_since_start_day_shifted'] + dat['hours_since_start_day']) , dat['puff_time'])
@@ -213,191 +214,17 @@ for i in range(0, len(all_participant_id)):
       next
 
 
-#%%
-
-###############################################################################
-# Now, knit puffmarker data into the fabric of random EMA & self-report data
-###############################################################################
-
-all_participant_id = data_hq_episodes['id'].drop_duplicates()
-all_participant_id.index = np.array(range(0,len(all_participant_id.index)))
-
-for i in range(0, len(all_participant_id)):
-  current_participant = all_participant_id[i]
-
-  for j in range(1, 15):
-    this_study_day = j
-    # dat_survey contains both Random EMA & self-report data
-    dat_survey = dict_knitted[current_participant][this_study_day]
-    # dat_puffmarker only contains puffmarker data
-    dat_puffmarker = dict_puffmarker[current_participant][this_study_day]
-    # Now, go through the rows of dat_survey one by one
-    if len(dat_survey.index)>0:
-      dat_survey.index = np.arange(len(dat_survey.index))
-      # create an indicator for whether an adjustment using puffmarker timestamp was made
-      dat_survey['adjusted'] = np.nan
-      dat_survey['puff_time_adjusted'] = dat_survey['puff_time']
-
-      for k in range(0, len(dat_survey.index)):
-        if dat_survey['smoke'].iloc[k]=='Yes':
-          LB = dat_survey['hours_since_start_day_shifted'].iloc[k]
-          UB = dat_survey['hours_since_start_day'].iloc[k]
-          # Check whether puffmarker timestamp is within two consecutive assessments
-          # and revise puff_time accordingly
-          subset_dat_puffmarker = dat_puffmarker['hours_since_start_day'][(dat_puffmarker['hours_since_start_day']>=LB) & (dat_puffmarker['hours_since_start_day']<=UB)]
-          
-          if len(subset_dat_puffmarker)==1:
-            subset_dat_puffmarker = pd.DataFrame(subset_dat_puffmarker)
-            subset_dat_puffmarker = subset_dat_puffmarker.to_dict()
-            dat_survey['puff_time_adjusted'].iloc[k] = [subset_dat_puffmarker[0]]
-            dat_survey['adjusted'].iloc[k] = 1.0
-          elif len(subset_dat_puffmarker)>=2:
-            subset_dat_puffmarker = pd.DataFrame(subset_dat_puffmarker)
-            subset_dat_puffmarker = subset_dat_puffmarker.to_dict()
-            dat_survey['puff_time_adjusted'].iloc[k] = [subset_dat_puffmarker[0]]
-            dat_survey['adjusted'].iloc[k] = 1.0
-          else:  
-            pass
-      
-      dat_survey['adjusted'] = np.where((dat_survey['smoke']=='Yes') & (pd.isna(dat_survey['adjusted'])), 0, dat_survey['adjusted'])
-      # Update dictionary
-      dict_knitted[current_participant][this_study_day] = dat_survey
-    else:
-      next
-
-
-
-
-# %%
-###############################################################################
-# Do checks on dict_knitted
-###############################################################################
-
-if False:
-  all_participant_id = data_hq_episodes['id'].drop_duplicates()
-  all_participant_id.index = np.array(range(0,len(all_participant_id.index)))
-
-  total_count_flagged = 0
-  total_count_rows = 0
-  total_count_adjusted = 0
-
-
-  for i in range(0, len(all_participant_id)):
-    current_participant = all_participant_id[i]
-
-    for j in range(1, 15):
-      this_study_day = j
-
-      dat = dict_knitted[current_participant][this_study_day]
-
-      if len(dat.index)>0:
-        total_count_flagged += dat['flag'].sum()
-        total_count_rows += len(dat.index)
-        total_count_adjusted += dat['adjusted'].sum()
-      
-      else:
-        next
-
-  #%%
-  collect_dat = pd.DataFrame({})
-
-  for i in range(0, len(all_participant_id)):
-    current_participant = all_participant_id[i]
-
-    for j in range(1, 15):
-      this_study_day = j
-
-      dat = dict_knitted[current_participant][this_study_day]
-
-      if len(dat.index)>0:
-        subset_dat = dat.loc[dat['adjusted'] == 1]
-      
-      else:
-        next
-
-      # Now, let's concatanate ##################################################
-      collect_dat = [collect_dat, subset_dat]
-      collect_dat = pd.concat(collect_dat)
-
-  print(collect_dat)
-
 # %%
 #########################################################################################################
-# Save dict_knitted_with_puffmarker
-#########################################################################################################
-
-dict_knitted_with_puffmarker = copy.deepcopy(dict_knitted)
-filename = os.path.join(os.path.realpath(dir_picklejar), 'dict_knitted_with_puffmarker')
-outfile = open(filename, 'wb')
-pickle.dump(dict_knitted_with_puffmarker, outfile)
-outfile.close()
-
-# %%
-#########################################################################################################
-# Create "mock" true latent times using dict_knitted_with_puffmarker
-# Then we will test this first assuming that observed times come from Self-Report and/or Random EMA only
-#########################################################################################################
-
-latent_data = {}
-
-for participant in dict_knitted_with_puffmarker.keys():
-    current_participant_dict = {}
-    for days in dict_knitted_with_puffmarker[participant].keys():
-        current_data = dict_knitted_with_puffmarker[participant][days]
-        all_puff_time = []
-        if len(current_data.index)==0:
-            next
-        else:
-            current_data_yes = current_data[current_data['smoke']=='Yes']
-            if len(current_data_yes)==0:
-                next
-            else:
-                for this_row in range(0, len(current_data_yes.index)):
-                    if current_data_yes['adjusted'].iloc[this_row]==1:
-                        tmp = current_data_yes['puff_time_adjusted'].iloc[this_row]
-                        # tmp is an array with 1 element, and this element is a dictionary
-                        # hence, we need the next steps
-                        tmp = tmp[0]
-                        tmp_to_array = []
-                        for pm_key in tmp.keys():
-                            tmp_to_array.append(tmp[pm_key])
-                        # we're out of the loop
-                        all_puff_time.extend(tmp_to_array)
-                    elif current_data_yes['adjusted'].iloc[this_row]==0:
-                        all_puff_time.append(current_data_yes['puff_time_adjusted'].iloc[this_row])
-                    else:
-                        next
-
-        # The output of the next line should be one number only, but it will be an array object
-        # Hence, the .iloc[0] converts the array object into a float
-        current_day_length = data_day_limits[(data_day_limits['participant_id']==participant) & (data_day_limits['study_day']==days)]['day_length'].iloc[0]
-        new_dict = {'participant_id':participant, 
-                    'study_day':days, 
-                    'day_length':current_day_length, 
-                    'latent_event_order': (np.arange(len(all_puff_time))),  # begins with zero (not 1)
-                    'hours_since_start_day': np.array(all_puff_time)}
-        current_participant_dict.update({days: new_dict})
-    # Add this participant's data to dictionary
-    latent_data.update({participant:current_participant_dict})
-
-#%%
-filename = os.path.join(os.path.realpath(dir_picklejar), 'init_latent_data')  # Initialize using Self-Report, Random EMA, and puffmarker
-outfile = open(filename, 'wb')
-pickle.dump(latent_data, outfile)
-outfile.close()
-
-# %%
-#########################################################################################################
-# Create "mock" true latent times using dict_knitted_with_puffmarker
-# Then we will test this first assuming that observed times come from Self-Report and/or Random EMA only
+# Initialize using Self-Report and Random EMA only. Do not use puffmarker.
 #########################################################################################################
 
 small_latent_data = {}
 
-for participant in dict_knitted_with_puffmarker.keys():
+for participant in dict_knitted.keys():
     current_participant_dict = {}
-    for days in dict_knitted_with_puffmarker[participant].keys():
-        current_data = dict_knitted_with_puffmarker[participant][days]
+    for days in dict_knitted[participant].keys():
+        current_data = dict_knitted[participant][days]
         all_puff_time = []
         if len(current_data.index)==0:
             next
@@ -422,10 +249,12 @@ for participant in dict_knitted_with_puffmarker.keys():
     small_latent_data.update({participant:current_participant_dict})
 
 #%%
-filename = os.path.join(os.path.realpath(dir_picklejar), 'init_latent_data_small')  # Initialize using Self-Report and Random EMA only. Do not use puffmarker.
+filename = os.path.join(os.path.realpath(dir_picklejar), 'init_latent_data_small')  
 outfile = open(filename, 'wb')
 pickle.dump(small_latent_data, outfile)
 outfile.close()
 
-# %%
+
+
+
 
