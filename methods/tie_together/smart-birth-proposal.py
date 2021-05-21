@@ -621,6 +621,7 @@ def construct_grid(increment, day_length):
     if day_length <= increment:
         init_grid = np.array([0, day_length])
     else:
+        day_length = day_length + 5/60
         init_grid = np.arange(0, day_length, increment)
 
     return init_grid
@@ -1057,6 +1058,21 @@ if __name__ == '__main__':
         outfile = open(filename, 'wb')
         pickle.dump(dict_mem_selfreport_likelihood, outfile)
         outfile.close()
+
+
+# %%
+    for current_participant in all_participant_ids:
+        for current_day in all_days:  
+            lik_latent = dict_latent_likelihood[current_participant][current_day]
+            lik_eodsurvey = dict_mem_eodsurvey_likelihood[current_participant][current_day]
+            lik_selfreport = dict_mem_selfreport_likelihood[current_participant][current_day]
+            lik_randomema = dict_mem_randomema_likelihood[current_participant][current_day]
+
+            current_element_wise_lik = lik_latent * lik_eodsurvey * lik_selfreport * lik_randomema
+            current_denominator_pdf_smart_birth = np.sum(current_element_wise_lik)
+
+            if current_denominator_pdf_smart_birth == 0:
+                print(current_participant, current_day)
 
 
 # %%
