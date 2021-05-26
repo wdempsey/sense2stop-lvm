@@ -955,7 +955,7 @@ if __name__ == '__main__':
             # e.g., 1e-13, then a point on a fine grid, say at t* + 10 minutes
             # might have a negative interpolated value, say -1e-10
             # when this happens, we set the interpolated value to zero
-            smoothed_lik[(smoothed_lik < 0) & (smoothed_lik > -1e-3)] = 0
+            smoothed_lik[(smoothed_lik < 0)] = 0
             current_dict.update({current_day:smoothed_lik})
         dict_latent_likelihood.update({current_participant:current_dict})
 
@@ -979,7 +979,7 @@ if __name__ == '__main__':
             # e.g., 1e-13, then a point on a fine grid, say at t* + 10 minutes
             # might have a negative interpolated value, say -1e-10
             # when this happens, we set the interpolated value to zero
-            smoothed_lik[(smoothed_lik < 0) & (smoothed_lik > -1e-3)] = 0
+            smoothed_lik[(smoothed_lik < 0)] = 0
             current_dict.update({current_day:smoothed_lik})
         dict_mem_eodsurvey_likelihood.update({current_participant:current_dict})
 
@@ -1003,7 +1003,7 @@ if __name__ == '__main__':
             # e.g., 1e-13, then a point on a fine grid, say at t* + 10 minutes
             # might have a negative interpolated value, say -1e-10
             # when this happens, we set the interpolated value to zero
-            smoothed_lik[(smoothed_lik < 0) & (smoothed_lik > -1e-3)] = 0
+            smoothed_lik[(smoothed_lik < 0)] = 0
             current_dict.update({current_day:smoothed_lik})
         dict_mem_selfreport_likelihood.update({current_participant:current_dict})
 
@@ -1027,7 +1027,7 @@ if __name__ == '__main__':
             # e.g., 1e-13, then a point on a fine grid, say at t* + 10 minutes
             # might have a negative interpolated value, say -1e-10
             # when this happens, we set the interpolated value to zero
-            smoothed_lik[(smoothed_lik < 0) & (smoothed_lik > -1e-3)] = 0
+            smoothed_lik[(smoothed_lik < 0)] = 0
             current_dict.update({current_day:smoothed_lik})
         dict_mem_randomema_likelihood.update({current_participant:current_dict})
 
