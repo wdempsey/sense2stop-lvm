@@ -465,17 +465,18 @@ class RandomEMA:
         all_latent_times = self.latent_data['hours_since_start_day']
         all_latent_times = np.sort(all_latent_times)
         tot_latent_events = len(all_latent_times)
+        tot_ema = len(self.observed_data['assessment_type'])
+        self.observed_data['prob_bk'] = np.repeat(np.nan, tot_ema)
+        self.observed_data['log_prob_bk'] = np.repeat(np.nan, tot_ema)
 
-        if len(self.observed_data['assessment_type']) == 0:
+        if tot_ema == 0:
             tot_random_ema = 0
         else:
             tot_random_ema = np.sum(self.observed_data['assessment_type']=='random_ema')  # Total number of Random EMA
 
         if tot_latent_events > 0 and tot_random_ema > 0:
-            tot_ema = len(self.observed_data['assessment_type'])
-            self.observed_data['prob_bk'] = np.repeat(np.nan, tot_ema)
-            self.observed_data['log_prob_bk'] = np.repeat(np.nan, tot_ema)
             use_scale = self.params['sd']
+            prob_when_no = self.params['prob_when_no']
 
             total_loglik = 0
             # Note: each value of windowtag corresponds to a response option in hours
@@ -568,18 +569,16 @@ class RandomEMA:
                     current_ub = self.observed_data['assessment_begin'][i]
 
                     if np.isnan(curr_true_time):
-                        self.observed_data['prob_bk'][i] = 1
-                        self.observed_data['log_prob_bk'][i] = 0
+                        self.observed_data['prob_bk'][i] = 1 - prob_when_no
+                        self.observed_data['log_prob_bk'][i] = np.log(1 - prob_when_no)
                     elif ~np.isnan(curr_true_time) and (curr_true_time < current_lb):  
-                        # artifact of the matching algorithm which matches the most proximal smoking time prior to the current EMA
-                        # if this smoking time occurred prior to current_lb, then we simply discard the match time
-                        # and view this as a case when there were no smoking times within the time period current_lb and current_ub
-                        self.observed_data['prob_bk'][i] = 1
-                        self.observed_data['log_prob_bk'][i] = 0
+                        # this means that there are no smoking times that occur before assessment_begin but after assessment begin_shifted
+                        self.observed_data['prob_bk'][i] = 1 - prob_when_no
+                        self.observed_data['log_prob_bk'][i] = np.log(1 - prob_when_no)
                     else:
                         # this is the case when ~np.isnan(curr_true_time) and (curr_true_time >= current_lb)
-                        self.observed_data['prob_bk'][i] = 0
-                        self.observed_data['log_prob_bk'][i] = -np.inf
+                        self.observed_data['prob_bk'][i] = prob_when_no
+                        self.observed_data['log_prob_bk'][i] = np.log(prob_when_no)
 
                     # Exit if-else statements
                     total_loglik += self.observed_data['log_prob_bk'][i]
@@ -590,18 +589,82 @@ class RandomEMA:
 
         elif tot_latent_events == 0 and tot_random_ema > 0:
             # This case may happen when a deletion occurs  
-            tot_ema = len(self.observed_data['assessment_type'])
             total_loglik = 0
+            prob_when_no = self.params['prob_when_no']
+
             for i in range(0, tot_ema):
-                if (self.observed_data['assessment_type'][i]=='random_ema') and (self.observed_data['smoke'][i]=='Yes'):  
-                    total_loglik = -np.inf
-                    break
+                if (self.observed_data['assessment_type'][i]=='random_ema') and (self.observed_data['smoke'][i]=='Yes'):
+                    self.observed_data['prob_bk'][i] = 0
+                    self.observed_data['log_prob_bk'][i] = -np.inf
+                    total_loglik += self.observed_data['log_prob_bk'][i]
+                elif (self.observed_data['assessment_type'][i]=='random_ema') and (self.observed_data['smoke'][i]=='No'):
+                    self.observed_data['prob_bk'][i] = 1 - prob_when_no
+                    self.observed_data['log_prob_bk'][i] = np.log(1 - prob_when_no)
+                    total_loglik += self.observed_data['log_prob_bk'][i]
+                else:
+                    # this is a case when we have a self-report EMA; do not adjust total_loglik
+                    pass 
 
         else:
             # Random EMA will not make a contribution to the overall loglikelihood
             total_loglik = 0
 
         return total_loglik
+
+
+# %%
+def get_for_all_current_state_lik(all_participant_ids, 
+                                  all_days, 
+                                  curr_dict_latent_data,
+                                  curr_dict_observed_ema,
+                                  curr_dict_observed_eod_survey,
+                                  curr_latent_params,
+                                  curr_selfreport_params,
+                                  curr_randomema_params,
+                                  curr_eodsurvey_params):
+
+    # Calculate likelihood for current configuration of points (prior to any proposal)
+    dict_current_state = {}
+    for this_participant in all_participant_ids: 
+        current_dict = {}
+        for this_day in all_days: 
+            # Initialize Latent object
+            latent_obj = Latent(participant = this_participant,
+                                day = this_day,
+                                latent_data = curr_dict_latent_data[this_participant][this_day],
+                                params = copy.deepcopy(curr_latent_params))
+
+            # Initialize EODSurvey object
+            eodsurvey_obj = EODSurvey(participant = this_participant, 
+                                      day = this_day, 
+                                      latent_data = curr_dict_latent_data[this_participant][this_day],
+                                      observed_data = curr_dict_observed_eod_survey[this_participant][this_day],
+                                      params = copy.deepcopy(curr_eodsurvey_params))
+
+            # Initialize SelfReport object
+            selfreport_obj = SelfReport(participant = this_participant, 
+                                        day = this_day, 
+                                        latent_data = curr_dict_latent_data[this_participant][this_day],
+                                        observed_data = curr_dict_observed_ema[this_participant][this_day],
+                                        params = copy.deepcopy(curr_selfreport_params))
+
+            # Initialize RandomEMA object
+            randomema_obj = RandomEMA(participant = this_participant, 
+                                      day = this_day, 
+                                      latent_data = curr_dict_latent_data[this_participant][this_day],
+                                      observed_data = curr_dict_observed_ema[this_participant][this_day],
+                                      params = copy.deepcopy(curr_randomema_params))
+
+            # Calculate likelihood
+            selfreport_obj.match()
+            randomema_obj.match()
+            total_loglik = latent_obj.calc_loglik() + eodsurvey_obj.calc_loglik() + selfreport_obj.calc_loglik() + randomema_obj.calc_loglik()
+            total_lik = np.exp(total_loglik)
+            current_dict.update({this_day:{'x':curr_dict_latent_data[this_participant][this_day]['hours_since_start_day'],
+                                           'pi_x':total_lik}})
+        dict_current_state.update({this_participant:current_dict})
+    
+    return dict_current_state
 
 
 # %%
@@ -621,7 +684,6 @@ def construct_grid(increment, day_length):
     if day_length <= increment:
         init_grid = np.array([0, day_length])
     else:
-        day_length = day_length + 5/60
         init_grid = np.arange(0, day_length, increment)
 
     return init_grid
@@ -729,7 +791,7 @@ def grid_likelihood_eodsurvey_birth(current_participant, current_day, latent_par
                                             index = idx_set))
     
     # No need to parallelize calculations when current number of latent smoking times is less than 6
-    if len(candidate_latent_data['hours_since_start_day']) < 6:
+    if len(init_eodsurvey_obj.latent_data['hours_since_start_day']) < 6:
         eodsurvey_grid_loglik = []
         for idx_set in range(0, eodsurvey_total_grid_sets):
             res = eodsurvey_my_list[idx_set].calc_loglik()
@@ -839,6 +901,167 @@ def grid_likelihood_randomema_birth(current_participant, current_day, latent_par
     return f 
 
 
+
+
+# %%
+def get_for_all_smart_birth_lik(use_increment,
+                                all_participant_ids, 
+                                all_days, 
+                                curr_dict_latent_data,
+                                curr_dict_observed_ema,
+                                curr_dict_observed_eod_survey,
+                                curr_latent_params,
+                                curr_selfreport_params,
+                                curr_randomema_params,
+                                curr_eodsurvey_params):
+
+    # Latent model: Likelihood corresponding to each point on the grid
+    dict_latent_likelihood = {}
+    for this_participant in all_participant_ids: 
+        current_dict = {}
+        for this_day in all_days: 
+            interp_func = grid_likelihood_latent_birth(current_participant = this_participant, 
+                                                       current_day = this_day, 
+                                                       latent_params = curr_latent_params, 
+                                                       dict_latent_data = curr_dict_latent_data)
+            use_this_grid = construct_grid(increment = use_increment, day_length = curr_dict_latent_data[this_participant][this_day]['day_length'])
+            smoothed_lik = interp_func(use_this_grid)
+            # Note: if coarse grid ends at t* and the likelihood at t* is very close to zero, 
+            # e.g., 1e-13, then a point on a fine grid, say at t* + 10 minutes
+            # might have a negative interpolated value, say -1e-10
+            # when this happens, we set the interpolated value to zero
+            smoothed_lik[(smoothed_lik < 0)] = 0
+            current_dict.update({this_day:smoothed_lik})
+        dict_latent_likelihood.update({this_participant:current_dict})
+
+
+    # MEM -- end of day survey subcomponent: Likelihood corresponding to each point on the grid
+    dict_mem_eodsurvey_likelihood = {}
+    for this_participant in all_participant_ids:
+        current_dict = {}
+        for this_day in all_days:  
+            interp_func = grid_likelihood_eodsurvey_birth(current_participant = this_participant, 
+                                                          current_day = this_day, 
+                                                          latent_params = curr_latent_params, 
+                                                          eodsurvey_params = curr_eodsurvey_params, 
+                                                          dict_latent_data = curr_dict_latent_data, 
+                                                          dict_observed_eod_survey = curr_dict_observed_eod_survey)
+            
+            use_this_grid = construct_grid(increment = use_increment, day_length = curr_dict_latent_data[this_participant][this_day]['day_length'])
+            smoothed_lik = interp_func(use_this_grid)
+            # Note: if coarse grid ends at t* and the likelihood at t* is very close to zero, 
+            # e.g., 1e-13, then a point on a fine grid, say at t* + 10 minutes
+            # might have a negative interpolated value, say -1e-10
+            # when this happens, we set the interpolated value to zero
+            smoothed_lik[(smoothed_lik < 0)] = 0
+            current_dict.update({this_day:smoothed_lik})
+        dict_mem_eodsurvey_likelihood.update({this_participant:current_dict})
+
+
+    # MEM -- selfreport subcomponent: Likelihood corresponding to each point on the grid
+    dict_mem_selfreport_likelihood = {}
+    for this_participant in all_participant_ids:
+        current_dict = {}
+        for this_day in all_days: 
+            interp_func = grid_likelihood_selfreport_birth(current_participant = this_participant, 
+                                                           current_day = this_day, 
+                                                           latent_params = curr_latent_params, 
+                                                           selfreport_params = curr_selfreport_params, 
+                                                           dict_latent_data = curr_dict_latent_data, 
+                                                           dict_observed_ema = curr_dict_observed_ema)
+            
+            use_this_grid = construct_grid(increment = use_increment, day_length = curr_dict_latent_data[this_participant][this_day]['day_length'])
+            smoothed_lik = interp_func(use_this_grid)
+             # Note: if coarse grid ends at t* and the likelihood at t* is very close to zero, 
+            # e.g., 1e-13, then a point on a fine grid, say at t* + 10 minutes
+            # might have a negative interpolated value, say -1e-10
+            # when this happens, we set the interpolated value to zero
+            smoothed_lik[(smoothed_lik < 0)] = 0
+            current_dict.update({this_day:smoothed_lik})
+        dict_mem_selfreport_likelihood.update({this_participant:current_dict})
+
+
+    # MEM -- Random EMA subcomponent: Likelihood corresponding to each point on the grid
+    dict_mem_randomema_likelihood = {}
+    for this_participant in all_participant_ids:
+        current_dict = {}
+        for this_day in all_days:  # all_days here
+            interp_func = grid_likelihood_randomema_birth(current_participant = this_participant, 
+                                                          current_day = this_day, 
+                                                          latent_params = curr_latent_params, 
+                                                          randomema_params = curr_randomema_params, 
+                                                          dict_latent_data = curr_dict_latent_data, 
+                                                          dict_observed_ema = curr_dict_observed_ema)
+            
+            use_this_grid = construct_grid(increment = use_increment, day_length = curr_dict_latent_data[this_participant][this_day]['day_length'])
+            smoothed_lik = interp_func(use_this_grid)
+            # Note: if coarse grid ends at t* and the likelihood at t* is very close to zero, 
+            # e.g., 1e-13, then a point on a fine grid, say at t* + 10 minutes
+            # might have a negative interpolated value, say -1e-10
+            # when this happens, we set the interpolated value to zero
+            smoothed_lik[(smoothed_lik < 0)] = 0
+            current_dict.update({this_day:smoothed_lik})
+        dict_mem_randomema_likelihood.update({this_participant:current_dict})
+    
+    dict_all = {'latent':dict_latent_likelihood, 
+                'eodsurvey':dict_mem_eodsurvey_likelihood, 
+                'selfreport':dict_mem_selfreport_likelihood, 
+                'randomema':dict_mem_randomema_likelihood,
+                'all_participant_ids':all_participant_ids,
+                'all_days':all_days,
+                'curr_dict_latent_data':curr_dict_latent_data,
+                'use_increment':use_increment}
+
+    return dict_all
+
+
+# %%
+
+def get_for_all_smart_birth_pdf(dict_smart_birth_lik, dict_current_state):
+    
+    dict_latent_likelihood = copy.deepcopy(dict_smart_birth_lik['latent'])
+    dict_mem_eodsurvey_likelihood = copy.deepcopy(dict_smart_birth_lik['eodsurvey'])
+    dict_mem_selfreport_likelihood = copy.deepcopy(dict_smart_birth_lik['selfreport'])
+    dict_mem_randomema_likelihood = copy.deepcopy(dict_smart_birth_lik['randomema'])
+
+    all_participant_ids = dict_smart_birth_lik['all_participant_ids']
+    all_days = dict_smart_birth_lik['all_days']
+    curr_dict_latent_data = dict_smart_birth_lik['curr_dict_latent_data']
+    use_increment = dict_smart_birth_lik['use_increment']
+
+    dict_smart_birth_pdf = {}
+
+    for current_participant in all_participant_ids: 
+        current_dict_smart_birth_pdf = {}
+        for current_day in all_days:  
+            # Calculate smart birth pdf
+            lik_latent = dict_latent_likelihood[current_participant][current_day]
+            lik_eodsurvey = dict_mem_eodsurvey_likelihood[current_participant][current_day]
+            lik_selfreport = dict_mem_selfreport_likelihood[current_participant][current_day]
+            lik_randomema = dict_mem_randomema_likelihood[current_participant][current_day]
+
+            current_element_wise_lik = lik_latent * lik_eodsurvey * lik_selfreport * lik_randomema
+            current_denominator_pdf_smart_birth = np.sum(current_element_wise_lik)
+            current_pdf_smart_birth = current_element_wise_lik/current_denominator_pdf_smart_birth
+
+            # Update dictionary for this day
+            use_this_grid = construct_grid(increment = use_increment, day_length = curr_dict_latent_data[current_participant][current_day]['day_length'])
+            current_grid, sets_along_current_grid = get_sets_along_grid_birth(use_this_grid, dict_current_state[current_participant][current_day]['x'])
+
+            current_dict_smart_birth_pdf.update({current_day:{'grid':current_grid, 
+                                                              'proposed_latent_smoking_times':sets_along_current_grid, 
+                                                              'pdf_smart_birth':current_pdf_smart_birth,
+                                                              'lik_smart_birth':current_element_wise_lik}})
+        # Update dictionary for this person
+        dict_smart_birth_pdf.update({current_participant:current_dict_smart_birth_pdf})
+
+    dict_all = {'dict_smart_birth_pdf':dict_smart_birth_pdf,
+                'all_participant_ids':all_participant_ids,
+                'all_days':all_days}
+
+    return dict_all
+
+
 # %%
 # Helper functions for death proposal
 
@@ -846,15 +1069,353 @@ def get_sets_along_grid_death(current_latent_data):
 
     # What are the various configurations of points to consider in a smart/dumb death proposal?
     M = len(current_latent_data)
-    current_latent_data = np.sort(current_latent_data)
 
-    sets_along_grid = {}
-    for idx_grid in range(0,M):
-        new_latent_data = np.delete(current_latent_data, idx_grid)
-        new_latent_data = np.sort(new_latent_data)
-        sets_along_grid.update({idx_grid:new_latent_data})
+    if M == 0:
+        sets_along_grid = np.array([])
+        grid = np.array([])
+    else:
+        current_latent_data = np.sort(current_latent_data)
+        grid = current_latent_data
+        sets_along_grid = {}
+        for idx_grid in range(0,M):
+            new_latent_data = np.delete(current_latent_data, idx_grid)
+            new_latent_data = np.sort(new_latent_data)
+            sets_along_grid.update({idx_grid:new_latent_data})
 
-    return current_latent_data, sets_along_grid
+    return grid, sets_along_grid
+
+
+# %%
+def grid_likelihood_latent_death(current_participant, current_day, latent_params, dict_latent_data):
+
+    '''
+    Calculate the likelihood at each point of a grid
+    Note that smart birth and smart death differ in the grids they consider
+    '''
+
+
+    # Initialize Latent object
+    init_latent_obj = Latent(participant = current_participant,
+                            day = current_day,
+                            latent_data = dict_latent_data[current_participant][current_day],
+                            params = copy.deepcopy(latent_params))
+
+    # Construct grid for smart death
+    current_grid, latent_grid_sets = get_sets_along_grid_death(current_latent_data = init_latent_obj.latent_data['hours_since_start_day'])
+
+    # Work with Latent class objects
+    latent_total_grid_sets = len(latent_grid_sets)
+
+    # Each element of the list is an instance of the Latent class
+    latent_my_list = []
+    for idx_set in range(0, latent_total_grid_sets):
+        candidate_latent_data = copy.deepcopy(init_latent_obj.latent_data)
+        candidate_latent_data['hours_since_start_day'] = latent_grid_sets[idx_set]
+        latent_my_list.append(Latent(participant = current_participant,
+                                    day = current_day,
+                                    latent_data = candidate_latent_data,
+                                    params = copy.deepcopy(latent_params),
+                                    index = idx_set))
+
+    element_wise_loglik = []
+    for idx_set in range(0, latent_total_grid_sets):
+        res = latent_my_list[idx_set].calc_loglik()
+        element_wise_loglik.append(res)
+
+    element_wise_lik = np.exp(element_wise_loglik)
+
+    return element_wise_lik
+
+
+# %%
+def grid_likelihood_eodsurvey_death(current_participant, current_day, latent_params, eodsurvey_params, dict_latent_data, dict_observed_eod_survey):
+
+    '''
+    Calculate the likelihood at each point of a grid
+    '''
+
+    # Initialize EODSurvey object
+    init_eodsurvey_obj = EODSurvey(participant = current_participant, 
+                                    day = current_day, 
+                                    latent_data = dict_latent_data[current_participant][current_day],
+                                    observed_data = dict_observed_eod_survey[current_participant][current_day],
+                                    params = copy.deepcopy(eodsurvey_params))
+
+
+    # Construct grid for smart death
+    current_grid, eodsurvey_grid_sets = get_sets_along_grid_death(current_latent_data = init_eodsurvey_obj.latent_data['hours_since_start_day'])
+
+    # Work with EODSurvey class objects
+    eodsurvey_total_grid_sets = len(eodsurvey_grid_sets)
+
+    # Each element of the list is an instance of the EODSurvey class
+    eodsurvey_my_list = []
+    for idx_set in range(0, eodsurvey_total_grid_sets):
+        candidate_latent_data = copy.deepcopy(init_eodsurvey_obj.latent_data)
+        candidate_latent_data['hours_since_start_day'] = eodsurvey_grid_sets[idx_set]
+        eodsurvey_my_list.append(EODSurvey(participant = current_participant, 
+                                            day = current_day, 
+                                            latent_data = candidate_latent_data,
+                                            observed_data = dict_observed_eod_survey[current_participant][current_day],
+                                            params = copy.deepcopy(eodsurvey_params),
+                                            index = idx_set))
+    
+    # No need to parallelize calculations when current number of latent smoking times is less than 6
+    if len(init_eodsurvey_obj.latent_data['hours_since_start_day']) < 6:
+        eodsurvey_grid_loglik = []
+        for idx_set in range(0, eodsurvey_total_grid_sets):
+            res = eodsurvey_my_list[idx_set].calc_loglik()
+            eodsurvey_grid_loglik.append(res)
+
+    else:
+        eodsurvey_my_output = parallelize_class_method(list_objects = eodsurvey_my_list)
+        eodsurvey_my_output = sorted(eodsurvey_my_output, key=lambda tup: tup[0], reverse=False)
+        # Get calculated loglik
+        eodsurvey_grid_loglik = []
+        for a_tuple in eodsurvey_my_output:
+            eodsurvey_grid_loglik.append(a_tuple[1])
+    
+    eodsurvey_grid_lik = np.exp(eodsurvey_grid_loglik)
+        
+    return eodsurvey_grid_lik 
+
+
+def grid_likelihood_selfreport_death(current_participant, current_day, latent_params, selfreport_params, dict_latent_data, dict_observed_ema):
+
+    '''
+    Calculate the likelihood at each point of a grid
+    '''
+
+
+    # Initialize SelfReport object
+    init_selfreport_obj = SelfReport(participant = current_participant, 
+                                    day = current_day, 
+                                    latent_data = dict_latent_data[current_participant][current_day],
+                                    observed_data = dict_observed_ema[current_participant][current_day],
+                                    params = copy.deepcopy(selfreport_params))
+
+    # Construct grid for smart death
+    current_grid, selfreport_grid_sets = get_sets_along_grid_death(current_latent_data = init_selfreport_obj.latent_data['hours_since_start_day'])
+
+    # Work with selfreport class objects
+    selfreport_total_grid_sets = len(selfreport_grid_sets)
+
+    # Each element of the list is an instance of the selfreport class
+    selfreport_my_list = []
+    for idx_set in range(0, selfreport_total_grid_sets):
+        candidate_latent_data = copy.deepcopy(init_selfreport_obj.latent_data)
+        candidate_latent_data['hours_since_start_day'] = selfreport_grid_sets[idx_set]
+        selfreport_my_list.append(SelfReport(participant = current_participant, 
+                                            day = current_day, 
+                                            latent_data = candidate_latent_data,
+                                            observed_data = dict_observed_ema[current_participant][current_day],
+                                            params = copy.deepcopy(selfreport_params),
+                                            index = idx_set))
+    
+    element_wise_loglik = []
+    for idx_set in range(0, selfreport_total_grid_sets):
+        selfreport_my_list[idx_set].match()
+        res = selfreport_my_list[idx_set].calc_loglik()
+        element_wise_loglik.append(res)
+
+    element_wise_lik = np.exp(element_wise_loglik)
+
+    return element_wise_lik
+
+
+def grid_likelihood_randomema_death(current_participant, current_day, latent_params, randomema_params, dict_latent_data, dict_observed_ema):
+
+    '''
+    Calculate the likelihood at each point of a grid
+    '''
+
+
+    # Initialize RandomEMA object
+    init_randomema_obj = RandomEMA(participant = current_participant, 
+                                day = current_day, 
+                                latent_data = dict_latent_data[current_participant][current_day],
+                                observed_data = dict_observed_ema[current_participant][current_day],
+                                params = copy.deepcopy(randomema_params))
+
+    # Construct grid for smart death
+    current_grid, randomema_grid_sets = get_sets_along_grid_death(current_latent_data = init_randomema_obj.latent_data['hours_since_start_day'])
+
+    # Work with randomema class objects
+    randomema_total_grid_sets = len(randomema_grid_sets)
+
+    # Each element of the list is an instance of the randomema class
+    randomema_my_list = []
+    for idx_set in range(0, randomema_total_grid_sets):
+        candidate_latent_data = copy.deepcopy(init_randomema_obj.latent_data)
+        candidate_latent_data['hours_since_start_day'] = randomema_grid_sets[idx_set]
+        randomema_my_list.append(RandomEMA(participant = current_participant, 
+                                        day = current_day, 
+                                        latent_data = candidate_latent_data,
+                                        observed_data = dict_observed_ema[current_participant][current_day],
+                                        params = copy.deepcopy(randomema_params),
+                                        index = idx_set))
+    
+    element_wise_loglik = []
+    for idx_set in range(0, randomema_total_grid_sets):
+        randomema_my_list[idx_set].match()
+        res = randomema_my_list[idx_set].calc_loglik()
+        element_wise_loglik.append(res)
+
+    element_wise_lik = np.exp(element_wise_loglik)
+
+    return element_wise_lik
+
+
+
+# %%
+def get_for_all_smart_death_lik(all_participant_ids, 
+                                all_days, 
+                                curr_dict_latent_data,
+                                curr_dict_observed_ema,
+                                curr_dict_observed_eod_survey,
+                                curr_latent_params,
+                                curr_selfreport_params,
+                                curr_randomema_params,
+                                curr_eodsurvey_params):
+
+    # Latent model: Likelihood corresponding to each point on the grid
+    dict_latent_likelihood = {}
+    for this_participant in all_participant_ids: 
+        current_dict = {}
+        for this_day in all_days: 
+            lik = grid_likelihood_latent_death(current_participant = this_participant, 
+                                               current_day = this_day, 
+                                               latent_params = curr_latent_params, 
+                                               dict_latent_data = curr_dict_latent_data)
+            current_dict.update({this_day:lik})
+        dict_latent_likelihood.update({this_participant:current_dict})
+
+
+    # MEM -- end of day survey subcomponent: Likelihood corresponding to each point on the grid
+    dict_mem_eodsurvey_likelihood = {}
+    for this_participant in all_participant_ids:
+        current_dict = {}
+        for this_day in all_days:  
+            lik = grid_likelihood_eodsurvey_death(current_participant = this_participant, 
+                                                  current_day = this_day, 
+                                                  latent_params = curr_latent_params, 
+                                                  eodsurvey_params = curr_eodsurvey_params, 
+                                                  dict_latent_data = curr_dict_latent_data, 
+                                                  dict_observed_eod_survey = curr_dict_observed_eod_survey)
+            
+            current_dict.update({this_day:lik})
+        dict_mem_eodsurvey_likelihood.update({this_participant:current_dict})
+
+
+    # MEM -- selfreport subcomponent: Likelihood corresponding to each point on the grid
+    dict_mem_selfreport_likelihood = {}
+    for this_participant in all_participant_ids:
+        current_dict = {}
+        for this_day in all_days: 
+            lik = grid_likelihood_selfreport_death(current_participant = this_participant, 
+                                                   current_day = this_day, 
+                                                   latent_params = curr_latent_params, 
+                                                   selfreport_params = curr_selfreport_params, 
+                                                   dict_latent_data = curr_dict_latent_data, 
+                                                   dict_observed_ema = curr_dict_observed_ema)
+            
+            current_dict.update({this_day:lik})
+        dict_mem_selfreport_likelihood.update({this_participant:current_dict})
+
+
+    # MEM -- Random EMA subcomponent: Likelihood corresponding to each point on the grid
+    dict_mem_randomema_likelihood = {}
+    for this_participant in all_participant_ids:
+        current_dict = {}
+        for this_day in all_days:  # all_days here
+            lik = grid_likelihood_randomema_death(current_participant = this_participant, 
+                                                  current_day = this_day, 
+                                                  latent_params = curr_latent_params, 
+                                                  randomema_params = curr_randomema_params, 
+                                                  dict_latent_data = curr_dict_latent_data, 
+                                                  dict_observed_ema = curr_dict_observed_ema)
+            
+            current_dict.update({this_day:lik})
+        dict_mem_randomema_likelihood.update({this_participant:current_dict})
+    
+    dict_all = {'latent':dict_latent_likelihood, 
+                'eodsurvey':dict_mem_eodsurvey_likelihood, 
+                'selfreport':dict_mem_selfreport_likelihood, 
+                'randomema':dict_mem_randomema_likelihood,
+                'all_participant_ids':all_participant_ids,
+                'all_days':all_days,
+                'curr_dict_latent_data':curr_dict_latent_data}
+
+    return dict_all
+
+# %%
+
+def get_for_all_smart_death_pdf(dict_smart_death_lik, dict_current_state):
+    
+    dict_latent_likelihood = copy.deepcopy(dict_smart_death_lik['latent'])
+    dict_mem_eodsurvey_likelihood = copy.deepcopy(dict_smart_death_lik['eodsurvey'])
+    dict_mem_selfreport_likelihood = copy.deepcopy(dict_smart_death_lik['selfreport'])
+    dict_mem_randomema_likelihood = copy.deepcopy(dict_smart_death_lik['randomema'])
+
+    all_participant_ids = dict_smart_death_lik['all_participant_ids']
+    all_days = dict_smart_death_lik['all_days']
+    curr_dict_latent_data = dict_smart_death_lik['curr_dict_latent_data']
+
+    dict_smart_death_pdf = {}
+
+    for current_participant in all_participant_ids: 
+        current_dict_smart_death_pdf = {}
+        for current_day in all_days:  
+            if len(dict_current_state[current_participant][current_day]['x'])==0:
+                current_element_wise_lik = np.array([])
+                current_pdf_smart_death = np.array([])
+                # Update dictionary for this day
+                current_grid, sets_along_current_grid = get_sets_along_grid_death(current_latent_data = dict_current_state[current_participant][current_day]['x'])
+
+            elif len(dict_current_state[current_participant][current_day]['x'])==1:
+                # Calculate likelihood of moving to new state (deleting the one existing point)
+                lik_latent = dict_latent_likelihood[current_participant][current_day]
+                lik_eodsurvey = dict_mem_eodsurvey_likelihood[current_participant][current_day]
+                lik_selfreport = dict_mem_selfreport_likelihood[current_participant][current_day]
+                lik_randomema = dict_mem_randomema_likelihood[current_participant][current_day]
+                new_state_lik = lik_latent * lik_eodsurvey * lik_selfreport * lik_randomema
+                # Calculate likelihood of remaining in current state
+                current_state_lik = dict_current_state[current_participant][current_day]['x']
+                # Calculate smart death pdf
+                tot = new_state_lik + current_state_lik
+                tot = tot[0] # convery 1-d array to scalar
+                current_element_wise_lik = np.append(new_state_lik, current_state_lik)
+                current_pdf_smart_death = np.append(new_state_lik/tot, current_state_lik/tot)
+                # Update dictionary for this day
+                current_grid, sets_along_current_grid = get_sets_along_grid_death(current_latent_data = dict_current_state[current_participant][current_day]['x'])
+                # Add another entry to the dictionary: old state
+                existing_point = dict_current_state[current_participant][current_day]['x'][0]
+                sets_along_current_grid[1] = np.array([existing_point])
+            else:
+                # Calculate smart death pdf
+                lik_latent = dict_latent_likelihood[current_participant][current_day]
+                lik_eodsurvey = dict_mem_eodsurvey_likelihood[current_participant][current_day]
+                lik_selfreport = dict_mem_selfreport_likelihood[current_participant][current_day]
+                lik_randomema = dict_mem_randomema_likelihood[current_participant][current_day]
+                current_element_wise_lik = lik_latent * lik_eodsurvey * lik_selfreport * lik_randomema
+                current_denominator_pdf_smart_death = np.sum(current_element_wise_lik)
+                current_pdf_smart_death = current_element_wise_lik/current_denominator_pdf_smart_death
+                # Update dictionary for this day
+                current_grid, sets_along_current_grid = get_sets_along_grid_death(current_latent_data = dict_current_state[current_participant][current_day]['x'])
+
+            current_dict_smart_death_pdf.update({current_day:{'grid':current_grid, 
+                                                              'proposed_latent_smoking_times':sets_along_current_grid, 
+                                                              'pdf_smart_death':current_pdf_smart_death,
+                                                              'lik_smart_death':current_element_wise_lik}})
+        # Update dictionary for this person
+        dict_smart_death_pdf.update({current_participant:current_dict_smart_death_pdf})
+
+    dict_all = {'dict_smart_death_pdf':dict_smart_death_pdf,
+                'all_participant_ids':all_participant_ids,
+                'all_days':all_days}
+
+    return dict_all
+
 
 
 # %%
@@ -870,219 +1431,63 @@ if __name__ == '__main__':
 
     filename = os.path.join(os.path.realpath(dir_picklejar), 'init_latent_data_small')
     infile = open(filename,'rb')
-    init_latent_data = pickle.load(infile)
+    init_dict_latent_data = pickle.load(infile)
     infile.close()
 
     filename = os.path.join(os.path.realpath(dir_picklejar), 'observed_dict_eod_survey')
     infile = open(filename,'rb')
-    dict_observed_eod_survey = pickle.load(infile)
+    init_dict_observed_eod_survey = pickle.load(infile)
     infile.close()
 
     filename = os.path.join(os.path.realpath(dir_picklejar), 'observed_dict_all_ema')
     infile = open(filename,'rb')
-    dict_observed_ema = pickle.load(infile)
+    init_dict_observed_ema = pickle.load(infile)
     infile.close()
 
+# %%
     # Enumerate all unique participant ID's and study days
     all_participant_ids = data_day_limits['participant_id'].unique()
     all_days = data_day_limits['study_day'].unique()
-    # Our inputs
-    latent_params = {'lambda_prequit':1, 'lambda_postquit':1}
-    eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10}
-    selfreport_params = {'prob_reporting': 0.9, 'lambda_delay': 0.5, 'sd': 30/60}
-    randomema_params = {'sd': 30/60}
-    dict_latent_data = copy.deepcopy(init_latent_data)
 
 # %%
-    # Calculate likelihood for current configuration of points (prior to any proposal)
-    dict_current_state = {}
-    for current_participant in all_participant_ids: 
-        current_dict = {}
-        for current_day in all_days: 
-            # Initialize Latent object
-            latent_obj = Latent(participant = current_participant,
-                                day = current_day,
-                                latent_data = dict_latent_data[current_participant][current_day],
-                                params = copy.deepcopy(latent_params))
 
-            # Initialize EODSurvey object
-            eodsurvey_obj = EODSurvey(participant = current_participant, 
-                                      day = current_day, 
-                                      latent_data = dict_latent_data[current_participant][current_day],
-                                      observed_data = dict_observed_eod_survey[current_participant][current_day],
-                                      params = copy.deepcopy(eodsurvey_params))
-
-            # Initialize SelfReport object
-            selfreport_obj = SelfReport(participant = current_participant, 
-                                        day = current_day, 
-                                        latent_data = dict_latent_data[current_participant][current_day],
-                                        observed_data = dict_observed_ema[current_participant][current_day],
-                                        params = copy.deepcopy(selfreport_params))
-
-            # Initialize RandomEMA object
-            randomema_obj = RandomEMA(participant = current_participant, 
-                                      day = current_day, 
-                                      latent_data = dict_latent_data[current_participant][current_day],
-                                      observed_data = dict_observed_ema[current_participant][current_day],
-                                      params = copy.deepcopy(randomema_params))
-
-            # Calculate likelihood
-            selfreport_obj.match()
-            randomema_obj.match()
-            total_loglik = latent_obj.calc_loglik() + eodsurvey_obj.calc_loglik() + selfreport_obj.calc_loglik() + randomema_obj.calc_loglik()
-            total_lik = np.exp(total_loglik)
-            current_dict.update({current_day:{'x':dict_latent_data[current_participant][current_day]['hours_since_start_day'],
-                                              'pi_x':total_lik}})
-        dict_current_state.update({current_participant:current_dict})
-    
-    # Clear up memory before moving on
-    del(latent_obj, eodsurvey_obj, selfreport_obj, randomema_obj)
-
-
-# %%
-    # Latent model: Likelihood corresponding to each point on the grid
-    dict_latent_likelihood = {}
-    for current_participant in all_participant_ids: 
-        current_dict = {}
-        for current_day in all_days: 
-            interp_func = grid_likelihood_latent_birth(current_participant = current_participant, 
-                                                       current_day = current_day, 
-                                                       latent_params = latent_params, 
-                                                       dict_latent_data = dict_latent_data)
-            use_this_grid = construct_grid(increment = 1/60, day_length = dict_latent_data[current_participant][current_day]['day_length'])
-            smoothed_lik = interp_func(use_this_grid)
-            # Note: if coarse grid ends at t* and the likelihood at t* is very close to zero, 
-            # e.g., 1e-13, then a point on a fine grid, say at t* + 10 minutes
-            # might have a negative interpolated value, say -1e-10
-            # when this happens, we set the interpolated value to zero
-            smoothed_lik[(smoothed_lik < 0)] = 0
-            current_dict.update({current_day:smoothed_lik})
-        dict_latent_likelihood.update({current_participant:current_dict})
-
-
-# %%
-    # MEM -- end of day survey subcomponent: Likelihood corresponding to each point on the grid
-    dict_mem_eodsurvey_likelihood = {}
-    for current_participant in all_participant_ids:
-        current_dict = {}
-        for current_day in all_days:  
-            interp_func = grid_likelihood_eodsurvey_birth(current_participant = current_participant, 
-                                                          current_day = current_day, 
-                                                          latent_params = latent_params, 
-                                                          eodsurvey_params = eodsurvey_params, 
-                                                          dict_latent_data = dict_latent_data, 
-                                                          dict_observed_eod_survey = dict_observed_eod_survey)
-            
-            use_this_grid = construct_grid(increment = 1/60, day_length = dict_latent_data[current_participant][current_day]['day_length'])
-            smoothed_lik = interp_func(use_this_grid)
-            # Note: if coarse grid ends at t* and the likelihood at t* is very close to zero, 
-            # e.g., 1e-13, then a point on a fine grid, say at t* + 10 minutes
-            # might have a negative interpolated value, say -1e-10
-            # when this happens, we set the interpolated value to zero
-            smoothed_lik[(smoothed_lik < 0)] = 0
-            current_dict.update({current_day:smoothed_lik})
-        dict_mem_eodsurvey_likelihood.update({current_participant:current_dict})
-
-
-# %%
-    # MEM -- selfreport subcomponent: Likelihood corresponding to each point on the grid
-    dict_mem_selfreport_likelihood = {}
-    for current_participant in all_participant_ids:
-        current_dict = {}
-        for current_day in all_days: 
-            interp_func = grid_likelihood_selfreport_birth(current_participant = current_participant, 
-                                                           current_day = current_day, 
-                                                           latent_params = latent_params, 
-                                                           selfreport_params = selfreport_params, 
-                                                           dict_latent_data = dict_latent_data, 
-                                                           dict_observed_ema = dict_observed_ema)
-            
-            use_this_grid = construct_grid(increment = 1/60, day_length = dict_latent_data[current_participant][current_day]['day_length'])
-            smoothed_lik = interp_func(use_this_grid)
-             # Note: if coarse grid ends at t* and the likelihood at t* is very close to zero, 
-            # e.g., 1e-13, then a point on a fine grid, say at t* + 10 minutes
-            # might have a negative interpolated value, say -1e-10
-            # when this happens, we set the interpolated value to zero
-            smoothed_lik[(smoothed_lik < 0)] = 0
-            current_dict.update({current_day:smoothed_lik})
-        dict_mem_selfreport_likelihood.update({current_participant:current_dict})
-
-
-# %%
-    # MEM -- Random EMA subcomponent: Likelihood corresponding to each point on the grid
-    dict_mem_randomema_likelihood = {}
-    for current_participant in all_participant_ids:
-        current_dict = {}
-        for current_day in all_days:  # all_days here
-            interp_func = grid_likelihood_randomema_birth(current_participant = current_participant, 
-                                                          current_day = current_day, 
-                                                          latent_params = latent_params, 
-                                                          randomema_params = randomema_params, 
-                                                          dict_latent_data = dict_latent_data, 
-                                                          dict_observed_ema = dict_observed_ema)
-            
-            use_this_grid = construct_grid(increment = 1/60, day_length = dict_latent_data[current_participant][current_day]['day_length'])
-            smoothed_lik = interp_func(use_this_grid)
-            # Note: if coarse grid ends at t* and the likelihood at t* is very close to zero, 
-            # e.g., 1e-13, then a point on a fine grid, say at t* + 10 minutes
-            # might have a negative interpolated value, say -1e-10
-            # when this happens, we set the interpolated value to zero
-            smoothed_lik[(smoothed_lik < 0)] = 0
-            current_dict.update({current_day:smoothed_lik})
-        dict_mem_randomema_likelihood.update({current_participant:current_dict})
+    current_state = get_for_all_current_state_lik(all_participant_ids = all_participant_ids, 
+                                                  all_days = all_days, 
+                                                  curr_dict_latent_data = init_dict_latent_data,
+                                                  curr_dict_observed_ema = init_dict_observed_ema,
+                                                  curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
+                                                  curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
+                                                  curr_selfreport_params = {'prob_reporting': 0.9, 'lambda_delay': 0.5, 'sd': 30/60},
+                                                  curr_randomema_params = {'sd': 30/60, 'prob_when_no': 0.1},
+                                                  curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
 
 
 
 # %%
-    if True:
-        # Pickle here
-        filename = os.path.join(os.path.realpath(dir_picklejar), 'smart_birth_cdf_plot', 'dict_latent_likelihood')
-        outfile = open(filename, 'wb')
-        pickle.dump(dict_latent_likelihood, outfile)
-        outfile.close()
 
-        # Pickle here
-        filename = os.path.join(os.path.realpath(dir_picklejar), 'smart_birth_cdf_plot', 'dict_mem_eodsurvey_likelihood')
-        outfile = open(filename, 'wb')
-        pickle.dump(dict_mem_eodsurvey_likelihood, outfile)
-        outfile.close()
+    smart_birth_lik =  get_for_all_smart_birth_lik(use_increment = 1/60,
+                                                   all_participant_ids = all_participant_ids, 
+                                                   all_days = all_days, 
+                                                   curr_dict_latent_data = init_dict_latent_data,
+                                                   curr_dict_observed_ema = init_dict_observed_ema,
+                                                   curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
+                                                   curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
+                                                   curr_selfreport_params = {'prob_reporting': 0.9, 'lambda_delay': 0.5, 'sd': 30/60},
+                                                   curr_randomema_params = {'sd': 30/60, 'prob_when_no': 0.1},
+                                                   curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
 
-        # Pickle here
-        filename = os.path.join(os.path.realpath(dir_picklejar), 'smart_birth_cdf_plot', 'dict_mem_randomema_likelihood')
-        outfile = open(filename, 'wb')
-        pickle.dump(dict_mem_randomema_likelihood, outfile)
-        outfile.close()
+    dict_smart_birth_pdf = get_for_all_smart_birth_pdf(dict_smart_birth_lik = smart_birth_lik, dict_current_state = current_state)
 
-        # Pickle here
-        filename = os.path.join(os.path.realpath(dir_picklejar), 'smart_birth_cdf_plot', 'dict_mem_selfreport_likelihood')
-        outfile = open(filename, 'wb')
-        pickle.dump(dict_mem_selfreport_likelihood, outfile)
-        outfile.close()
-
-
-# %%
-    for current_participant in all_participant_ids:
-        for current_day in all_days:  
-            lik_latent = dict_latent_likelihood[current_participant][current_day]
-            lik_eodsurvey = dict_mem_eodsurvey_likelihood[current_participant][current_day]
-            lik_selfreport = dict_mem_selfreport_likelihood[current_participant][current_day]
-            lik_randomema = dict_mem_randomema_likelihood[current_participant][current_day]
-
-            current_element_wise_lik = lik_latent * lik_eodsurvey * lik_selfreport * lik_randomema
-            current_denominator_pdf_smart_birth = np.sum(current_element_wise_lik)
-
-            if current_denominator_pdf_smart_birth == 0:
-                print(current_participant, current_day)
 
 
 # %%
     for current_participant in all_participant_ids: 
         for current_day in all_days: 
+            lik_latent = smart_birth_lik['latent'][current_participant][current_day]
+            lik_eodsurvey = smart_birth_lik['eodsurvey'][current_participant][current_day]
+            lik_selfreport = smart_birth_lik['selfreport'][current_participant][current_day]
+            lik_randomema = smart_birth_lik['randomema'][current_participant][current_day]
 
-            lik_latent = dict_latent_likelihood[current_participant][current_day]
-            lik_eodsurvey = dict_mem_eodsurvey_likelihood[current_participant][current_day]
-            lik_selfreport = dict_mem_selfreport_likelihood[current_participant][current_day]
-            lik_randomema = dict_mem_randomema_likelihood[current_participant][current_day]
 
             current_element_wise_lik = lik_latent * lik_eodsurvey * lik_selfreport * lik_randomema
             current_denominator_pdf_smart_birth = np.sum(current_element_wise_lik)
@@ -1125,20 +1530,20 @@ if __name__ == '__main__':
             current_cdf_smart_birth_randomema = np.cumsum(current_pdf_smart_birth)
             
             # Plot grid
-            current_grid = construct_grid(increment = 1/60, day_length = dict_latent_data[current_participant][current_day]['day_length'])
+            current_grid = construct_grid(increment = 1/60, day_length = init_dict_latent_data[current_participant][current_day]['day_length'])
 
             # Preparation for plotting current set of latent smoking times
-            current_latent_smoking_times = dict_latent_data[current_participant][current_day]['hours_since_start_day']
+            current_latent_smoking_times = init_dict_latent_data[current_participant][current_day]['hours_since_start_day']
             # Preparation for plotting observed measurements -- end of day survey
-            any_eod_survey = dict_observed_eod_survey[current_participant][current_day]['assessment_begin']
-            current_checked_boxes_eod_survey = dict_observed_eod_survey[current_participant][current_day]['ticked_box_scaled']
+            any_eod_survey = init_dict_observed_eod_survey[current_participant][current_day]['assessment_begin']
+            current_checked_boxes_eod_survey = init_dict_observed_eod_survey[current_participant][current_day]['ticked_box_scaled']
             # Preparation for plotting observed measurements -- ema
-            if len(dict_observed_ema[current_participant][current_day]['assessment_type'])>0:
-                idx_selfreport = np.where(dict_observed_ema[current_participant][current_day]['assessment_type']=='selfreport')
-                idx_random_ema = np.where(dict_observed_ema[current_participant][current_day]['assessment_type']=='random_ema')
-                current_selfreport_ema = dict_observed_ema[current_participant][current_day]['assessment_begin'][idx_selfreport]        
-                current_random_ema = dict_observed_ema[current_participant][current_day]['assessment_begin'][idx_random_ema]     
-                current_random_ema_responses = dict_observed_ema[current_participant][current_day]['smoke'][idx_random_ema]   
+            if len(init_dict_observed_ema[current_participant][current_day]['assessment_type'])>0:
+                idx_selfreport = np.where(init_dict_observed_ema[current_participant][current_day]['assessment_type']=='selfreport')
+                idx_random_ema = np.where(init_dict_observed_ema[current_participant][current_day]['assessment_type']=='random_ema')
+                current_selfreport_ema = init_dict_observed_ema[current_participant][current_day]['assessment_begin'][idx_selfreport]        
+                current_random_ema = init_dict_observed_ema[current_participant][current_day]['assessment_begin'][idx_random_ema]     
+                current_random_ema_responses = init_dict_observed_ema[current_participant][current_day]['smoke'][idx_random_ema]   
             else:
                 current_selfreport_ema = np.array([])
                 current_random_ema = np.array([])
@@ -1148,7 +1553,7 @@ if __name__ == '__main__':
             current_day_length = np.max(current_grid)
             plt.xticks(np.arange(0, current_day_length+1, 1.0))
             plt.yticks(np.arange(0,1.1,0.1))
-            plt.ylim(bottom=-0.40, top=1.30)
+            plt.ylim(bottom=-0.40, top=1.50)
             plt.step(current_grid, current_cdf_smart_birth_overall, 'r-', where='post') 
 
             plt.step(current_grid, current_cdf_smart_birth_latent, 'grey', where='post', alpha = 0.20, linewidth = 10) 
@@ -1190,128 +1595,112 @@ if __name__ == '__main__':
 
             plt.xlabel('Hours Elapsed Since Start of Day')
             plt.ylabel('Cumulative Density')
-            plt.legend(loc='upper left', prop={'size': 10})
+            plt.legend(loc='upper left', prop={'size': 9})
 
             plt.savefig(os.path.join(os.path.realpath(dir_picklejar), 'smart_birth_cdf_plot', 'smart_birth_cdf_{}_{}.jpg'.format(current_participant, current_day)))
             plt.clf()
 
-
 # %%
-    dict_pdf_smart_birth = {}
 
-    for current_participant in all_participant_ids: 
-        current_dict_pdf_smart_birth = {}
-        for current_day in all_days:  
-            # Calculate smart birth pdf
-            lik_latent = dict_latent_likelihood[current_participant][current_day]
-            lik_eodsurvey = dict_mem_eodsurvey_likelihood[current_participant][current_day]
-            lik_selfreport = dict_mem_selfreport_likelihood[current_participant][current_day]
-            lik_randomema = dict_mem_randomema_likelihood[current_participant][current_day]
+    
+    smart_death_lik =  get_for_all_smart_death_lik(all_participant_ids = all_participant_ids, 
+                                                   all_days = all_days, 
+                                                   curr_dict_latent_data = init_dict_latent_data,
+                                                   curr_dict_observed_ema = init_dict_observed_ema,
+                                                   curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
+                                                   curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
+                                                   curr_selfreport_params = {'prob_reporting': 0.9, 'lambda_delay': 0.5, 'sd': 30/60},
+                                                   curr_randomema_params = {'sd': 30/60, 'prob_when_no': 0.1},
+                                                   curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
 
-            current_element_wise_lik = lik_latent * lik_eodsurvey * lik_selfreport * lik_randomema
-            current_denominator_pdf_smart_birth = np.sum(current_element_wise_lik)
-            current_pdf_smart_birth = current_element_wise_lik/current_denominator_pdf_smart_birth
-
-            # Update dictionary for this day
-            use_this_grid = construct_grid(increment = 1/60, day_length = dict_latent_data[current_participant][current_day]['day_length'])
-            current_grid, sets_along_current_grid = get_sets_along_grid_birth(use_this_grid, dict_current_state[current_participant][current_day]['x'])
-
-            current_dict_pdf_smart_birth.update({current_day:{'grid':current_grid, 
-                                                              'proposed_latent_smoking_times':sets_along_current_grid, 
-                                                              'pdf_smart_birth':current_pdf_smart_birth,
-                                                              'lik_smart_birth':current_element_wise_lik}})
-        # Update dictionary for this person
-        dict_pdf_smart_birth.update({current_participant:current_dict_pdf_smart_birth})
+    dict_smart_death_pdf = get_for_all_smart_death_pdf(dict_smart_death_lik = smart_death_lik, dict_current_state = current_state)
 
 
 # %%
-    dict_proposed_state = {}
-    dict_transition_probabilities = {}
-
     for current_participant in all_participant_ids: 
-        current_dict_proposed_state = {}
-        current_dict_transition_probabilities = {}
-        for current_day in all_days:  
-            # Sample using smart birth pdf 
-            grid_len_birth = len(dict_pdf_smart_birth[current_participant][current_day]['grid'])
-            idx_proposed_birth = np.random.choice(a = np.arange(grid_len_birth), size = 1, p = dict_pdf_smart_birth[current_participant][current_day]['pdf_smart_birth'])
-            idx_proposed_birth = idx_proposed_birth[0] # Grab the scalar within the 1-element numpy array
-            xprime = dict_pdf_smart_birth[current_participant][current_day]['proposed_latent_smoking_times'][idx_proposed_birth]
-            pi_xprime = dict_pdf_smart_birth[current_participant][current_day]['lik_smart_birth'][idx_proposed_birth]
-            # Update dictionary for this person-day
-            current_dict_proposed_state.update({current_day:{'xprime':xprime, 
-                                                             'pi_xprime':pi_xprime}})
-            # Calculate transition probabilities
-            q_xprime_given_x = dict_pdf_smart_birth[current_participant][current_day]['pdf_smart_birth'][idx_proposed_birth]
-            grid_len_death = len(xprime)
-            q_x_given_xprime = 1/grid_len_death
-            # Update dictionary for this person-day
-            current_dict_transition_probabilities.update({current_day:{'q_xprime_given_x':q_xprime_given_x, 
-                                                                       'q_x_given_xprime':q_x_given_xprime}})
-        
-        # Update dictionary for this person
-        dict_proposed_state.update({current_participant:current_dict_proposed_state})
-        dict_transition_probabilities.update({current_participant:current_dict_transition_probabilities})                                                               
-
-
-# %%
-    dict_acceptance_probs = {}
-    for current_participant in all_participant_ids: 
-        current_dict_acceptance_probs = {}
-        for current_day in all_days:  
-            pi_xprime = dict_proposed_state[current_participant][current_day]['pi_xprime']
-            pi_x = dict_current_state[current_participant][current_day]['pi_x']
-            q_xprime_given_x = dict_transition_probabilities[current_participant][current_day]['q_xprime_given_x']
-            q_x_given_xprime = dict_transition_probabilities[current_participant][current_day]['q_x_given_xprime']
-            ratio = (pi_xprime/pi_x) * (q_x_given_xprime/q_xprime_given_x)
-
-            if ratio == np.inf:
-                acceptance_prob = 1
+        for current_day in all_days: 
+            # Preparation for plotting current set of latent smoking times
+            current_latent_smoking_times = init_dict_latent_data[current_participant][current_day]['hours_since_start_day']
+            # Preparation for plotting observed measurements -- end of day survey
+            any_eod_survey = init_dict_observed_eod_survey[current_participant][current_day]['assessment_begin']
+            current_checked_boxes_eod_survey = init_dict_observed_eod_survey[current_participant][current_day]['ticked_box_scaled']
+            # Preparation for plotting observed measurements -- ema
+            if len(init_dict_observed_ema[current_participant][current_day]['assessment_type'])>0:
+                idx_selfreport = np.where(init_dict_observed_ema[current_participant][current_day]['assessment_type']=='selfreport')
+                idx_random_ema = np.where(init_dict_observed_ema[current_participant][current_day]['assessment_type']=='random_ema')
+                current_selfreport_ema = init_dict_observed_ema[current_participant][current_day]['assessment_begin'][idx_selfreport]        
+                current_random_ema = init_dict_observed_ema[current_participant][current_day]['assessment_begin'][idx_random_ema]     
+                current_random_ema_responses = init_dict_observed_ema[current_participant][current_day]['smoke'][idx_random_ema]   
             else:
-                acceptance_prob = np.min([1,ratio])
+                current_selfreport_ema = np.array([])
+                current_random_ema = np.array([])
+                current_random_ema_responses = np.array([])
             
-            # if decision=1, then accept the proposal
-            # if decision=0, then reject the proposal
-            decision = np.random.choice(a = [0,1], size = 1, p = [1 - acceptance_prob, acceptance_prob])
-            decision = decision[0]
-            current_dict_acceptance_probs.update({current_day:{'ratio':ratio,
-                                                               'acceptance_prob':acceptance_prob,
-                                                               'decision':decision,
-                                                               'x':dict_current_state[current_participant][current_day]['x'],
-                                                               'xprime':dict_proposed_state[current_participant][current_day]['pi_xprime']}})
-        dict_acceptance_probs.update({current_participant:current_dict_acceptance_probs})  
+            # Show plot
+            current_day_length = np.max(init_dict_latent_data[current_participant][current_day]['day_length'])
+            plt.xticks(np.arange(0, current_day_length+1, 1.0))
+            plt.yticks(np.arange(0,1.1,0.1))
+            plt.xlim(0,current_day_length+1.5)
+
+            if len(current_latent_smoking_times)>0:
+                plt.scatter(current_latent_smoking_times, np.repeat(-0.07, len(current_latent_smoking_times)), c = 'black', s=35, marker = 'o', label='Current Latent Smoking Times')
+            
+            
+            if len(current_selfreport_ema)>0:
+                plt.scatter(current_selfreport_ema, np.repeat(-0.18, len(current_selfreport_ema)), s=30, marker = '^', c = 'orange', label='Self-Report EMA')
+
+           
+            if len(current_random_ema)>0:
+                plt.scatter(current_random_ema, np.repeat(-0.18, len(current_random_ema)), s=30, marker = '^', c = 'blue', label='Random EMA')
+                for idx in range(0, len(current_random_ema)):
+                    plt.text(current_random_ema[idx], -0.28, current_random_ema_responses[idx], ha = 'center')
+            
+            
+            if len(any_eod_survey) > 0 and len(current_checked_boxes_eod_survey)==0:
+                plt.text(0,-0.35,"End of Day Survey Completed but No Boxes Checked", ha = 'left')
+            elif len(any_eod_survey)==0:
+                plt.text(0,-0.35,"End of Day Survey Not Completed", ha = 'left')
+            else:
+                pass
+
+            if len(current_checked_boxes_eod_survey)>0:
+                list_seg = []
+                for idx in range(0, len(current_checked_boxes_eod_survey)):
+                    lower_lim = current_checked_boxes_eod_survey[idx]
+                    upper_lim = lower_lim + 1   
+                    
+                    plt.scatter(lower_lim, -.13, marker = '|', s=30, c='g')
+                    plt.scatter(upper_lim, -.13, marker = '|', s=30, c='g')
+
+                    list_seg.append((lower_lim, upper_lim))
+                    list_seg.append((-.13,-.13))
+                    list_seg.append('g')
+                
+                plt.plot(*list_seg)
+
+            plt.xlabel('Hours Elapsed Since Start of Day')
+            if len(current_latent_smoking_times)==1:
+                plt.ylim(bottom=-0.40, top=1.50)
+                plt.scatter(dict_smart_death_pdf['dict_smart_death_pdf'][current_participant][current_day]['grid'][0], 
+                            dict_smart_death_pdf['dict_smart_death_pdf'][current_participant][current_day]['pdf_smart_death'][0], 
+                            s = 50, c = 'red')
+                plt.ylabel('Probability of Moving to New State\n(vs. Remaining in Current State)')
+            else:
+                plt.ylim(bottom=-0.40, top=1.50)
+                plt.scatter(dict_smart_death_pdf['dict_smart_death_pdf'][current_participant][current_day]['grid'], 
+                            np.cumsum(dict_smart_death_pdf['dict_smart_death_pdf'][current_participant][current_day]['pdf_smart_death']), 
+                            s = 50, c = 'red')
+                plt.ylabel('Cumulative Density')
+
+            plt.legend(loc='upper left', prop={'size': 9})
+            for idx in range(0, len(dict_smart_death_pdf['dict_smart_death_pdf'][current_participant][current_day]['grid'])):
+                curr_x = dict_smart_death_pdf['dict_smart_death_pdf'][current_participant][current_day]['grid'][idx]
+                curr_y = np.cumsum(dict_smart_death_pdf['dict_smart_death_pdf'][current_participant][current_day]['pdf_smart_death'])[idx]
+                plt.axvline(x=curr_x, c = 'r', ls = '--')
+
+            plt.savefig(os.path.join(os.path.realpath(dir_picklejar), 'smart_death_cdf_plot', 'smart_death_cdf_{}_{}.jpg'.format(current_participant, current_day)))
+            plt.clf()
 
 
 # %%
-    if True:
-        # Pickle here
-        filename = os.path.join(os.path.realpath(dir_picklejar), 'smart_birth_cdf_plot', 'dict_current_state')
-        outfile = open(filename, 'wb')
-        pickle.dump(dict_current_state, outfile)
-        outfile.close()
 
-        # Pickle here
-        filename = os.path.join(os.path.realpath(dir_picklejar), 'smart_birth_cdf_plot', 'dict_proposed_state')
-        outfile = open(filename, 'wb')
-        pickle.dump(dict_proposed_state, outfile)
-        outfile.close()
-
-        # Pickle here
-        filename = os.path.join(os.path.realpath(dir_picklejar), 'smart_birth_cdf_plot', 'dict_transition_probabilities')
-        outfile = open(filename, 'wb')
-        pickle.dump(dict_transition_probabilities, outfile)
-        outfile.close()
-
-        # Pickle here
-        filename = os.path.join(os.path.realpath(dir_picklejar), 'smart_birth_cdf_plot', 'dict_pdf_smart_birth')
-        outfile = open(filename, 'wb')
-        pickle.dump(dict_pdf_smart_birth, outfile)
-        outfile.close()
-
-        # Pickle here
-        filename = os.path.join(os.path.realpath(dir_picklejar), 'smart_birth_cdf_plot', 'dict_acceptance_probs')
-        outfile = open(filename, 'wb')
-        pickle.dump(dict_acceptance_probs, outfile)
-        outfile.close()
-
-# %%
