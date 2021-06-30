@@ -1399,13 +1399,11 @@ if __name__ == '__main__':
     infile.close()
 
 # %%
-    # Enumerate all unique participant ID's and study days
     all_participant_ids = data_day_limits['participant_id'].unique()
     all_days = data_day_limits['study_day'].unique()
 
-# %%
     all_iter_dict_mh_ratio = {}
-    total_iter = 100
+    total_iter = 10
     
     for current_iter in np.arange(total_iter):
 
@@ -1415,7 +1413,7 @@ if __name__ == '__main__':
                                                       curr_dict_latent_data = init_dict_latent_data,
                                                       curr_dict_observed_ema = init_dict_observed_ema,
                                                       curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                      curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
+                                                      curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
                                                       curr_selfreport_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                       curr_randomema_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                       curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1444,7 +1442,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = init_dict_latent_data,
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
+                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1484,7 +1482,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = tmp_dict_latent_data,
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
+                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1499,7 +1497,7 @@ if __name__ == '__main__':
                         q_xprime_given_x = dict_mh_ratio[current_participant][current_day]['q_xprime_given_x']
                         q_x_given_xprime = dict_mh_ratio[current_participant][current_day]['q_x_given_xprime']
 
-                        mh_ratio = (pi_xprime / pi_x) * (q_xprime_given_x / q_x_given_xprime)
+                        mh_ratio = (pi_xprime / pi_x) * (q_x_given_xprime / q_xprime_given_x)
                         acceptance_prob = np.min([1.0, mh_ratio])
                         decision = np.random.binomial(n=1, p=acceptance_prob, size=1)
                         decision = decision[0]
@@ -1555,7 +1553,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = tmp_dict_latent_data,
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
+                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1568,7 +1566,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = tmp_dict_latent_data, # note this one; this is the configuration of points after proposed deletion
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
+                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1594,7 +1592,7 @@ if __name__ == '__main__':
                         q_xprime_given_x = dict_mh_ratio[current_participant][current_day]['q_xprime_given_x']
                         q_x_given_xprime = dict_mh_ratio[current_participant][current_day]['q_x_given_xprime']
                         
-                        mh_ratio = (pi_xprime / pi_x) * (q_xprime_given_x / q_x_given_xprime)
+                        mh_ratio = (pi_xprime / pi_x) * (q_x_given_xprime / q_xprime_given_x)
                         acceptance_prob = np.min([1.0, mh_ratio])
                         decision = np.random.binomial(n=1, p=acceptance_prob, size=1)
                         decision = decision[0]
@@ -1629,7 +1627,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = init_dict_latent_data,
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
+                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.9, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.9, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1676,7 +1674,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = tmp_dict_latent_data,
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
+                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1692,7 +1690,7 @@ if __name__ == '__main__':
                         q_xprime_given_x = dict_mh_ratio[current_participant][current_day]['q_xprime_given_x']
                         q_x_given_xprime = dict_mh_ratio[current_participant][current_day]['q_x_given_xprime']
 
-                        mh_ratio = (pi_xprime / pi_x) * (q_xprime_given_x / q_x_given_xprime) 
+                        mh_ratio = (pi_xprime / pi_x) * (q_x_given_xprime / q_xprime_given_x) 
                         acceptance_prob = np.min([1.0, mh_ratio])
                         decision = np.random.binomial(n=1, p=acceptance_prob, size=1)
                         decision = decision[0]*1.0
@@ -1754,7 +1752,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = tmp_dict_latent_data,
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
+                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1764,7 +1762,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = tmp_dict_latent_data,
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
+                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.9, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.9, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1788,7 +1786,7 @@ if __name__ == '__main__':
                         q_xprime_given_x = dict_mh_ratio[current_participant][current_day]['q_xprime_given_x']
                         q_x_given_xprime = dict_mh_ratio[current_participant][current_day]['q_x_given_xprime']
 
-                        mh_ratio = (pi_xprime / pi_x) * (q_xprime_given_x / q_x_given_xprime)
+                        mh_ratio = (pi_xprime / pi_x) * (q_x_given_xprime / q_xprime_given_x)
                         acceptance_prob = np.min([1.0, mh_ratio])
                         decision = np.random.binomial(n=1, p=acceptance_prob, size=1) 
                         decision = decision[0]
@@ -1850,7 +1848,7 @@ if __name__ == '__main__':
         current_day_length = np.max(init_dict_latent_data[current_participant][current_day]['day_length'])
         plt.xticks(np.arange(0, current_day_length+1, 1.0))
         plt.yticks(np.arange(0,1.1,0.1))
-        plt.xlim(0,current_day_length+1.5)
+        plt.xlim(-0.20,current_day_length+1.5)
 
         if len(current_latent_smoking_times)>0:
             plt.scatter(current_latent_smoking_times, np.repeat(-0.07, len(current_latent_smoking_times)), c = 'black', s=35, marker = 'o', label='Current Latent Smoking Times')
@@ -1890,6 +1888,7 @@ if __name__ == '__main__':
 
         plt.xlabel('Hours Elapsed Since Start of Day')
         plt.ylabel('')
+        plt.yticks([])
         plt.ylim(bottom=-0.40, top=0.10)
         plt.legend(loc='upper left', prop={'size': 9})
         plt.savefig(os.path.join(os.path.realpath(dir_picklejar), 'plot_current_smoking_times', 'current_smoking_times_{}_{}_iter_{}.jpg'.format(current_participant, current_day, current_iter)))
