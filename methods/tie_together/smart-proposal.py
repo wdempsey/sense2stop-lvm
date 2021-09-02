@@ -88,7 +88,7 @@ class Latent:
 # %%
 class EODSurvey:
     '''
-    A collection of objects and methods related to latent process subcomponent
+    A collection of objects and methods related to end-of-day survey subcomponent
     '''
 
     def __init__(self, participant = None, day = None, latent_data = None, observed_data = None, params = None, index = None):
@@ -235,7 +235,6 @@ class SelfReport:
 
         # Inputs to be checked --------------------------------------------
         all_latent_times = self.latent_data['hours_since_start_day']
-        tot_latent_events = len(all_latent_times)
         tot_ema = len(self.observed_data['assessment_type'])
 
         if tot_ema > 0:
@@ -245,7 +244,7 @@ class SelfReport:
             for i in range(0, tot_ema):
                 current_lb = self.observed_data['assessment_begin_shifted'][i]
                 current_ub = self.observed_data['assessment_begin'][i]
-                current_assessment_type = self.observed_data['assessment_type'][i]
+                #current_assessment_type = self.observed_data['assessment_type'][i]
                 which_within = (remaining_latent_times >= 0) & (remaining_latent_times < current_ub)
                 if np.sum(which_within)>0:
                     which_idx = np.where(which_within)
@@ -399,13 +398,12 @@ class RandomEMA:
 
     def match(self):
         '''
-        Matches each EMA with one latent smoking time occurring before the Self Report EMA
+        Matches each EMA with one latent smoking time occurring before the Random EMA
         After a latent smoking time is matched, it is removed
         '''
 
         # Inputs to be checked --------------------------------------------
         all_latent_times = self.latent_data['hours_since_start_day']
-        tot_latent_events = len(all_latent_times)
         tot_ema = len(self.observed_data['assessment_type'])
 
         if tot_ema > 0:
@@ -415,7 +413,7 @@ class RandomEMA:
             for i in range(0, tot_ema):
                 current_lb = self.observed_data['assessment_begin_shifted'][i]
                 current_ub = self.observed_data['assessment_begin'][i]
-                current_assessment_type = self.observed_data['assessment_type'][i]
+                #current_assessment_type = self.observed_data['assessment_type'][i]
                 which_within = (remaining_latent_times >= 0) & (remaining_latent_times < current_ub)
                 if np.sum(which_within)>0:
                     which_idx = np.where(which_within)
@@ -620,8 +618,8 @@ def get_for_all_current_state_lik(all_participant_ids,
                                       params = copy.deepcopy(curr_randomema_params))
 
             # Calculate likelihood
-            selfreport_obj.match()
-            randomema_obj.match()
+            selfreport_obj.match() # this line
+            randomema_obj.match() # and this line should yield the same output
             total_loglik = latent_obj.calc_loglik() + eodsurvey_obj.calc_loglik() + selfreport_obj.calc_loglik() + randomema_obj.calc_loglik()
             total_lik = np.exp(total_loglik)
             current_dict.update({this_day:{'x':curr_dict_latent_data[this_participant][this_day]['hours_since_start_day'],
@@ -1399,8 +1397,13 @@ if __name__ == '__main__':
     infile.close()
 
 # %%
-    all_participant_ids = data_day_limits['participant_id'].unique()
-    all_days = data_day_limits['study_day'].unique()
+    # Enumerate all unique participant ID's and study days
+    use_this_participant = None
+    use_this_day = None
+    all_participant_ids = data_day_limits['participant_id'].unique() # [use_this_participant]
+    all_days = data_day_limits['study_day'].unique() # [use_this_day]
+
+# %%
 
     all_iter_dict_mh_ratio = {}
     total_iter = 10
@@ -1413,7 +1416,7 @@ if __name__ == '__main__':
                                                       curr_dict_latent_data = init_dict_latent_data,
                                                       curr_dict_observed_ema = init_dict_observed_ema,
                                                       curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                      curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
+                                                      curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
                                                       curr_selfreport_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                       curr_randomema_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                       curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1442,7 +1445,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = init_dict_latent_data,
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
+                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1482,7 +1485,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = tmp_dict_latent_data,
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
+                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1553,7 +1556,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = tmp_dict_latent_data,
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
+                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1566,7 +1569,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = tmp_dict_latent_data, # note this one; this is the configuration of points after proposed deletion
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
+                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1627,7 +1630,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = init_dict_latent_data,
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
+                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.9, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.9, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1674,7 +1677,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = tmp_dict_latent_data,
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
+                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1752,7 +1755,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = tmp_dict_latent_data,
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
+                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.90, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1762,7 +1765,7 @@ if __name__ == '__main__':
                                                                curr_dict_latent_data = tmp_dict_latent_data,
                                                                curr_dict_observed_ema = init_dict_observed_ema,
                                                                curr_dict_observed_eod_survey = init_dict_observed_eod_survey,
-                                                               curr_latent_params = {'lambda_prequit':3, 'lambda_postquit':3},
+                                                               curr_latent_params = {'lambda_prequit':1, 'lambda_postquit':1},
                                                                curr_selfreport_params = {'prob_reporting_when_any': 0.9, 'prob_reporting_when_none': 0.01, 'lambda_delay': 0.5, 'sd': 30/60},
                                                                curr_randomema_params = {'prob_reporting_when_any': 0.9, 'prob_reporting_when_none': 0.01, 'sd': 30/60},
                                                                curr_eodsurvey_params = {'recall_epsilon':3, 'sd': 60/60, 'rho':0.8, 'budget':10})
@@ -1811,6 +1814,7 @@ if __name__ == '__main__':
 
 
     # %%
+    # Plot an example
     current_participant = all_participant_ids[0] #None
     current_day = all_days[0] #None
 
@@ -1890,6 +1894,7 @@ if __name__ == '__main__':
         plt.ylabel('')
         plt.yticks([])
         plt.ylim(bottom=-0.40, top=0.10)
+        plt.text(current_day_length, 0.06, 'Iteration # {}'.format(current_iter), ha = 'right')
         plt.legend(loc='upper left', prop={'size': 9})
         plt.savefig(os.path.join(os.path.realpath(dir_picklejar), 'plot_current_smoking_times', 'current_smoking_times_{}_{}_iter_{}.jpg'.format(current_participant, current_day, current_iter)))
         plt.clf()
@@ -1905,3 +1910,4 @@ if __name__ == '__main__':
 
 # %%
 
+    
