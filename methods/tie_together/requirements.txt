@@ -3,7 +3,7 @@ colorama==0.4.4
 cycler==0.10.0
 decorator==4.4.2
 ipykernel==5.5.0
-ipython==7.21.0
+ipython==7.31.1
 ipython-genutils==0.2.0
 jedi==0.18.0
 jupyter-client==6.1.11
